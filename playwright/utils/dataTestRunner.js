@@ -6,7 +6,7 @@
  */
 
 const { test } = require('./baseTest');
-const TestDataLoader = require('./testDataLoader');
+const testDataLoader = /** @type {any} */ (require('./testDataLoader'));
 const { logger } = require('./testLogger');
 
 /**
@@ -42,7 +42,6 @@ const moduleLogger = {
  */
 function dataTest(title, dataSource, testFn) {
   // Load data if a string (file name) is provided
-  const testDataLoader = new TestDataLoader();
   const testData = typeof dataSource === 'string'
     ? testDataLoader.loadJson(dataSource)
     : dataSource;
