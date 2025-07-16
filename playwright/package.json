@@ -1,0 +1,52 @@
+{
+  "name": "undergrad-playwright",
+  "version": "1.0.0",
+  "description": "Playwright Test Framework for Undergraduate Application",
+  "main": "index.js",
+  "scripts": {
+    "test": "playwright test",
+    "test:chrome": "playwright test --project=chromium",
+    "test:firefox": "playwright test --project=firefox",
+    "test:safari": "playwright test --project=webkit",
+    "test:edge": "playwright test --project=msedge",
+    "test:headed": "playwright test --headed",
+    "test:debug": "playwright test --debug",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "install:browsers": "playwright install",
+    "lint": "eslint ."
+  },
+  "keywords": [
+    "playwright",
+    "testing",
+    "e2e",
+    "automation"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "@types/node": "^20.8.6",
+    "@types/pngjs": "^6.0.5",
+    "allure-playwright": "^2.8.1",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.3.1",
+    "eslint": "^8.51.0",
+    "eslint-plugin-playwright": "^0.18.0",
+    "prettier": "^3.0.3",
+    "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@faker-js/faker": "^9.9.0",
+    "axios": "^1.5.1",
+    "csv-parse": "^5.5.2",
+    "d3-dsv": "^3.0.1",
+    "exceljs": "^4.3.0",
+    "pixelmatch": "^7.1.0",
+    "pngjs": "^7.0.0",
+    "winston": "^3.11.0"
+  },
+  "directories": {
+    "test": "tests"
+  }
+}
