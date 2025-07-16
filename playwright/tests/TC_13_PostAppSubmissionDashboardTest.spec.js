@@ -49,8 +49,7 @@ test.describe('Post-Application Submission Dashboard Tests', () => {
     });
     
     test('Verify QTR link functionality', async () => {
-        // Skip if running in CI environment
-        test.skip(process.env.CI, 'Skipping external links test in CI environment');
+        test.skip(!!process.env.CI, 'Skipping external links test in CI environment');
         
         // Click on QTR link and verify it opens correctly
         const isQtrLinkValid = await dashboardPage.clickQTRLink();
@@ -58,8 +57,7 @@ test.describe('Post-Application Submission Dashboard Tests', () => {
     });
     
     test('Verify Transcripts link functionality', async () => {
-        // Skip if running in CI environment
-        test.skip(process.env.CI, 'Skipping external links test in CI environment');
+        test.skip(!!process.env.CI, 'Skipping external links test in CI environment');
         
         // Click on Transcripts link and verify it opens correctly
         const isTranscriptsLinkValid = await dashboardPage.clickTranscriptsLink();
@@ -67,8 +65,7 @@ test.describe('Post-Application Submission Dashboard Tests', () => {
     });
     
     test('Verify FAFSA link functionality', async () => {
-        // Skip if running in CI environment
-        test.skip(process.env.CI, 'Skipping external links test in CI environment');
+        test.skip(!!process.env.CI, 'Skipping external links test in CI environment');
         
         // Click on FAFSA link and verify it opens correctly
         const isFafsaLinkValid = await dashboardPage.clickFafsaLink();
@@ -112,8 +109,7 @@ test.describe('Post-Application Submission Dashboard Tests', () => {
     });
     
     test('Verify all external links on the page', async () => {
-        // Skip if running in CI environment
-        test.skip(process.env.CI, 'Skipping external links test in CI environment');
+        test.skip(!!process.env.CI, 'Skipping external links test in CI environment');
         
         // Verify all external links
         const linkResults = await dashboardPage.verifyAllExternalLinks();

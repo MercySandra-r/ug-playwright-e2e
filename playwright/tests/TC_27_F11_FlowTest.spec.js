@@ -5,10 +5,10 @@ const VerifyEmailPage = require('../pages/VerifyEmailPage');
 const LoginPage = require('../pages/LoginPage');
 const PreAppDashboardPage = require('../pages/PreAppDashboardPage');
 const MyInformationPage = require('../pages/MyInformationPage');
-const MyProgramPage = require('../pages/MyProgramPage');
+const MyASUProgramPage = require('../pages/MyASUProgramPage');
 const MySchoolsPage = require('../pages/MySchoolsPage');
 const MyHighSchoolGradesPage = require('../pages/MyHighSchoolGradesPage');
-const ArizonaResidencyPage = require('../pages/ArizonaResidencyPage');
+const AZResidencyPage = require('../pages/AZResidencyPage');
 const ReviewPage = require('../pages/ReviewPage');
 const PreviewPage = require('../pages/PreviewPage');
 const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashboardPage');
@@ -89,7 +89,7 @@ test.describe('F11 Flow: VUS_InPerson_FGD_Resident', () => {
   let loginPage;
   let preAppDashboardPage;
   let myInformationPage;
-  let myProgramPage;
+  let myASUProgramPage;
   let mySchoolsPage;
   let myHighSchoolGradesPage;
   let arizonaResidencyPage;
@@ -104,10 +104,10 @@ test.describe('F11 Flow: VUS_InPerson_FGD_Resident', () => {
     loginPage = new LoginPage(page);
     preAppDashboardPage = new PreAppDashboardPage(page);
     myInformationPage = new MyInformationPage(page);
-    myProgramPage = new MyProgramPage(page);
+    myASUProgramPage = new MyASUProgramPage(page);
     mySchoolsPage = new MySchoolsPage(page);
     myHighSchoolGradesPage = new MyHighSchoolGradesPage(page);
-    arizonaResidencyPage = new ArizonaResidencyPage(page);
+    arizonaResidencyPage = new AZResidencyPage(page);
     reviewPage = new ReviewPage(page);
     previewPage = new PreviewPage(page);
     postAppDashboardPage = new PostAppSubmissionDashboardPage(page);
@@ -190,13 +190,13 @@ test.describe('F11 Flow: VUS_InPerson_FGD_Resident', () => {
     await myInformationPage.saveAndContinue();
     
     // ===== My Program Page =====
-    await myProgramPage.verifyPageLoaded();
+    await myASUProgramPage.verifyPageLoaded();
     
     // Verify selected degree type
-    await myProgramPage.verifySelectedDegreeType(testData.programInfo.degreeType);
+    await myASUProgramPage.verifySelectedDegreeType(testData.programInfo.degreeType);
     
     // Select In-Person Non-Degree program (specific to this flow)
-    await myProgramPage.selectProgram({
+    await myASUProgramPage.selectProgram({
       degreeType: testData.programInfo.degreeType,
       program: testData.programInfo.program, // In-Person Non-Degree
       startTerm: testData.programInfo.startTerm,
@@ -204,7 +204,7 @@ test.describe('F11 Flow: VUS_InPerson_FGD_Resident', () => {
     });
     
     // Save and continue
-    await myProgramPage.saveAndContinue();
+    await myASUProgramPage.saveAndContinue();
     
     // ===== My Schools Page =====
     await mySchoolsPage.verifyPageLoaded();
@@ -295,7 +295,7 @@ test.describe('F11 Flow: VUS_InPerson_FGD_Resident', () => {
     await previewPage.submitApplication();
     
     // ===== Post-Submission Dashboard =====
-    await postAppSubmissionDashboardPage.verifyPageLoaded();
+    await postAppDashboardPage.verifyPageLoaded();
     
     // Verify application status is submitted
     const { status, date } = await postAppDashboardPage.getApplicationStatus();

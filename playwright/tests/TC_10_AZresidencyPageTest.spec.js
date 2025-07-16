@@ -130,8 +130,7 @@ test.describe('AZ Residency Page Tests', () => {
     });
 
     test('Upload a document', async () => {
-        // Skip if running in CI environment without file access
-        test.skip(process.env.CI, 'Skipping file upload test in CI environment');
+        test.skip(!!process.env.CI, 'Skipping file upload test in CI environment');
         
         const testDocument = testDocuments[0];
         const filePath = path.join(__dirname, 'test-data', testDocument.name);
@@ -162,8 +161,7 @@ test.describe('AZ Residency Page Tests', () => {
     });
 
     test('Remove a document', async () => {
-        // Skip if running in CI environment without file access
-        test.skip(process.env.CI, 'Skipping file upload test in CI environment');
+        test.skip(!!process.env.CI, 'Skipping file upload test in CI environment');
         
         const testDocument = testDocuments[0];
         const filePath = path.join(__dirname, 'test-data', testDocument.name);
@@ -248,8 +246,7 @@ test.describe('AZ Residency Page Tests', () => {
     });
 
     test('Verify document upload validation', async () => {
-        // Skip if running in CI environment without file access
-        test.skip(process.env.CI, 'Skipping file upload test in CI environment');
+        test.skip(!!process.env.CI, 'Skipping file upload test in CI environment');
         
         // Try to upload a document without selecting a file
         await azResidencyPage.page.selectOption(azResidencyPage.selectors.documentTypeDropdown, 'proof_of_residence');
@@ -261,8 +258,7 @@ test.describe('AZ Residency Page Tests', () => {
     });
 
     test('Verify document type validation', async () => {
-        // Skip if running in CI environment without file access
-        test.skip(process.env.CI, 'Skipping file upload test in CI environment');
+        test.skip(!!process.env.CI, 'Skipping file upload test in CI environment');
         
         const testDocument = testDocuments[0];
         const filePath = path.join(__dirname, 'test-data', testDocument.name);

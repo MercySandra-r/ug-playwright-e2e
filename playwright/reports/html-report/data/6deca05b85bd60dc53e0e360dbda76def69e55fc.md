@@ -1,0 +1,106 @@
+# Page snapshot
+
+```yaml
+- link "Skip to Main Content":
+  - /url: "#main-content"
+- banner:
+  - navigation:
+    - link "Home":
+      - /url: /
+      - img "ASU Logo"
+- paragraph:
+  - strong: Help us improve the application and your admission experience.
+  - link "Provide feedback":
+    - /url: javascript:void(0)
+  - text: .
+- main:
+  - text: Your browser does not support the video tag.
+  - heading "Apply to ASU" [level=1]
+  - paragraph: Your ASU undergraduate journey starts here
+  - button "Pause video"
+  - button "View application details"
+  - paragraph: Pursuing a graduate degree?
+  - link "Apply here":
+    - /url: javascript:void(0)
+  - separator
+  - heading "Get started" [level=2]
+  - paragraph: Already have an account or an ASURITE ID?
+  - link "Log in":
+    - /url: /user/login
+  - group "How would you like to attend asu?":
+    - text: How would you like to attend ASU?
+    - paragraph: You can change this later, if you need.
+    - radiogroup "In-person In-person I want to take most of my classes on campus or through ASU Sync. Open Learn more":
+      - radio "In-person In-person I want to take most of my classes on campus or through ASU Sync. Open Learn more" [checked]:
+        - img "In-person"
+        - heading "In-person" [level=3]
+        - paragraph: I want to take most of my classes on campus or through ASU Sync.
+        - button "Open Learn more": Learn more
+    - radiogroup "Online Online I want to take most of my classes online where I can access my coursework anytime, anywhere. Open Learn more":
+      - radio "Online Online I want to take most of my classes online where I can access my coursework anytime, anywhere. Open Learn more":
+        - img "Online"
+        - heading "Online" [level=3]
+        - paragraph: I want to take most of my classes online where I can access my coursework anytime, anywhere.
+        - button "Open Learn more": Learn more
+  - separator
+  - heading "Are you pursuing a degree or only interested in taking classes?" [level=3]
+  - paragraph:
+    - text: If you are visiting from another college or university, select the nondegree or visiting option.
+    - link "Learn more":
+      - /url: https://admission.asu.edu/visiting
+  - radiogroup "Yes, I want to pursue an associate or bachelor's degree.":
+    - radio "Yes, I want to pursue an associate or bachelor's degree."
+  - radiogroup "No, I want to take individual classes as a nondegree or visiting university student.":
+    - radio "No, I want to take individual classes as a nondegree or visiting university student."
+  - region "Application details":
+    - heading "Application details" [level=2]
+    - region "Time to apply":
+      - img "Time to apply"
+      - paragraph: Time to apply
+      - paragraph: Allow about 30 minutes to complete your application. You can save your application and come back later.
+    - region "Application fee":
+      - img "Application fee"
+      - paragraph: Application fee
+      - text: Arizona residents:$50 Domestic nonresidents:$80 International nonresidents:$85 ASU Online:$70
+    - region "School info":
+      - img "School info"
+      - paragraph: School info
+      - paragraph: It will be handy to have your high school and previous college information available.
+    - region "Help":
+      - img "Help"
+      - paragraph: Help
+      - paragraph: "Email:"
+      - 'link "Help section: Email:. Link: admissions@asu.edu"':
+        - /url: mailto:admissions@asu.edu
+        - text: admissions@asu.edu
+      - paragraph: "Phone:"
+      - 'link "Help section: Phone:. Link: 480-965-7788"':
+        - /url: tel:+1-480-965-7788
+        - text: 480-965-7788
+      - paragraph: Monday, 8 a.m.–4 p.m
+      - paragraph: Tuesday–Friday, 8 a.m.–5 p.m. (Arizona time)
+- contentinfo:
+  - navigation:
+    - link "Maps and Locations":
+      - /url: https://www.asu.edu/map/interactive/
+    - link "Jobs":
+      - /url: https://www.asu.edu/asujobs
+    - link "Directory":
+      - /url: https://isearch.asu.edu/asu-people/
+    - link "Contact ASU":
+      - /url: https://www.asu.edu/contactasu/
+    - link "My ASU":
+      - /url: https://my.asu.edu/
+  - 'img "Number one in the U.S. for innovation. #1 ASU, #2 Stanford, #3 MIT. - U.S. News and World Report, 9 years, 2016-2024"'
+  - navigation "University Legal and Compliance":
+    - link "Copyright and Trademark":
+      - /url: https://www.asu.edu/copyright/
+    - link "Accessibility":
+      - /url: https://www.asu.edu/accessibility/
+    - link "Privacy":
+      - /url: https://www.asu.edu/privacy/
+    - link "Terms of Use":
+      - /url: https://www.asu.edu/tou/
+    - link "Emergency":
+      - /url: https://www.asu.edu/emergency/
+```

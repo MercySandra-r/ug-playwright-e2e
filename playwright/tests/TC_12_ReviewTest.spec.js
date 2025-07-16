@@ -171,8 +171,7 @@ test.describe('Review Page Tests', () => {
     });
     
     test('Verify external links', async () => {
-        // Skip if running in CI environment
-        test.skip(process.env.CI, 'Skipping external links test in CI environment');
+        test.skip(!!process.env.CI, 'Skipping external links test in CI environment');
         
         // Verify all external links
         const linkResults = await reviewPage.verifyExternalLinks();
@@ -186,8 +185,7 @@ test.describe('Review Page Tests', () => {
     });
     
     test('Compare profile section with Excel data', async () => {
-        // Skip if running in CI environment without file access
-        test.skip(process.env.CI, 'Skipping Excel comparison test in CI environment');
+        test.skip(!!process.env.CI, 'Skipping Excel comparison test in CI environment');
         
         // Path to the Excel file
         const excelFilePath = path.join(__dirname, 'test-data', 'review-data.xlsx');
@@ -212,8 +210,7 @@ test.describe('Review Page Tests', () => {
     });
     
     test('Submit application with confirmation', async () => {
-        // Skip if running in CI environment
-        test.skip(process.env.CI, 'Skipping application submission test in CI environment');
+        test.skip(!!process.env.CI, 'Skipping application submission test in CI environment');
         
         // Select a payment method
         await reviewPage.selectPaymentMethod('visa');
