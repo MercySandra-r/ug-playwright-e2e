@@ -160,20 +160,20 @@
   },
   "suites": [
     {
-      "title": "TC_17_F1_Greater24_US_Res_SpouseDependent_FutureGrad_InstateSchool_OOS_ABOR.spec.js",
-      "file": "TC_17_F1_Greater24_US_Res_SpouseDependent_FutureGrad_InstateSchool_OOS_ABOR.spec.js",
+      "title": "TC_01_LandingPageTest.spec.js",
+      "file": "TC_01_LandingPageTest.spec.js",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "F1 Flow: Greater24_US_Res_SpouseDependent_FutureGrad_InstateSchool_OOS_ABOR",
-          "file": "TC_17_F1_Greater24_US_Res_SpouseDependent_FutureGrad_InstateSchool_OOS_ABOR.spec.js",
-          "line": 77,
+          "title": "Landing Page Tests",
+          "file": "TC_01_LandingPageTest.spec.js",
+          "line": 6,
           "column": 6,
           "specs": [
             {
-              "title": "Complete F1 flow: Greater24_US_Res_SpouseDependent_FutureGrad_InstateSchool_OOS_ABOR",
+              "title": "Verify landing page elements and navigation",
               "ok": false,
               "tags": [],
               "tests": [
@@ -185,28 +185,28 @@
                   "projectName": "chromium",
                   "results": [
                     {
-                      "workerIndex": 17,
+                      "workerIndex": 1,
                       "parallelIndex": 0,
                       "status": "failed",
-                      "duration": 27965,
+                      "duration": 17531,
                       "error": {
-                        "message": "TypeError: landingPage.verifyPageLoaded is not a function",
-                        "stack": "TypeError: landingPage.verifyPageLoaded is not a function\n    at H:\\ug-mig\\playwright\\tests\\TC_17_F1_Greater24_US_Res_SpouseDependent_FutureGrad_InstateSchool_OOS_ABOR.spec.js:110:23",
+                        "message": "Error: Element div[role=\"main\"] should be visible\n\n\u001b[31mTimed out 10000ms waiting for \u001b[39m\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m\n\nLocator: locator('div[role=\"main\"]')\nExpected: visible\nReceived: <element(s) not found>\nCall log:\n\u001b[2m  - Expect \"Element div[role=\\\"main\\\"] should be visible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('div[role=\"main\"]')\u001b[22m\n",
+                        "stack": "Error: Element div[role=\"main\"] should be visible\n\n\u001b[31mTimed out 10000ms waiting for \u001b[39m\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m\n\nLocator: locator('div[role=\"main\"]')\nExpected: visible\nReceived: <element(s) not found>\nCall log:\n\u001b[2m  - Expect \"Element div[role=\\\"main\\\"] should be visible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('div[role=\"main\"]')\u001b[22m\n\n    at ElementAssertUtils.assertVisible (H:\\ug-mig\\playwright\\utils\\elementAssertUtils.js:34:81)\n    at LandingPage.validateViewAppDetails (H:\\ug-mig\\playwright\\pages\\LandingPage.js:228:30)\n    at H:\\ug-mig\\playwright\\tests\\TC_01_LandingPageTest.spec.js:26:7\n    at H:\\ug-mig\\playwright\\tests\\TC_01_LandingPageTest.spec.js:25:5",
                         "location": {
-                          "file": "H:\\ug-mig\\playwright\\tests\\TC_17_F1_Greater24_US_Res_SpouseDependent_FutureGrad_InstateSchool_OOS_ABOR.spec.js",
-                          "column": 23,
-                          "line": 110
+                          "file": "H:\\ug-mig\\playwright\\utils\\elementAssertUtils.js",
+                          "column": 81,
+                          "line": 34
                         },
-                        "snippet": "\u001b[0m \u001b[90m 108 |\u001b[39m     \u001b[90m// Step 1: Navigate to landing page and start application\u001b[39m\n \u001b[90m 109 |\u001b[39m     \u001b[36mawait\u001b[39m landingPage\u001b[33m.\u001b[39mnavigateToLandingPage()\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 110 |\u001b[39m     \u001b[36mawait\u001b[39m landingPage\u001b[33m.\u001b[39mverifyPageLoaded()\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                       \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 111 |\u001b[39m     \n \u001b[90m 112 |\u001b[39m     \u001b[90m// Choose in-person mode of learning and degree type\u001b[39m\n \u001b[90m 113 |\u001b[39m     \u001b[36mawait\u001b[39m landingPage\u001b[33m.\u001b[39mchooseInPersonMOL()\u001b[33m;\u001b[39m\u001b[0m"
+                        "snippet": "\u001b[90m   at \u001b[39m..\\utils\\elementAssertUtils.js:34\n\n\u001b[0m \u001b[90m 32 |\u001b[39m       \n \u001b[90m 33 |\u001b[39m       \u001b[36mconst\u001b[39m locator \u001b[33m=\u001b[39m \u001b[36mthis\u001b[39m\u001b[33m.\u001b[39mpage\u001b[33m.\u001b[39mlocator(selector)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 34 |\u001b[39m       \u001b[36mawait\u001b[39m expect(locator\u001b[33m,\u001b[39m message \u001b[33m||\u001b[39m \u001b[32m`Element ${selector} should be visible`\u001b[39m)\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 35 |\u001b[39m       \n \u001b[90m 36 |\u001b[39m       logger\u001b[33m.\u001b[39mdebug(\u001b[32m`Element is visible: ${selector}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 37 |\u001b[39m     } \u001b[36mcatch\u001b[39m (error) {\u001b[0m"
                       },
                       "errors": [
                         {
                           "location": {
-                            "file": "H:\\ug-mig\\playwright\\tests\\TC_17_F1_Greater24_US_Res_SpouseDependent_FutureGrad_InstateSchool_OOS_ABOR.spec.js",
-                            "column": 23,
-                            "line": 110
+                            "file": "H:\\ug-mig\\playwright\\utils\\elementAssertUtils.js",
+                            "column": 81,
+                            "line": 34
                           },
-                          "message": "TypeError: landingPage.verifyPageLoaded is not a function\n\n\u001b[0m \u001b[90m 108 |\u001b[39m     \u001b[90m// Step 1: Navigate to landing page and start application\u001b[39m\n \u001b[90m 109 |\u001b[39m     \u001b[36mawait\u001b[39m landingPage\u001b[33m.\u001b[39mnavigateToLandingPage()\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 110 |\u001b[39m     \u001b[36mawait\u001b[39m landingPage\u001b[33m.\u001b[39mverifyPageLoaded()\u001b[33m;\u001b[39m\n \u001b[90m     |\u001b[39m                       \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 111 |\u001b[39m     \n \u001b[90m 112 |\u001b[39m     \u001b[90m// Choose in-person mode of learning and degree type\u001b[39m\n \u001b[90m 113 |\u001b[39m     \u001b[36mawait\u001b[39m landingPage\u001b[33m.\u001b[39mchooseInPersonMOL()\u001b[33m;\u001b[39m\u001b[0m\n\u001b[2m    at H:\\ug-mig\\playwright\\tests\\TC_17_F1_Greater24_US_Res_SpouseDependent_FutureGrad_InstateSchool_OOS_ABOR.spec.js:110:23\u001b[22m"
+                          "message": "Error: Element div[role=\"main\"] should be visible\n\n\u001b[31mTimed out 10000ms waiting for \u001b[39m\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m\n\nLocator: locator('div[role=\"main\"]')\nExpected: visible\nReceived: <element(s) not found>\nCall log:\n\u001b[2m  - Expect \"Element div[role=\\\"main\\\"] should be visible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('div[role=\"main\"]')\u001b[22m\n\n\n\u001b[90m   at \u001b[39m..\\utils\\elementAssertUtils.js:34\n\n\u001b[0m \u001b[90m 32 |\u001b[39m       \n \u001b[90m 33 |\u001b[39m       \u001b[36mconst\u001b[39m locator \u001b[33m=\u001b[39m \u001b[36mthis\u001b[39m\u001b[33m.\u001b[39mpage\u001b[33m.\u001b[39mlocator(selector)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 34 |\u001b[39m       \u001b[36mawait\u001b[39m expect(locator\u001b[33m,\u001b[39m message \u001b[33m||\u001b[39m \u001b[32m`Element ${selector} should be visible`\u001b[39m)\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 35 |\u001b[39m       \n \u001b[90m 36 |\u001b[39m       logger\u001b[33m.\u001b[39mdebug(\u001b[32m`Element is visible: ${selector}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 37 |\u001b[39m     } \u001b[36mcatch\u001b[39m (error) {\u001b[0m\n\u001b[2m    at ElementAssertUtils.assertVisible (H:\\ug-mig\\playwright\\utils\\elementAssertUtils.js:34:81)\u001b[22m\n\u001b[2m    at LandingPage.validateViewAppDetails (H:\\ug-mig\\playwright\\pages\\LandingPage.js:228:30)\u001b[22m\n\u001b[2m    at H:\\ug-mig\\playwright\\tests\\TC_01_LandingPageTest.spec.js:26:7\u001b[22m\n\u001b[2m    at H:\\ug-mig\\playwright\\tests\\TC_01_LandingPageTest.spec.js:25:5\u001b[22m"
                         }
                       ],
                       "stdout": [
@@ -220,43 +220,78 @@
                           "text": "[DEBUG] Checking if element is visible: [data-cy=\"progress-bar\"]\n"
                         },
                         {
-                          "text": "Cleanup - User was not signed in or sign out failed: page.click: Timeout 15000ms exceeded.\nCall log:\n\u001b[2m  - waiting for locator('[data-cy=\"profile-icon\"]')\u001b[22m\n\n"
+                          "text": "[INFO] Validating View Application Details functionality\n"
+                        },
+                        {
+                          "text": "[DEBUG] Asserting element is visible: button:has-text(\"View Application Details\")\n"
+                        },
+                        {
+                          "text": "[DEBUG] Element is visible: button:has-text(\"View Application Details\")\n"
+                        },
+                        {
+                          "text": "[DEBUG] View application details button is present on the landing page\n"
+                        },
+                        {
+                          "text": "[DEBUG] Clicking element: button:has-text(\"View Application Details\")\n"
+                        },
+                        {
+                          "text": "[DEBUG] Asserting element is visible: div[role=\"main\"]\n"
                         }
                       ],
-                      "stderr": [],
+                      "stderr": [
+                        {
+                          "text": "[ERROR] Element visibility assertion failed: div[role=\"main\"] ExpectError: Element div[role=\"main\"] should be visible\n\n\u001b[31mTimed out 10000ms waiting for \u001b[39m\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m\n\nLocator: locator('div[role=\"main\"]')\nExpected: visible\nReceived: <element(s) not found>\nCall log:\n\u001b[2m  - Expect \"Element div[role=\\\"main\\\"] should be visible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('div[role=\"main\"]')\u001b[22m\n\n    at ElementAssertUtils.assertVisible \u001b[90m(H:\\ug-mig\\playwright\\\u001b[39mutils\\elementAssertUtils.js:34:81\u001b[90m)\u001b[39m\n    at LandingPage.validateViewAppDetails \u001b[90m(H:\\ug-mig\\playwright\\\u001b[39mpages\\LandingPage.js:228:30\u001b[90m)\u001b[39m\n    at \u001b[90mH:\\ug-mig\\playwright\\\u001b[39mtests\\TC_01_LandingPageTest.spec.js:26:7\n    at \u001b[90mH:\\ug-mig\\playwright\\\u001b[39mtests\\TC_01_LandingPageTest.spec.js:25:5 {\n  matcherResult: {\n    message: \u001b[32m'\\x1B[31mTimed out 10000ms waiting for \\x1B[39m\\x1B[2mexpect(\\x1B[22m\\x1B[31mlocator\\x1B[39m\\x1B[2m).\\x1B[22mtoBeVisible\\x1B[2m()\\x1B[22m\\n'\u001b[39m +\n      \u001b[32m'\\n'\u001b[39m +\n      \u001b[32m`Locator: locator('div[role=\"main\"]')\\n`\u001b[39m +\n      \u001b[32m'Expected: visible\\n'\u001b[39m +\n      \u001b[32m'Received: <element(s) not found>\\n'\u001b[39m +\n      \u001b[32m'Call log:\\n'\u001b[39m +\n      \u001b[32m'\\x1B[2m  - Expect \"Element div[role=\\\\\"main\\\\\"] should be visible\" with timeout 10000ms\\x1B[22m\\n'\u001b[39m +\n      \u001b[32m`\\x1B[2m  - waiting for locator('div[role=\"main\"]')\\x1B[22m\\n`\u001b[39m,\n    pass: \u001b[33mfalse\u001b[39m,\n    actual: \u001b[32m'<element(s) not found>'\u001b[39m,\n    name: \u001b[32m'toBeVisible'\u001b[39m,\n    expected: \u001b[32m'visible'\u001b[39m,\n    log: [\n      \u001b[32m'  - Expect \"Element div[role=\\\\\"main\\\\\"] should be visible\" with timeout 10000ms'\u001b[39m,\n      \u001b[32m`  - waiting for locator('div[role=\"main\"]')`\u001b[39m\n    ],\n    timeout: \u001b[33m10000\u001b[39m\n  },\n  [\u001b[32mSymbol(step)\u001b[39m]: {\n    stepId: \u001b[32m'expect@17'\u001b[39m,\n    category: \u001b[32m'expect'\u001b[39m,\n    apiName: \u001b[32m'expect.toBeVisible'\u001b[39m,\n    title: \u001b[32m'Element div[role=\"main\"] should be visible'\u001b[39m,\n    params: \u001b[90mundefined\u001b[39m,\n    infectParentStepsWithError: \u001b[90mundefined\u001b[39m,\n    boxedStack: \u001b[90mundefined\u001b[39m,\n    location: {\n      file: \u001b[32m'H:\\\\ug-mig\\\\playwright\\\\utils\\\\elementAssertUtils.js'\u001b[39m,\n      line: \u001b[33m34\u001b[39m,\n      column: \u001b[33m81\u001b[39m,\n      function: \u001b[32m'ElementAssertUtils.assertVisible'\u001b[39m\n    },\n    steps: [],\n    attachmentIndices: [],\n    info: TestStepInfoImpl {\n      annotations: [],\n      _testInfo: \u001b[36m[TestInfoImpl]\u001b[39m,\n      _stepId: \u001b[32m'expect@17'\u001b[39m,\n      skip: \u001b[36m[Function (anonymous)]\u001b[39m\n    },\n    complete: \u001b[36m[Function: complete]\u001b[39m,\n    endWallTime: \u001b[33m1752739844732\u001b[39m,\n    error: {\n      message: \u001b[32m'Error: Element div[role=\"main\"] should be visible\\n'\u001b[39m +\n        \u001b[32m'\\n'\u001b[39m +\n        \u001b[32m'\\x1B[31mTimed out 10000ms waiting for \\x1B[39m\\x1B[2mexpect(\\x1B[22m\\x1B[31mlocator\\x1B[39m\\x1B[2m).\\x1B[22mtoBeVisible\\x1B[2m()\\x1B[22m\\n'\u001b[39m +\n        \u001b[32m'\\n'\u001b[39m +\n        \u001b[32m`Locator: locator('div[role=\"main\"]')\\n`\u001b[39m +\n        \u001b[32m'Expected: visible\\n'\u001b[39m +\n        \u001b[32m'Received: <element(s) not found>\\n'\u001b[39m +\n        \u001b[32m'Call log:\\n'\u001b[39m +\n        \u001b[32m'\\x1B[2m  - Expect \"Element div[role=\\\\\"main\\\\\"] should be visible\" with timeout 10000ms\\x1B[22m\\n'\u001b[39m +\n        \u001b[32m`\\x1B[2m  - waiting for locator('div[role=\"main\"]')\\x1B[22m\\n`\u001b[39m,\n      stack: \u001b[32m'Error: Element div[role=\"main\"] should be visible\\n'\u001b[39m +\n        \u001b[32m'\\n'\u001b[39m +\n        \u001b[32m'\\x1B[31mTimed out 10000ms waiting for \\x1B[39m\\x1B[2mexpect(\\x1B[22m\\x1B[31mlocator\\x1B[39m\\x1B[2m).\\x1B[22mtoBeVisible\\x1B[2m()\\x1B[22m\\n'\u001b[39m +\n        \u001b[32m'\\n'\u001b[39m +\n        \u001b[32m`Locator: locator('div[role=\"main\"]')\\n`\u001b[39m +\n        \u001b[32m'Expected: visible\\n'\u001b[39m +\n        \u001b[32m'Received: <element(s) not found>\\n'\u001b[39m +\n        \u001b[32m'Call log:\\n'\u001b[39m +\n        \u001b[32m'\\x1B[2m  - Expect \"Element div[role=\\\\\"main\\\\\"] should be visible\" with timeout 10000ms\\x1B[22m\\n'\u001b[39m +\n        \u001b[32m`\\x1B[2m  - waiting for locator('div[role=\"main\"]')\\x1B[22m\\n`\u001b[39m +\n        \u001b[32m'\\n'\u001b[39m +\n        \u001b[32m'    at ElementAssertUtils.assertVisible (H:\\\\ug-mig\\\\playwright\\\\utils\\\\elementAssertUtils.js:34:81)\\n'\u001b[39m +\n        \u001b[32m'    at LandingPage.validateViewAppDetails (H:\\\\ug-mig\\\\playwright\\\\pages\\\\LandingPage.js:228:30)\\n'\u001b[39m +\n        \u001b[32m'    at H:\\\\ug-mig\\\\playwright\\\\tests\\\\TC_01_LandingPageTest.spec.js:26:7\\n'\u001b[39m +\n        \u001b[32m'    at H:\\\\ug-mig\\\\playwright\\\\tests\\\\TC_01_LandingPageTest.spec.js:25:5'\u001b[39m,\n      cause: \u001b[90mundefined\u001b[39m\n    }\n  }\n}\n"
+                        }
+                      ],
                       "retry": 0,
-                      "startTime": "2025-07-16T18:08:03.616Z",
+                      "steps": [
+                        {
+                          "title": "should validate view application details",
+                          "duration": 10670,
+                          "error": {
+                            "message": "Error: Element div[role=\"main\"] should be visible\n\n\u001b[31mTimed out 10000ms waiting for \u001b[39m\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m\n\nLocator: locator('div[role=\"main\"]')\nExpected: visible\nReceived: <element(s) not found>\nCall log:\n\u001b[2m  - Expect \"Element div[role=\\\"main\\\"] should be visible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('div[role=\"main\"]')\u001b[22m\n",
+                            "stack": "Error: Element div[role=\"main\"] should be visible\n\n\u001b[31mTimed out 10000ms waiting for \u001b[39m\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m\n\nLocator: locator('div[role=\"main\"]')\nExpected: visible\nReceived: <element(s) not found>\nCall log:\n\u001b[2m  - Expect \"Element div[role=\\\"main\\\"] should be visible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('div[role=\"main\"]')\u001b[22m\n\n    at ElementAssertUtils.assertVisible (H:\\ug-mig\\playwright\\utils\\elementAssertUtils.js:34:81)\n    at LandingPage.validateViewAppDetails (H:\\ug-mig\\playwright\\pages\\LandingPage.js:228:30)\n    at H:\\ug-mig\\playwright\\tests\\TC_01_LandingPageTest.spec.js:26:7\n    at H:\\ug-mig\\playwright\\tests\\TC_01_LandingPageTest.spec.js:25:5",
+                            "location": {
+                              "file": "H:\\ug-mig\\playwright\\utils\\elementAssertUtils.js",
+                              "column": 81,
+                              "line": 34
+                            },
+                            "snippet": "\u001b[90m   at \u001b[39m..\\utils\\elementAssertUtils.js:34\n\n\u001b[0m \u001b[90m 32 |\u001b[39m       \n \u001b[90m 33 |\u001b[39m       \u001b[36mconst\u001b[39m locator \u001b[33m=\u001b[39m \u001b[36mthis\u001b[39m\u001b[33m.\u001b[39mpage\u001b[33m.\u001b[39mlocator(selector)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 34 |\u001b[39m       \u001b[36mawait\u001b[39m expect(locator\u001b[33m,\u001b[39m message \u001b[33m||\u001b[39m \u001b[32m`Element ${selector} should be visible`\u001b[39m)\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 35 |\u001b[39m       \n \u001b[90m 36 |\u001b[39m       logger\u001b[33m.\u001b[39mdebug(\u001b[32m`Element is visible: ${selector}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 37 |\u001b[39m     } \u001b[36mcatch\u001b[39m (error) {\u001b[0m"
+                          }
+                        }
+                      ],
+                      "startTime": "2025-07-17T08:10:27.865Z",
                       "annotations": [],
                       "attachments": [
                         {
                           "name": "screenshot",
                           "contentType": "image/png",
-                          "path": "H:\\ug-mig\\playwright\\test-results\\TC_17_F1_Greater24_US_Res_-600d5-Grad-InstateSchool-OOS-ABOR-chromium\\test-failed-1.png"
+                          "path": "H:\\ug-mig\\playwright\\test-results\\TC_01_LandingPageTest-Land-d6e7f-age-elements-and-navigation-chromium\\test-failed-1.png"
                         },
                         {
                           "name": "error-context",
                           "contentType": "text/markdown",
-                          "path": "H:\\ug-mig\\playwright\\test-results\\TC_17_F1_Greater24_US_Res_-600d5-Grad-InstateSchool-OOS-ABOR-chromium\\error-context.md"
+                          "path": "H:\\ug-mig\\playwright\\test-results\\TC_01_LandingPageTest-Land-d6e7f-age-elements-and-navigation-chromium\\error-context.md"
                         },
                         {
                           "name": "trace",
                           "contentType": "application/zip",
-                          "path": "H:\\ug-mig\\playwright\\test-results\\TC_17_F1_Greater24_US_Res_-600d5-Grad-InstateSchool-OOS-ABOR-chromium\\trace.zip"
+                          "path": "H:\\ug-mig\\playwright\\test-results\\TC_01_LandingPageTest-Land-d6e7f-age-elements-and-navigation-chromium\\trace.zip"
                         }
                       ],
                       "errorLocation": {
-                        "file": "H:\\ug-mig\\playwright\\tests\\TC_17_F1_Greater24_US_Res_SpouseDependent_FutureGrad_InstateSchool_OOS_ABOR.spec.js",
-                        "column": 23,
-                        "line": 110
+                        "file": "H:\\ug-mig\\playwright\\utils\\elementAssertUtils.js",
+                        "column": 81,
+                        "line": 34
                       }
                     }
                   ],
                   "status": "unexpected"
                 }
               ],
-              "id": "f474eb123cc345071f9f-a543c699693ab01b5395",
-              "file": "TC_17_F1_Greater24_US_Res_SpouseDependent_FutureGrad_InstateSchool_OOS_ABOR.spec.js",
-              "line": 107,
+              "id": "14d3949bb066f1ac999b-0b73123fc9fab772fc30",
+              "file": "TC_01_LandingPageTest.spec.js",
+              "line": 23,
               "column": 3
             }
           ]
@@ -266,8 +301,8 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2025-07-16T18:07:59.254Z",
-    "duration": 34796.07899999991,
+    "startTime": "2025-07-17T08:10:24.555Z",
+    "duration": 23372.099000000017,
     "expected": 0,
     "skipped": 0,
     "unexpected": 1,

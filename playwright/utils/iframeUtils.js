@@ -239,10 +239,12 @@ class IframeUtils {
 
   /**
    * Wait for an element in a frame
-   * @param {string|Frame} frameOrSelector - The frame or CSS selector for the iframe
+   * @param {string|import('playwright').Frame} frameOrSelector - The frame or CSS selector for the iframe
    * @param {string} elementSelector - The CSS selector for the element within the iframe
-   * @param {{ state: 'visible' | 'hidden', timeout: number } & import('@playwright/test').WaitForSelectorOptions} options - Wait options
-   * @returns {Promise<import('@playwright/test').ElementHandle>} The element handle
+   * @param {Object} [options] - Wait options
+   * @param {'attached'|'detached'|'visible'|'hidden'} [options.state='visible'] - Wait for element to be in this state
+   * @param {number} [options.timeout=30000] - Maximum time to wait in milliseconds
+   * @returns {Promise<import('playwright').ElementHandle<SVGElement | HTMLElement> | null>} The element handle or null if not found
    */
   async waitForElementInFrame(frameOrSelector, elementSelector, options = { state: 'visible', timeout: 30000 }) {
     try {
