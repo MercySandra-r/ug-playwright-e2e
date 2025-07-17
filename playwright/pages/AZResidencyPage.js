@@ -222,7 +222,7 @@ class AZResidencyPage extends BasePage {
                 if (nameElement) {
                     const nameText = await nameElement.textContent();
                     
-                    if (nameText.includes(documentName)) {
+                    if (nameText && nameText.includes(documentName)) {
                         const removeButton = await item.$(this.selectors.removeDocumentButton);
                         if (removeButton) {
                             await removeButton.click();
@@ -278,7 +278,7 @@ class AZResidencyPage extends BasePage {
             const errorLocator = this.page.locator(this.selectors.errorMessage);
             await errorLocator.waitFor({ state: 'visible', timeout: 5000 });
             const actualMessage = await errorLocator.textContent();
-            return actualMessage.includes(expectedMessage);
+            return actualMessage ? actualMessage.includes(expectedMessage) : false;
         } catch (error) {
             return false;
         }

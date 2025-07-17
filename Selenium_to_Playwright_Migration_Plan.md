@@ -103,6 +103,7 @@ The current Selenium project is a Java Maven project with TestNG framework. The 
 ### Epic 4: Test Case Migration (55 SP)
 **Description**: Migrate individual test cases from Selenium to Playwright.
 
+
 #### Story 4.1: Landing Page Tests Migration (8 SP)
 **Description**: Migrate TC_01_LandingPageTest.java to Playwright.
 
