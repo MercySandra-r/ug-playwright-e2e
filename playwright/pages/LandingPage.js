@@ -22,6 +22,26 @@ class LandingPage extends BasePage {
     this.elementAssert = new ElementAssertUtils(page);
     this.textVerify = new TextVerificationUtils(page);
     this.customSelector = new CustomSelectorUtils(page);
+    
+    // Define selectors for page elements
+    this.selectors = {
+      // Navigation and main elements
+      viewAppDetailsBtn: 'button:has-text("View Application Details")',
+      appDetailsSection: 'div[role="main"]',
+      createAccountLink: 'a:has-text("Create Account")',
+      loginBtn: 'button:has-text("Login")',
+      molRadioGroup: 'div[role="radiogroup"]',
+      // Add other selectors as needed
+    };
+    
+    // Page verification elements
+    this.pageTitle = 'Arizona State University | ASU';
+    this.expectedElements = [
+      this.selectors.viewAppDetailsBtn,
+      this.selectors.createAccountLink,
+      this.selectors.loginBtn,
+      this.selectors.molRadioGroup
+    ];
 
     // Define selectors for page elements
     this.selectors = {
@@ -516,6 +536,30 @@ class LandingPage extends BasePage {
     } catch (error) {
       this.logger.error('Recaptcha is not present on the page');
       return false;
+    }
+  }
+
+  /**
+   * Verify that the landing page has loaded successfully
+   * @returns {Promise<void>}
+   */
+  async verifyPageLoaded() {
+    try {
+      // Verify page title
+      await expect(this.page).toHaveTitle(this.pageTitle, { timeout: this.assertionTimeout });
+      
+      // Verify key elements are visible
+      for (const selector of this.expectedElements) {
+        await expect(this.page.locator(selector)).toBeVisible({ 
+          timeout: this.assertionTimeout 
+        });
+      }
+      
+      this.logger.info('Verified landing page loaded successfully');
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Error verifying landing page: ${errorMessage}`);
+      throw new Error(`Landing page did not load correctly: ${errorMessage}`);
     }
   }
 }
