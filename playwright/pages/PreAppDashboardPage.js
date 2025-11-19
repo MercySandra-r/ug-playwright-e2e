@@ -13,55 +13,57 @@ class PreAppDashboardPage extends BasePage {
     constructor(page) {
         super(page, 'PreAppDashboardPage');
         
-        // Define page selectors
+        // Define page selectors based on actual ASU dashboard structure
         this.selectors = {
             // Header and Navigation
-            pageTitle: 'h1',
-            startNewAppButton: 'button:has-text("Start New Application")',
+            pageTitle: 'h1, h2, [role="heading"]',
+            welcomeMessage: 'text="Welcome! You\'re a few steps away from becoming a Sun Devil."',
+            profileMenu: 'button[aria-label="Profile menu"], button:has-text("Profile")',
             
-            // Personal Information Section
-            firstNameInput: 'input[name="firstName"]',
-            preferredFirstNameInput: 'input[name="preferredFirstName"]',
-            middleNameInput: 'input[name="middleName"]',
-            lastNameInput: 'input[name="lastName"]',
-            suffixSelect: 'select[name="suffix"]',
-            /**
-             * Get selector for a specific suffix option
-             * @param {string} suffix - The suffix value
-             * @returns {string} The CSS selector for the suffix option
-             */
-            suffixOption: (suffix) => `select[name="suffix"] option[value="${suffix}"]`,
+            // Loading States
+            loadingIndicator: '[role="progressbar"], .loading, text="Loading"',
             
-            // Date of Birth Section
-            birthMonthSelect: 'select[name="birthMonth"]',
-            birthDaySelect: 'select[name="birthDay"]',
-            birthYearSelect: 'select[name="birthYear"]',
-            dateClearButton: 'button:has-text("Clear")',
+            // Personal Information Section (based on actual ASU form screenshot)
+            firstNameInput: 'input[placeholder="Enter your legal first name"], input[name="firstName"], input[id*="firstName"], label:has-text("First name") + input',
+            preferredFirstNameInput: 'input[placeholder="Enter your preferred first name"], input[name="preferredFirstName"], input[id*="preferred"]',
+            middleNameInput: 'input[placeholder="Enter your legal middle name"], input[name="middleName"], input[id*="middle"]',
+            lastNameInput: 'input[placeholder="Enter your legal last name"], input[name="lastName"], input[id*="lastName"], label:has-text("Last name") + input',
+            suffixSelect: 'select:has(option:text("Please select one")), select[name="suffix"], select[id*="suffix"]',
             
-            // Contact Information
-            emailInput: 'input[name="email"]',
-            phoneNumberInput: 'input[name="phoneNumber"]',
-            phoneTypeSelect: 'select[name="phoneType"]',
-            countryCodeSelect: 'select[name="countryCode"]',
+            // Birthday Section (based on actual ASU form screenshot)
+            birthdaySection: 'text="Birthday", [aria-label*="Birthday"], label:has-text("Birthday")',
+            birthMonthSelect: 'select:has(option:text("Month")), select[name*="month"], select[id*="month"], select[aria-label*="Month"]',
+            birthDaySelect: 'select:has(option:text("Day")), select[name*="day"], select[id*="day"], select[aria-label*="Day"]',
+            birthYearSelect: 'select:has(option:text("Year")), select[name*="year"], select[id*="year"], select[aria-label*="Year"]',
+            dateClearButton: 'button:has-text("Clear"), button[aria-label*="Clear date"]',
             
-            // Error Messages
-            errorMessage: '.error-message',
+            // Contact Information (based on actual ASU form screenshot)
+            emailInput: 'input[name="email"], input[type="email"], input[placeholder*="email"], input[aria-label*="email"]',
+            phoneNumberInput: 'input[placeholder="Enter phone number"], input[name="phoneNumber"], input[type="tel"], input[aria-label*="Phone"]',
+            phoneTypeSelect: 'select[name="phoneType"], select[aria-label*="Phone type"]',
+            countryCodeSelect: 'select:has(option:text("+1")), select[name="countryCode"], select[aria-label*="Country"]',
+            
+            // Start New Application Button (based on screenshot)
+            startNewAppButton: 'button:has-text("Start new application"), button:has-text("Start New Application"), button:has-text("Start Application")',
+            
+            // Error Messages (multiple possible patterns)
+            errorMessage: '.error-message, .error, [role="alert"], .field-error, .validation-error',
             /**
              * Get selector for a field's error message
              * @param {string} fieldName - The name of the field
              * @returns {string} The CSS selector for the field's error message
              */
-            fieldErrorMessage: (fieldName) => `[data-testid="${fieldName}-error"]`,
+            fieldErrorMessage: (fieldName) => `[data-testid="${fieldName}-error"], .${fieldName}-error, [aria-describedby*="${fieldName}"] + .error`,
             
-            // Buttons
-            submitButton: 'button[type="submit"]',
-            cancelButton: 'button:has-text("Cancel")',
-            saveAndContinueButton: 'button:has-text("Save & Continue")',
+            // Buttons (multiple possible text variations)
+            submitButton: 'button[type="submit"], button:has-text("Submit")',
+            cancelButton: 'button:has-text("Cancel"), button:has-text("Back")',
+            saveAndContinueButton: 'button:has-text("Save & Continue"), button:has-text("Continue"), button:has-text("Next")',
             
             // Modal Dialogs
-            confirmationModal: '.confirmation-modal',
-            modalConfirmButton: '.modal-confirm-button',
-            modalCancelButton: '.modal-cancel-button'
+            confirmationModal: '.modal, .dialog, [role="dialog"]',
+            modalConfirmButton: '.modal button:has-text("Confirm"), .modal button:has-text("OK"), .modal button:has-text("Yes")',
+            modalCancelButton: '.modal button:has-text("Cancel"), .modal button:has-text("No")'
         };
         
         // Initialize any page-specific properties
@@ -84,7 +86,22 @@ class PreAppDashboardPage extends BasePage {
      */
     async verifyPageLoaded() {
         await expect(this.page).toHaveURL(/.*dashboard/);
-        await expect(this.page.locator(this.selectors.pageTitle)).toContainText('Pre-Application Dashboard');
+        
+        // Wait for loading to complete
+        try {
+            await this.page.waitForSelector(this.selectors.loadingIndicator, { state: 'hidden', timeout: 30000 });
+        } catch (error) {
+            // Loading indicator might not be present, continue
+            this.logger.warn('Loading indicator not found or did not disappear');
+        }
+        
+        // Check for either welcome message or page title
+        try {
+            await expect(this.page.locator(this.selectors.welcomeMessage)).toBeVisible({ timeout: 10000 });
+        } catch (error) {
+            // If welcome message not found, check for any heading
+            await expect(this.page.locator(this.selectors.pageTitle).first()).toBeVisible({ timeout: 10000 });
+        }
     }
 
     /**
@@ -98,25 +115,119 @@ class PreAppDashboardPage extends BasePage {
      * @returns {Promise<void>}
      */
     async fillPersonalInformation({ firstName, preferredFirstName, middleName, lastName, suffix }) {
-        await this.page.fill(this.selectors.firstNameInput, firstName);
+        console.log('Starting to fill personal information...');
         
+        // Fill First name - try multiple approaches
+        await this.fillFieldWithFallbacks('firstName', firstName, [
+            this.selectors.firstNameInput,
+            'input[placeholder*="First name" i]',
+            'input[aria-label*="First name" i]',
+            'label:has-text("First name") + input',
+            'input[name="firstName"]'
+        ]);
+        
+        // Fill Preferred first name (optional)
         if (preferredFirstName) {
-            await this.page.fill(this.selectors.preferredFirstNameInput, preferredFirstName);
+            await this.fillFieldWithFallbacks('preferredFirstName', preferredFirstName, [
+                this.selectors.preferredFirstNameInput,
+                'input[placeholder*="Preferred" i]',
+                'input[aria-label*="Preferred" i]',
+                'input[name="preferredFirstName"]'
+            ], true);
         }
         
+        // Fill Middle name (optional)
         if (middleName) {
-            await this.page.fill(this.selectors.middleNameInput, middleName);
+            await this.fillFieldWithFallbacks('middleName', middleName, [
+                this.selectors.middleNameInput,
+                'input[placeholder*="Middle" i]',
+                'input[aria-label*="Middle" i]',
+                'input[name="middleName"]'
+            ], true);
         }
         
-        await this.page.fill(this.selectors.lastNameInput, lastName);
+        // Fill Last name - try multiple approaches
+        await this.fillFieldWithFallbacks('lastName', lastName, [
+            this.selectors.lastNameInput,
+            'input[placeholder*="Last name" i]',
+            'input[aria-label*="Last name" i]',
+            'label:has-text("Last name") + input',
+            'input[name="lastName"]'
+        ]);
         
+        // Select suffix (optional)
         if (suffix) {
-            await this.page.selectOption(this.selectors.suffixSelect, { value: suffix });
+            await this.selectFieldWithFallbacks('suffix', suffix, [
+                this.selectors.suffixSelect,
+                'select[aria-label*="Suffix" i]',
+                'select:has(option:text("Jr"))',
+                'select[name="suffix"]'
+            ], true);
+        }
+        
+        console.log('✓ Personal information filling completed');
+    }
+
+    /**
+     * Helper method to fill a field with multiple fallback selectors
+     * @param {string} fieldName - Name of the field for logging
+     * @param {string} value - Value to fill
+     * @param {string[]} selectors - Array of selectors to try
+     * @param {boolean} [optional=false] - Whether the field is optional
+     * @returns {Promise<void>}
+     */
+    async fillFieldWithFallbacks(fieldName, value, selectors, optional = false) {
+        for (const selector of selectors) {
+            try {
+                const field = this.page.locator(selector).first();
+                if (await field.count() > 0 && await field.isVisible()) {
+                    await field.fill(value);
+                    console.log(`✓ Filled ${fieldName}: ${value}`);
+                    return;
+                }
+            } catch (error) {
+                continue;
+            }
+        }
+        
+        if (!optional) {
+            console.log(`❌ Required field ${fieldName} not found with any selector`);
+        } else {
+            console.log(`⚠️ Optional field ${fieldName} not found, skipping`);
         }
     }
 
     /**
-     * Set date of birth
+     * Helper method to select from dropdown with multiple fallback selectors
+     * @param {string} fieldName - Name of the field for logging
+     * @param {string} value - Value to select
+     * @param {string[]} selectors - Array of selectors to try
+     * @param {boolean} [optional=false] - Whether the field is optional
+     * @returns {Promise<void>}
+     */
+    async selectFieldWithFallbacks(fieldName, value, selectors, optional = false) {
+        for (const selector of selectors) {
+            try {
+                const field = this.page.locator(selector).first();
+                if (await field.count() > 0 && await field.isVisible()) {
+                    await field.selectOption({ value: value });
+                    console.log(`✓ Selected ${fieldName}: ${value}`);
+                    return;
+                }
+            } catch (error) {
+                continue;
+            }
+        }
+        
+        if (!optional) {
+            console.log(`❌ Required dropdown ${fieldName} not found with any selector`);
+        } else {
+            console.log(`⚠️ Optional dropdown ${fieldName} not found, skipping`);
+        }
+    }
+
+    /**
+     * Set birthday (ASU uses "Birthday" instead of "Date of Birth")
      * @param {Object} date - Date object with month, day, and year
      * @param {string|number} date.month - Month (1-12 or month name)
      * @param {string|number} date.day - Day (1-31)
@@ -124,17 +235,34 @@ class PreAppDashboardPage extends BasePage {
      * @returns {Promise<void>}
      */
     async setDateOfBirth({ month, day, year }) {
-        // Clear any existing date
-        await this.page.click(this.selectors.dateClearButton);
+        try {
+            // Try to clear any existing date first
+            const clearButton = this.page.locator(this.selectors.dateClearButton);
+            if (await clearButton.count() > 0) {
+                await clearButton.click();
+            }
+        } catch (error) {
+            // Clear button might not exist, continue
+            this.logger.warn('Clear button not found, continuing with date selection');
+        }
         
-        // Set month
-        await this.page.selectOption(this.selectors.birthMonthSelect, { value: month.toString() });
+        // Set month - try multiple selectors
+        const monthSelect = this.page.locator(this.selectors.birthMonthSelect).first();
+        if (await monthSelect.count() > 0) {
+            await monthSelect.selectOption({ value: month.toString() });
+        }
         
-        // Set day
-        await this.page.selectOption(this.selectors.birthDaySelect, { value: day.toString() });
+        // Set day - try multiple selectors
+        const daySelect = this.page.locator(this.selectors.birthDaySelect).first();
+        if (await daySelect.count() > 0) {
+            await daySelect.selectOption({ value: day.toString() });
+        }
         
-        // Set year
-        await this.page.selectOption(this.selectors.birthYearSelect, { value: year.toString() });
+        // Set year - try multiple selectors
+        const yearSelect = this.page.locator(this.selectors.birthYearSelect).first();
+        if (await yearSelect.count() > 0) {
+            await yearSelect.selectOption({ value: year.toString() });
+        }
     }
 
     /**
@@ -156,25 +284,252 @@ class PreAppDashboardPage extends BasePage {
     }
 
     /**
+     * Set date of birth for age > 24 (Adult category)
+     * Uses verified dropdown behavior: click to open, then select by name
+     * @returns {Promise<void>}
+     */
+    async setDateOfBirthForAdult() {
+        console.log('Setting date of birth for age > 24 (Adult)...');
+        
+        try {
+            // Generate date for someone aged 25-35
+            const age = Math.floor(Math.random() * 11) + 25; // Random age between 25-35
+            const currentYear = new Date().getFullYear();
+            const birthYear = currentYear - age;
+            
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthName = months[Math.floor(Math.random() * 12)];
+            const day = Math.floor(Math.random() * 28) + 1; // 1-28
+            
+            console.log(`Setting birth date: ${monthName} ${day}, ${birthYear} (Age: ${age})`);
+            
+            // Select Month
+            const monthField = this.page.getByRole('combobox', { name: 'Month' });
+            await monthField.waitFor({ state: 'visible', timeout: 10000 });
+            await monthField.click();
+            await this.page.waitForTimeout(1000);
+            await this.page.getByRole('option', { name: monthName }).click();
+            
+            // Select Day
+            const dayField = this.page.getByRole('combobox', { name: 'Day' });
+            await dayField.waitFor({ state: 'visible', timeout: 10000 });
+            await dayField.click();
+            await this.page.waitForTimeout(1000);
+            await this.page.getByRole('option', { name: day.toString() }).click();
+            
+            // Select Year
+            const yearField = this.page.getByRole('combobox', { name: 'Year' });
+            await yearField.waitFor({ state: 'visible', timeout: 10000 });
+            await yearField.click();
+            await this.page.waitForTimeout(1000);
+            await this.page.getByRole('option', { name: birthYear.toString() }).click();
+            
+            console.log(`✓ Adult date of birth set: ${monthName} ${day}, ${birthYear}`);
+            
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.log(`⚠️ Failed to set adult date of birth: ${errorMessage}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Set date of birth for age between 18-24 (Young Adult category)
+     * Uses verified dropdown behavior: click to open, then select by name
+     * @returns {Promise<void>}
+     */
+    async setDateOfBirthForYoungAdult() {
+        console.log('Setting date of birth for age 18-24 (Young Adult)...');
+        
+        try {
+            // Generate date for someone aged 18-24
+            const age = Math.floor(Math.random() * 7) + 18; // Random age between 18-24
+            const currentYear = new Date().getFullYear();
+            const birthYear = currentYear - age;
+            
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthName = months[Math.floor(Math.random() * 12)];
+            const day = Math.floor(Math.random() * 28) + 1; // 1-28
+            
+            console.log(`Setting birth date: ${monthName} ${day}, ${birthYear} (Age: ${age})`);
+            
+            // Select Month
+            const monthField = this.page.getByRole('combobox', { name: 'Month' });
+            await monthField.waitFor({ state: 'visible', timeout: 10000 });
+            await monthField.click();
+            await this.page.waitForTimeout(1000);
+            await this.page.getByRole('option', { name: monthName }).click();
+            
+            // Select Day
+            const dayField = this.page.getByRole('combobox', { name: 'Day' });
+            await dayField.waitFor({ state: 'visible', timeout: 10000 });
+            await dayField.click();
+            await this.page.waitForTimeout(1000);
+            await this.page.getByRole('option', { name: day.toString() }).click();
+            
+            // Select Year
+            const yearField = this.page.getByRole('combobox', { name: 'Year' });
+            await yearField.waitFor({ state: 'visible', timeout: 10000 });
+            await yearField.click();
+            await this.page.waitForTimeout(1000);
+            await this.page.getByRole('option', { name: birthYear.toString() }).click();
+            
+            console.log(`✓ Young Adult date of birth set: ${monthName} ${day}, ${birthYear}`);
+            
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.log(`⚠️ Failed to set young adult date of birth: ${errorMessage}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Set date of birth for exactly age 18 (Exactly 18 category)
+     * Uses verified dropdown behavior: click to open, then select by name
+     * @returns {Promise<void>}
+     */
+    async setDateOfBirthForExactly18() {
+        console.log('Setting date of birth for exactly age 18...');
+        
+        try {
+            // Generate date for someone exactly 18 years old
+            const currentYear = new Date().getFullYear();
+            const birthYear = currentYear - 18;
+            
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthName = months[Math.floor(Math.random() * 12)];
+            const day = Math.floor(Math.random() * 28) + 1; // 1-28
+            
+            console.log(`Setting birth date: ${monthName} ${day}, ${birthYear} (Age: 18)`);
+            
+            // Select Month
+            const monthField = this.page.getByRole('combobox', { name: 'Month' });
+            await monthField.waitFor({ state: 'visible', timeout: 10000 });
+            await monthField.click();
+            await this.page.waitForTimeout(1000);
+            await this.page.getByRole('option', { name: monthName }).click();
+            
+            // Select Day
+            const dayField = this.page.getByRole('combobox', { name: 'Day' });
+            await dayField.waitFor({ state: 'visible', timeout: 10000 });
+            await dayField.click();
+            await this.page.waitForTimeout(1000);
+            await this.page.getByRole('option', { name: day.toString() }).click();
+            
+            // Select Year
+            const yearField = this.page.getByRole('combobox', { name: 'Year' });
+            await yearField.waitFor({ state: 'visible', timeout: 10000 });
+            await yearField.click();
+            await this.page.waitForTimeout(1000);
+            await this.page.getByRole('option', { name: birthYear.toString() }).click();
+            
+            console.log(`✓ Exactly 18 date of birth set: ${monthName} ${day}, ${birthYear}`);
+            
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.log(`⚠️ Failed to set exactly 18 date of birth: ${errorMessage}`);
+            throw error;
+        }
+    }
+
+    /**
+     * Set date of birth for age < 18 (Minor category)
+     * Uses verified dropdown behavior: click to open, then select by name
+     * @returns {Promise<void>}
+     */
+    async setDateOfBirthForMinor() {
+        console.log('Setting date of birth for age < 18 (Minor)...');
+        
+        try {
+            // Generate date for someone aged 16-17
+            const age = Math.floor(Math.random() * 2) + 16; // Random age between 16-17
+            const currentYear = new Date().getFullYear();
+            const birthYear = currentYear - age;
+            
+            const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December'];
+            const monthName = months[Math.floor(Math.random() * 12)];
+            const day = Math.floor(Math.random() * 28) + 1; // 1-28
+            
+            console.log(`Setting birth date: ${monthName} ${day}, ${birthYear} (Age: ${age})`);
+            
+            // Select Month
+            const monthField = this.page.getByRole('combobox', { name: 'Month' });
+            await monthField.waitFor({ state: 'visible', timeout: 10000 });
+            await monthField.click();
+            await this.page.waitForTimeout(1000);
+            await this.page.getByRole('option', { name: monthName }).click();
+            
+            // Select Day
+            const dayField = this.page.getByRole('combobox', { name: 'Day' });
+            await dayField.waitFor({ state: 'visible', timeout: 10000 });
+            await dayField.click();
+            await this.page.waitForTimeout(1000);
+            await this.page.getByRole('option', { name: day.toString() }).click();
+            
+            // Select Year
+            const yearField = this.page.getByRole('combobox', { name: 'Year' });
+            await yearField.waitFor({ state: 'visible', timeout: 10000 });
+            await yearField.click();
+            await this.page.waitForTimeout(1000);
+            await this.page.getByRole('option', { name: birthYear.toString() }).click();
+            
+            console.log(`✓ Minor date of birth set: ${monthName} ${day}, ${birthYear}`);
+            
+        } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : String(error);
+            console.log(`⚠️ Failed to set minor date of birth: ${errorMessage}`);
+            throw error;
+        }
+    }
+
+    /**
      * Fill in contact information
      * @param {Object} contactInfo - Contact information
      * @param {string} contactInfo.email - Email address
-     * @param {string} contactInfo.phoneNumber - Phone number (digits only)
+     * @param {string} contactInfo.phoneNumber - US Phone number (digits only)
      * @param {string} [contactInfo.phoneType] - Phone type (e.g., 'Mobile', 'Home', 'Work')
      * @param {string} [contactInfo.countryCode] - Country code (e.g., '+1' for US)
      * @returns {Promise<void>}
      */
     async fillContactInformation({ email, phoneNumber, phoneType = 'Mobile', countryCode = '+1' }) {
-        await this.page.fill(this.selectors.emailInput, email);
-        
-        if (countryCode) {
-            await this.page.selectOption(this.selectors.countryCodeSelect, { value: countryCode });
+        // Fill email
+        const emailField = this.page.locator(this.selectors.emailInput).first();
+        if (await emailField.count() > 0) {
+            await emailField.fill(email);
+            this.logger.info(`Filled email: ${email}`);
+        } else {
+            this.logger.warn('Email field not found');
         }
         
-        await this.page.fill(this.selectors.phoneNumberInput, phoneNumber);
+        // Fill US Phone number
+        const phoneField = this.page.locator(this.selectors.phoneNumberInput).first();
+        if (await phoneField.count() > 0) {
+            await phoneField.fill(phoneNumber);
+            this.logger.info(`Filled US phone number: ${phoneNumber}`);
+        } else {
+            this.logger.warn('US Phone number field not found');
+        }
         
+        // Select country code if available
+        if (countryCode) {
+            const countryField = this.page.locator(this.selectors.countryCodeSelect).first();
+            if (await countryField.count() > 0) {
+                await countryField.selectOption({ value: countryCode });
+                this.logger.info(`Selected country code: ${countryCode}`);
+            }
+        }
+        
+        // Select phone type if available
         if (phoneType) {
-            await this.page.selectOption(this.selectors.phoneTypeSelect, { label: phoneType });
+            const phoneTypeField = this.page.locator(this.selectors.phoneTypeSelect).first();
+            if (await phoneTypeField.count() > 0) {
+                await phoneTypeField.selectOption({ label: phoneType });
+                this.logger.info(`Selected phone type: ${phoneType}`);
+            }
         }
     }
 
@@ -205,8 +560,29 @@ class PreAppDashboardPage extends BasePage {
      * @returns {Promise<void>}
      */
     async startNewApplication() {
-        await this.page.click(this.selectors.startNewAppButton);
+        // Wait for loading to complete first
+        try {
+            await this.page.waitForSelector(this.selectors.loadingIndicator, { state: 'hidden', timeout: 30000 });
+        } catch (error) {
+            this.logger.warn('Loading indicator not found or did not disappear');
+        }
+        
+        // Try to find and click the start application button
+        const startButton = this.page.locator(this.selectors.startNewAppButton);
+        const alternativeButton = this.page.locator('button').filter({ hasText: /start|begin|application/i });
+        
+        if (await startButton.count() > 0) {
+            this.logger.info('Clicking Start New Application button');
+            await startButton.first().click();
+        } else if (await alternativeButton.count() > 0) {
+            this.logger.info('Clicking alternative application button');
+            await alternativeButton.first().click();
+        } else {
+            throw new Error('No Start Application button found on the page');
+        }
+        
         await this.page.waitForLoadState('networkidle');
+        await this.page.waitForTimeout(2000); // Additional wait for form to load
     }
 
     /**

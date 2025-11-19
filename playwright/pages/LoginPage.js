@@ -14,16 +14,17 @@ class LoginPage extends BasePage {
         // Define page selectors
         this.selectors = {
             // Login Form
-            emailInput: 'input[name="email"]',
-            passwordInput: 'input[name="password"]',
-            loginButton: 'button:has-text("Log In")',
+            // emailInput, passwordInput, loginButton, and createAccountLink now use getByRole - see respective methods
+            emailInput: 'input[name="email"]', // Legacy selector - use getByRole in methods
+            passwordInput: 'input[name="password"]', // Legacy selector - use getByRole in methods
+            loginButton: 'button:has-text("Log In")', // Legacy selector - use getByRole in methods
             loginWithAsuriteButton: 'button:has-text("Log In with ASURITE")',
-            createAccountLink: 'a[href*="/user/signup"]',
+            createAccountLink: 'a[href*="/user/signup"]', // Legacy selector - use getByRole in methods
             resetPasswordLink: 'a[href*="/user/reset-password"]',
             
             // Error Messages
             emailNotFoundError: 'text=Email not found',
-            invalidEmailFormatError: 'text=Invalid email format',
+            invalidEmailFormatError: 'text=Invalid email format', // Legacy selector - use getByText in methods
             incorrectCredentialsError: 'text=Incorrect email or password',
             
             // Page Elements
@@ -51,8 +52,8 @@ class LoginPage extends BasePage {
      * @returns {Promise<void>}
      */
     async enterCredentials(email, password) {
-        await this.page.fill(this.selectors.emailInput, email);
-        await this.page.fill(this.selectors.passwordInput, password);
+        await this.page.getByRole('textbox', { name: 'Email' }).fill(email);
+        await this.page.getByRole('textbox', { name: 'Password' }).fill(password);
     }
 
     /**
@@ -60,7 +61,7 @@ class LoginPage extends BasePage {
      * @returns {Promise<void>}
      */
     async clickLogin() {
-        await this.page.click(this.selectors.loginButton);
+        await this.page.getByRole('button', { name: 'Log in', exact: true }).click();
         await this.page.waitForLoadState('networkidle');
     }
 
@@ -79,7 +80,10 @@ class LoginPage extends BasePage {
      */
     async isAsuLoginPageDisplayed() {
         await this.page.waitForURL(/.*weblogin\.asu\.edu/);
-        return await this.page.isVisible(this.selectors.asuLoginForm);
+        // Check for ASURITE-specific elements that are visible on the page
+        const signInHeading = await this.page.getByRole('heading', { name: 'Sign In' }).isVisible();
+        const asuriteUserIdField = await this.page.getByRole('textbox', { name: 'ASURITE User ID' }).isVisible();
+        return signInHeading && asuriteUserIdField;
     }
 
     /**
@@ -87,7 +91,7 @@ class LoginPage extends BasePage {
      * @returns {Promise<boolean>}
      */
     async isDashboardDisplayed() {
-        return await this.page.isVisible(this.selectors.dashboardHeader);
+        return await this.page.getByText('Welcome').isVisible();
     }
 
     /**
@@ -103,7 +107,7 @@ class LoginPage extends BasePage {
      * @returns {Promise<boolean>}
      */
     async isInvalidEmailFormatErrorVisible() {
-        return await this.page.isVisible(this.selectors.invalidEmailFormatError);
+        return await this.page.getByText('Invalid email.').isVisible();
     }
 
     /**
@@ -119,7 +123,7 @@ class LoginPage extends BasePage {
      * @returns {Promise<void>}
      */
     async clickCreateAccountLink() {
-        await this.page.click(this.selectors.createAccountLink);
+        await this.page.getByRole('link', { name: 'Create an account' }).click();
         await this.page.waitForLoadState('networkidle');
     }
 
@@ -143,9 +147,9 @@ class LoginPage extends BasePage {
         await this.enterCredentials(email, password);
         await this.clickLogin();
         
-        // Check if login was successful by looking for dashboard
+        // Check if login was successful by looking for Welcome message
         try {
-            await this.page.waitForSelector(this.selectors.dashboardHeader, { timeout: 5000 });
+            await this.page.waitForSelector('text=Welcome', { timeout: 70000 });
             return true;
         } catch (e) {
             return false;

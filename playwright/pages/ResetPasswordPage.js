@@ -17,12 +17,18 @@ class ResetPasswordPage extends BasePage {
             resetPasswordLink: 'a[href*="/user/reset-password"]',
             resetPasswordEmail: 'input[name="email"]',
             sendCodeButton: 'button:has-text("Send Code")',
-            invalidEmailError: 'text=Invalid email format',
+            invalidEmailError: 'text=Invalid email.',
+            
+            // Verification Code Page
+            verificationCodeInput: 'input[name="verificationCode"]',
+            verifyCodeButton: 'button:has-text("Verify Code")',
+            resendCodeButton: 'button:has-text("Resend Code")',
+            invalidCodeError: 'text=Invalid verification code',
             
             // Set New Password Page
             newPasswordInput: 'input[name="newPassword"]',
             confirmPasswordInput: 'input[name="confirmPassword"]',
-            resetPasswordButton: 'button:has-text("Reset Password")',
+            setNewPasswordButton: 'button:has-text("Set new password")',
             returnToLoginLink: 'a[href*="/user/login"]',
             passwordMismatchError: 'text=Passwords do not match',
             passwordRequirements: 'text=Password must be at least 8 characters long',
@@ -48,7 +54,7 @@ class ResetPasswordPage extends BasePage {
      */
     async verifyResetPasswordPage() {
         await expect(this.page).toHaveURL(/.*reset-password/);
-        await expect(this.page.locator(this.selectors.pageTitle)).toContainText('Reset Password');
+        await expect(this.page.locator(this.selectors.pageTitle)).toContainText('Reset password');
     }
 
     /**
@@ -57,7 +63,7 @@ class ResetPasswordPage extends BasePage {
      * @returns {Promise<void>}
      */
     async enterEmail(email) {
-        await this.page.fill(this.selectors.resetPasswordEmail, email);
+        await this.page.getByRole('textbox', { name: 'Email' }).fill(email);
     }
 
     /**
@@ -66,7 +72,11 @@ class ResetPasswordPage extends BasePage {
      */
     async clickSendCode() {
         await this.page.click(this.selectors.sendCodeButton);
-        await this.page.waitForLoadState('networkidle');
+        // Wait for navigation to the set new password page
+        await this.page.waitForURL(/.*/, { timeout: 60000 });
+        await this.page.waitForLoadState('networkidle', { timeout: 60000 });
+        // Additional wait to ensure page is fully loaded
+        await this.page.waitForTimeout(3000);
     }
 
     /**
@@ -82,20 +92,55 @@ class ResetPasswordPage extends BasePage {
      * @returns {Promise<boolean>}
      */
     async isNewPasswordPageDisplayed() {
-        await this.page.waitForURL(/.*new-password/);
-        return await this.page.isVisible(this.selectors.newPasswordInput);
+        // Check if we're on the set new password page by looking for the heading
+        const heading = this.page.getByRole('heading', { name: 'Set new password' });
+        return await heading.isVisible();
+    }
+
+    /**
+     * Enter verification code
+     * @param {string} code - The 5-digit verification code
+     * @returns {Promise<void>}
+     */
+    async enterVerificationCode(code) {
+        await this.page.fill(this.selectors.verificationCodeInput, code);
+    }
+
+    /**
+     * Click the verify code button
+     * @returns {Promise<void>}
+     */
+    async clickVerifyCode() {
+        await this.page.click(this.selectors.verifyCodeButton);
+        await this.page.waitForLoadState('networkidle');
+    }
+
+    /**
+     * Click the resend code button
+     * @returns {Promise<void>}
+     */
+    async clickResendCode() {
+        await this.page.click(this.selectors.resendCodeButton);
+        await this.page.waitForLoadState('networkidle');
+    }
+
+    /**
+     * Verify invalid code error is displayed
+     * @returns {Promise<boolean>}
+     */
+    async isInvalidCodeErrorVisible() {
+        return await this.page.isVisible(this.selectors.invalidCodeError);
     }
 
     /**
      * Set a new password
      * @param {string} newPassword - The new password
-     * @param {string} confirmPassword - The password confirmation
+     * @param {string} confirmPassword - The password confirmation (not used as field removed from UI)
      * @returns {Promise<void>}
      */
     async setNewPassword(newPassword, confirmPassword) {
-        await this.page.fill(this.selectors.newPasswordInput, newPassword);
-        await this.page.fill(this.selectors.confirmPasswordInput, confirmPassword);
-        await this.page.click(this.selectors.resetPasswordButton);
+        await this.page.getByRole('textbox', { name: 'New Password' }).fill(newPassword);
+        await this.page.click(this.selectors.setNewPasswordButton);
         await this.page.waitForLoadState('networkidle');
     }
 
@@ -112,7 +157,7 @@ class ResetPasswordPage extends BasePage {
      * @returns {Promise<boolean>}
      */
     async isPasswordRequirementsErrorVisible() {
-        return await this.page.isVisible(this.selectors.passwordRequirements);
+        return await this.page.getByText('The password must contain at').isVisible();
     }
 
     /**
@@ -120,7 +165,7 @@ class ResetPasswordPage extends BasePage {
      * @returns {Promise<void>}
      */
     async clickReturnToLogin() {
-        await this.page.click(this.selectors.returnToLoginLink);
+        await this.page.getByRole('button', { name: 'Return to login screen' }).click();
         await this.page.waitForLoadState('networkidle');
     }
 
