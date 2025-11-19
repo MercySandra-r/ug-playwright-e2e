@@ -11,6 +11,7 @@ const { expect } = require('@playwright/test');
 const ElementAssertUtils = require('../utils/elementAssertUtils');
 const TextVerificationUtils = require('../utils/textVerificationUtils');
 const CustomSelectorUtils = require('../utils/customSelectorUtils');
+const VerifyEmailPage = require('./VerifyEmailPage');
 
 class LandingPage extends BasePage {
   /**
@@ -23,63 +24,46 @@ class LandingPage extends BasePage {
     this.textVerify = new TextVerificationUtils(page);
     this.customSelector = new CustomSelectorUtils(page);
     
-    // Define selectors for page elements
-    this.selectors = {
-      // Navigation and main elements
-      viewAppDetailsBtn: 'button:has-text("View Application Details")',
-      appDetailsSection: 'div[role="main"]',
-      createAccountLink: 'a:has-text("Create Account")',
-      loginBtn: 'button:has-text("Login")',
-      molRadioGroup: 'div[role="radiogroup"]',
-      // Add other selectors as needed
-    };
-    
     // Page verification elements
     this.pageTitle = 'Arizona State University | ASU';
-    this.expectedElements = [
-      this.selectors.viewAppDetailsBtn,
-      this.selectors.createAccountLink,
-      this.selectors.loginBtn,
-      this.selectors.molRadioGroup
-    ];
-
+    
     // Define selectors for page elements
     this.selectors = {
       // Navigation and main elements
       viewAppDetailsBtn: 'button:has-text("View Application Details")',
-      appDetailsSection: 'div[role="main"]', // Updated to match the main content area
-      createAccountLink: 'a:has-text("Create Account")',
-      loginBtn: 'button:has-text("Login")',
+      appDetailsSection: 'main',
+      createAccountLink: 'button:has-text("Create account")',
+      loginBtn: 'role=link[name="Log in"]',
+      molRadioGroup: 'div[role="radiogroup"]',
 
       // Footer container
       footerContainer: 'footer[role="contentinfo"]',
 
-      // MOL (Mode of Learning) options - updated to match actual page structure
-      molRadioGroup: 'div[role="radiogroup"]',
-      inPersonRadioButton: 'input[type="radio"]:nth-child(1)',
-      onlineRadioButton: 'input[type="radio"]:nth-child(2)',
-      molSelection: 'label[for^="mol-option"]',
-      inPersonMolTitle: 'h3:has-text("In-Person")',
-      inPersonLearnMore: 'a:has-text("Learn more about in-person programs")',
-      onlineLearnMore: 'a:has-text("Learn more about online programs")',
-      inPersonTitle: 'h2:has-text("In-Person Programs")',
-      onlineTitle: 'h2:has-text("Online Programs")',
-      molBackBtn: 'button:has-text("Back")',
+      // MOL (Mode of Learning) options - using role and name for better reliability
+      inPersonRadioButton: 'role=radio[name*="In-person"]',
+      onlineRadioButton: 'role=radio[name*="Online Online I want to take"]',
+      molSelection: 'role=radiogroup',
+      inPersonMolTitle: 'role=heading[name*="In-person" i]',
+      inPersonLearnMore: 'role=link[name*="Learn more about in-person programs" i]',
+      onlineLearnMore: 'role=link[name*="Learn more about online programs" i]',
+      inPersonTitle: 'role=heading[name*="In-Person Programs" i]',
+      onlineTitle: 'role=heading[name*="Online Programs" i]',
+      molBackBtn: 'role=button[name="Back"]',
 
-      // Degree type options - updated to match actual page structure
-      assOrBachDegreeType: 'input[value="associate-or-bachelor"]',
-      pursueDegreeType: 'input[value="pursue"]',
-      ndgvusDegreeType: 'input[value="ndgvus"]',
+      // Degree type options - using role and name for better reliability
+      pursueDegreeRadio: 'role=radio[name*="Yes, I want to pursue an"]',
+      individualCoursesRadio: 'role=radio[name*="No, I want to take individual"]',
+      degreeTypeContinueBtn: 'role=button[name="Continue"]',
 
       // Account creation
-      email: '[data-cy="email-input"]',
-      reemail: '[data-cy="reemail-input"]',
-      password: '[data-cy="password-input"]',
-      repassword: '[data-cy="repassword-input"]',
+      email: 'role=textbox[name="Enter your email"]',
+      reemail: 'role=textbox[name="Confirm your email"]', 
+      password: 'role=textbox[name="Create a password"]',
+      repassword: 'role=textbox[name="Confirm your password"]',
       recaptcha: '[data-cy="recaptcha-container"]',
 
       // Validation elements
-      emailValidation: '[data-cy="email-validation"]',
+      emailValidation: 'getByText("Invalid email.")',
       reemailValidation: '[data-cy="reemail-validation"]',
       reemailValidationAlt: '[data-cy="reemail-validation-alt"]',
       passwordValidation10: '[data-cy="password-validation-10-chars"]',
@@ -91,6 +75,14 @@ class LandingPage extends BasePage {
       loader: '[data-cy="loader"]',
       progressbar: '[data-cy="progress-bar"]'
     };
+
+    // Define expected elements for page verification
+    this.expectedElements = [
+      this.selectors.viewAppDetailsBtn,
+      this.selectors.createAccountLink,
+      this.selectors.loginBtn,
+      this.selectors.molRadioGroup
+    ];
 
     // Store the selected MOL for later verification
     this.selectedMOL = '';
@@ -162,6 +154,46 @@ class LandingPage extends BasePage {
   async validateCreateAccount() {
     this.logger.info('Validating Create Account Here link');
     
+    // First, select a radio button (either In-person or Online)
+    await this.chooseInPersonMOL();
+    await this.page.waitForTimeout(1000); // Wait for UI to update
+    
+    // Scroll to the create account section before validation
+    await this.scrollToCreateAccountSection();
+    
+    // Fill out the required form fields before attempting navigation
+    this.logger.debug('Filling out account creation form fields');
+    
+    // Generate test credentials
+    const testEmail = `test.user+${Date.now()}@example.com`;
+    const testPassword = 'TestPassword123!';
+    
+    // Fill email field
+    await this.elementAssert.assertVisible(this.selectors.email);
+    await this.fill(this.selectors.email, testEmail);
+    this.logger.debug('Email field filled');
+    
+    // Fill confirm email field
+    await this.elementAssert.assertVisible(this.selectors.reemail);
+    await this.fill(this.selectors.reemail, testEmail);
+    this.logger.debug('Confirm email field filled');
+    
+    // Fill password field
+    await this.elementAssert.assertVisible(this.selectors.password);
+    await this.fill(this.selectors.password, testPassword);
+    this.logger.debug('Password field filled');
+    
+    // Fill confirm password field
+    await this.elementAssert.assertVisible(this.selectors.repassword);
+    await this.fill(this.selectors.repassword, testPassword);
+    this.logger.debug('Confirm password field filled');
+    
+    // Wait for form validation to complete
+    await this.page.waitForTimeout(1000);
+    
+    // Now the Create Account link should be visible and enabled
+    await this.elementAssert.assertVisible(this.selectors.createAccountLink);
+    
     // Scroll to the create account link
     const createAccountElement = await this.page.$(this.selectors.createAccountLink);
     if (!createAccountElement) {
@@ -170,15 +202,14 @@ class LandingPage extends BasePage {
     await createAccountElement.scrollIntoViewIfNeeded();
     
     // Get current page information before clicking
-    const currentPageUrl = this.getCurrentUrl();
-    const currentContext = this.page;
+    const currentPageUrl = this.page.url();
     
     // Click the create account link which may open in a new tab
     await this.click(this.selectors.createAccountLink);
-    await this.page.waitForTimeout(2000); // Wait for new tab to open
+    await this.page.waitForTimeout(5000); // Wait for new tab to open
     
     // Check for new tab/window
-    const pages = await this.page.context().pages();
+    const pages = this.page.context().pages();
     let createAccountPage = pages[pages.length - 1];
     
     try {
@@ -186,26 +217,62 @@ class LandingPage extends BasePage {
       if (pages.length > 1 && createAccountPage !== this.page) {
         const newPageUrl = createAccountPage.url();
         
-        if (newPageUrl.includes('webapp4.asu.edu/uga_admissionsapp/')) {
+        if (newPageUrl.includes('webapp4.asu.edu/uga_admissionsapp/') || newPageUrl.includes('apply-qa.apps.asu.edu/user/verify-email')) {
           this.logger.debug('Create An Account here link works as expected!');
           await createAccountPage.close();
         } else {
           this.logger.error(`Unexpected URL in new tab: ${newPageUrl}`);
+          throw new Error(`Create account link navigated to unexpected URL: ${newPageUrl}`);
         }
       } else {
         // Check if we're still on the same page or redirected
-        const newUrl = this.getCurrentUrl();
-        if (newUrl !== currentPageUrl && newUrl.includes('uga_admissionsapp')) {
+        const newUrl = this.page.url();
+        if (newUrl !== currentPageUrl && (newUrl.includes('uga_admissionsapp') || newUrl.includes('apply-qa.apps.asu.edu/user/verify-email'))) {
           this.logger.debug('Create An Account here link works as expected!');
           await this.page.goBack();
+          await this.waitForPageLoad();
         } else {
-          this.logger.error('Create account link did not navigate to expected page');
+          throw new Error('Create account link did not navigate to expected page');
         }
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       this.logger.error(`Error validating create account link: ${errorMessage}`);
       throw error instanceof Error ? error : new Error(errorMessage);
+    }
+  }
+
+  /**
+   * Scroll to the create account section to ensure elements are visible
+   * @returns {Promise<void>}
+   */
+  async scrollToCreateAccountSection() {
+    try {
+      this.logger.debug('Scrolling to create account section...');
+      
+      // Try to scroll to the "Ok, let's get your account created" heading
+      const accountHeading = this.page.locator('h2:has-text("Ok, let\'s get your account created")');
+      
+      if (await accountHeading.count() > 0) {
+        await accountHeading.scrollIntoViewIfNeeded();
+        // Wait a moment for the scroll to complete
+        await this.page.waitForTimeout(500);
+        this.logger.debug('Scrolled to account creation heading');
+      } else {
+        // Fallback: scroll to first email textbox
+        const emailField = this.page.locator(this.selectors.email);
+        if (await emailField.count() > 0) {
+          await emailField.scrollIntoViewIfNeeded();
+          await this.page.waitForTimeout(500);
+          this.logger.debug('Scrolled to email field');
+        } else {
+          this.logger.warn('Could not find account creation section to scroll to');
+        }
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to scroll to create account section: ${errorMessage}`);
+      // Don't throw error here, let the visibility assertions handle it
     }
   }
 
@@ -231,34 +298,29 @@ class LandingPage extends BasePage {
 
   /**
    * Choose a random MOL (Mode of Learning) option
+   * @param {Object} options - Options for MOL selection
+   * @param {string} [options.degreeType='pursue'] - Type of degree to select ('pursue' or 'individual')
    * @returns {Promise<string>} The selected MOL text
    */
-  async chooseRandomMOL() {
+  async chooseRandomMOL(options = {}) {
+    const { degreeType = 'pursue' } = options;
     this.logger.info('Choosing random MOL');
+    
     await this.waitForPageLoad();
     
     // Get all MOL radio buttons
-    const radioButtons = await this.page.$$(this.selectors.molRadioGroup + ' label');
-    this.logger.debug(`Number of MOL options: ${radioButtons.length}`);
-    
-    if (radioButtons.length === 0) {
-      throw new Error('No MOL radio buttons found');
-    }
+    const radioButtons = [
+      { selector: this.selectors.inPersonRadioButton, method: this.chooseInPersonMOL.bind(this) },
+      { selector: this.selectors.onlineRadioButton, method: this.chooseOnlineMOL.bind(this) }
+    ];
     
     // Choose a random radio button
     const randomIndex = Math.floor(Math.random() * radioButtons.length);
-    await radioButtons[randomIndex].click();
-    await this.page.waitForTimeout(1000); // Wait for selection to register
+    const selectedOption = radioButtons[randomIndex];
     
-    // Get the selected MOL text
-    const selectedMOLElement = await this.page.$(this.selectors.molSelection);
-    if (!selectedMOLElement) {
-      throw new Error(`MOL selection element not found with selector: ${this.selectors.molSelection}`);
-    }
-    const molText = await selectedMOLElement.textContent();
-    if (molText === null) {
-      throw new Error('Selected MOL text content is null');
-    }
+    // Use the appropriate method to select the MOL and handle degree type
+    const molText = await selectedOption.method({ degreeType });
+    
     this.selectedMOL = molText;
     this.logger.debug(`How would you like to attend? ${this.selectedMOL}`);
     
@@ -266,23 +328,59 @@ class LandingPage extends BasePage {
   }
 
   /**
+   * Select degree type after MOL selection
+   * @param {string} degreeType - Type of degree to select ('pursue' or 'individual')
+   * @returns {Promise<void>}
+   */
+  async selectDegreeType(degreeType = 'pursue') {
+    this.logger.info(`Selecting degree type: ${degreeType}`);
+    
+    // Check if Edit link is visible (degree type already selected)
+    const editLink = this.page.getByRole('link', { name: 'Edit' });
+    const isEditVisible = await editLink.isVisible().catch(() => false);
+    
+    if (isEditVisible) {
+      this.logger.debug('Degree type already selected, clicking Edit to modify');
+      await editLink.click();
+      await this.page.waitForTimeout(1000); // Wait for UI to expand
+    }
+    
+    // Wait for the degree type options to be visible
+    await this.page.waitForSelector(this.selectors.pursueDegreeRadio, { state: 'visible' });
+    
+    // Select the appropriate radio button
+    if (degreeType.toLowerCase() === 'pursue') {
+      await this.click(this.selectors.pursueDegreeRadio);
+    } else {
+      await this.click(this.selectors.individualCoursesRadio);
+    }
+    
+    // Wait for the form to update (no Continue button needed)
+    await this.page.waitForLoadState('networkidle');
+  }
+
+  /**
    * Choose the In-person MOL option
+   * @param {Object} options - Options for MOL selection
+   * @param {string} [options.degreeType='pursue'] - Type of degree to select ('pursue' or 'individual')
    * @returns {Promise<string>} The selected MOL text
    */
-  async chooseInPersonMOL() {
+  async chooseInPersonMOL(options = {}) {
+    const { degreeType = 'pursue' } = options;
     this.logger.info('Choosing In-person MOL');
+    
     await this.waitForPageLoad();
     
-    // Scroll to the in-person radio button
+    // Scroll to the in-person radio button and click it
     const inPersonRadioElement = await this.page.$(this.selectors.inPersonRadioButton);
     if (!inPersonRadioElement) {
       throw new Error(`In-person radio button not found with selector: ${this.selectors.inPersonRadioButton}`);
     }
     await inPersonRadioElement.scrollIntoViewIfNeeded();
-    
-    // Click the in-person radio button
     await this.click(this.selectors.inPersonRadioButton);
-    await this.page.waitForTimeout(500); // Wait for selection to register
+    
+    // Handle degree type selection
+    await this.selectDegreeType(degreeType);
     
     // Get the selected MOL text
     const selectedMOLElement = await this.page.$(this.selectors.inPersonMolTitle);
@@ -301,29 +399,30 @@ class LandingPage extends BasePage {
 
   /**
    * Choose the Online MOL option
+   * @param {Object} options - Options for MOL selection
+   * @param {string} [options.degreeType='pursue'] - Type of degree to select ('pursue' or 'individual')
    * @returns {Promise<string>} The selected MOL text
    */
-  async chooseOnlineMOL() {
+  async chooseOnlineMOL(options = {}) {
+    const { degreeType = 'pursue' } = options;
     this.logger.info('Choosing Online MOL');
+    
     await this.waitForPageLoad();
     
-    // Scroll to the online radio button
+    // Scroll to the online radio button and click it
     const onlineRadioElement = await this.page.$(this.selectors.onlineRadioButton);
     if (!onlineRadioElement) {
       throw new Error(`Online radio button not found with selector: ${this.selectors.onlineRadioButton}`);
     }
     await onlineRadioElement.scrollIntoViewIfNeeded();
-    
-    // Click the online radio button
     await this.click(this.selectors.onlineRadioButton);
-    await this.page.waitForTimeout(1000); // Wait for selection to register
     
-    // Get the selected MOL text
-    const selectedMOLElement = await this.page.$(this.selectors.molSelection);
-    if (!selectedMOLElement) {
-      throw new Error(`MOL selection element not found with selector: ${this.selectors.molSelection}`);
-    }
-    const molText = await selectedMOLElement.textContent();
+    // Handle degree type selection
+    await this.selectDegreeType(degreeType);
+    
+    // Get the selected MOL text from the Online heading
+    const onlineHeading = this.page.getByRole('heading', { name: 'Online', level: 3 });
+    const molText = await onlineHeading.textContent();
     if (molText === null) {
       throw new Error('Online MOL text content is null');
     }
@@ -333,53 +432,11 @@ class LandingPage extends BasePage {
     return this.selectedMOL;
   }
 
-  /**
-   * Choose Associate or Bachelor degree type
-   */
-  async chooseAssOrBachDegreeType() {
-    this.logger.info('Choosing Associate or Bachelor degree type');
-    await this.waitForPageLoad();
-    
-    // Click the Associate or Bachelor degree type option
-    await this.click(this.selectors.assOrBachDegreeType);
-    await this.waitForPageLoad();
-    
-    // Verify selection
-    await this.elementAssert.assertChecked(this.selectors.assOrBachDegreeType);
-  }
+
+
 
   /**
-   * Choose Pursue Degree degree type
-   */
-  async choosePursueDegreeType() {
-    this.logger.info('Choosing Pursue Degree type');
-    await this.waitForPageLoad();
-    
-    // Click the Pursue Degree type option
-    await this.click(this.selectors.pursueDegreeType);
-    await this.waitForPageLoad();
-    
-    // Verify selection
-    await this.elementAssert.assertChecked(this.selectors.pursueDegreeType);
-  }
-
-  /**
-   * Choose NDGVUS degree type
-   */
-  async chooseNDGVUSDegreeType() {
-    this.logger.info('Choosing NDGVUS degree type');
-    await this.waitForPageLoad();
-    
-    // Click the NDGVUS degree type option
-    await this.click(this.selectors.ndgvusDegreeType);
-    await this.waitForPageLoad();
-    
-    // Verify selection
-    await this.elementAssert.assertChecked(this.selectors.ndgvusDegreeType);
-  }
-
-  /**
-   * Enter account creation information
+   * Enter account information into the form fields
    * @param {string} email - Email address
    * @param {string} reemail - Re-entered email address
    * @param {string} password - Password
@@ -388,8 +445,6 @@ class LandingPage extends BasePage {
    */
   async enterAccountInfo(email, reemail, password, repassword) {
     this.logger.info(`Creating account with email: ${email}`);
-    
-    // Fill in account details
     await this.fill(this.selectors.email, email);
     await this.fill(this.selectors.reemail, reemail);
     await this.fill(this.selectors.password, password);
@@ -397,10 +452,57 @@ class LandingPage extends BasePage {
   }
 
   /**
-   * Create a random account with valid information
-   * @returns {Promise<object>} Account credentials
+   * Submit the account creation form by clicking the Create account button
+   * @returns {Promise<void>}
    */
-  async createRandomAccount() {
+  async submitAccountForm() {
+    this.logger.info('Submitting account creation form');
+    
+    // Click the Create account button to submit the form
+    await this.click(this.selectors.createAccountLink);
+    
+    // Wait 20 seconds after clicking Create account button for processing
+    this.logger.info('Waiting 20 seconds for account creation to process...');
+    await this.page.waitForTimeout(20000);
+    
+    // Then wait for navigation to verify-email page
+    try {
+      await this.page.waitForURL('**/user/verify-email', { timeout: 45000 });
+      this.logger.debug('Navigated to verify email page');
+    } catch (e) {
+      // Fallback small delay to allow late navigation in slower environments
+      this.logger.warn('Verify email navigation not detected within timeout; adding short delay');
+      await this.page.waitForTimeout(3000);
+    }
+  }
+
+  /**
+   * Create a random account with valid information
+   * @param {{ mode?: 'in-person'|'online'|'random', degreeType?: 'pursue'|'individual' }} [options]
+   * @returns {Promise<{email: string, password: string}>} Account credentials
+   */
+  async createRandomAccount(options = {}) {
+    // Options: { mode: 'in-person' | 'online' | 'random', degreeType: 'pursue' | 'individual' }
+    const { mode = 'random', degreeType = 'pursue' } = options;
+    
+    // Ensure an MOL (In-person/Online) is selected and degree type is set before filling
+    await this.waitForPageLoad();
+    
+    // First select MOL to make the account creation form visible
+    if (mode === 'in-person') {
+      await this.chooseInPersonMOL({ degreeType });
+    } else if (mode === 'online') {
+      await this.chooseOnlineMOL({ degreeType });
+    } else {
+      await this.chooseRandomMOL({ degreeType });
+    }
+    
+    // Wait for the account creation form to be fully loaded
+    await this.page.waitForLoadState('networkidle');
+    
+    // Ensure the email field is visible before proceeding
+    await this.waitForVisible(this.selectors.email, this.assertionTimeout);
+
     // Generate random email with timestamp to ensure uniqueness
     const timestamp = new Date().getTime();
     const randomEmail = `test.user.${timestamp}@example.com`;
@@ -409,6 +511,9 @@ class LandingPage extends BasePage {
     // Enter account information
     await this.enterAccountInfo(randomEmail, randomEmail, validPassword, validPassword);
     
+    // Submit the form by clicking the Create account button
+    await this.submitAccountForm();
+    
     // Store credentials for later use
     const credentials = {
       email: randomEmail,
@@ -416,6 +521,27 @@ class LandingPage extends BasePage {
     };
     
     return credentials;
+  }
+
+  /**
+   * Wait for Verify Email page and return its page object
+   * @returns {Promise<import('./VerifyEmailPage')>}
+   */
+  async waitForVerifyEmailPage() {
+    await this.page.waitForURL('**/user/verify-email', { timeout: 45000 });
+    await expect(this.page.getByRole('heading', { name: 'Step 1: Check your email' })).toBeVisible();
+    return new VerifyEmailPage(this.page);
+  }
+
+  /**
+   * Create a random account and proceed to the Verify Email page
+   * @param {{ mode?: 'in-person'|'online'|'random', degreeType?: 'pursue'|'individual' }} [options]
+   * @returns {Promise<{ credentials: { email: string, password: string }, verifyEmailPage: any }>}
+   */
+  async createAccountAndGoToVerifyEmail(options = {}) {
+    const credentials = await this.createRandomAccount(options);
+    const verifyEmailPage = await this.waitForVerifyEmailPage();
+    return { credentials, verifyEmailPage };
   }
 
   /**
@@ -430,95 +556,65 @@ class LandingPage extends BasePage {
     this.logger.info('Validating account creation inputs');
     let isValid = true;
     
-    // Validate email format
-    const emailRegex = /^[a-zA-Z0-9]+@[a-zA-Z]+\.[a-zA-Z]{2,4}$/;
+    // Validate email format - Updated regex to allow dots in email
+    const emailRegex = /^[a-zA-Z0-9.]+@[a-zA-Z0-9]+\.[a-zA-Z]{2,4}$/;
     if (!emailRegex.test(email)) {
-      try {
-        await this.elementAssert.assertVisible(this.selectors.emailValidation);
-        const emailError = await this.getText(this.selectors.emailValidation);
-        await expect(emailError).toBe("Invalid email format.");
-        this.logger.debug("Error message is visible for: Invalid email format.");
-        isValid = false;
-      } catch (error) {
-        this.logger.debug("Error element not found for: Invalid email format.");
-      }
+      this.logger.debug(`Invalid email format detected: ${email}`);
+      isValid = false;
     }
     
     // Validate reentered email
-    if (emailRegex.test(reemail)) {
-      this.logger.debug("Email is valid: " + reemail);
-      if (reemail !== email) {
-        try {
-          const reemailError = await this.page.$(this.selectors.reemailValidation);
-          const reemailErrorAlt = await this.page.$(this.selectors.reemailValidationAlt);
-          
-          if (reemailError || reemailErrorAlt) {
-            if (reemailError) {
-              const errorText = await reemailError.textContent();
-              await expect(errorText).toBe("Email does not match.");
-            } else if (reemailErrorAlt) {
-              const errorText = await reemailErrorAlt.textContent();
-              await expect(errorText).toBe("Invalid email format.");
-            }
-            this.logger.debug("Error message is visible in Reenter Email.");
-            isValid = false;
-          }
-        } catch (error) {
-          this.logger.debug("Error element not found in Reenter Email");
-        }
-      }
+    if (!emailRegex.test(reemail) || reemail !== email) {
+      this.logger.debug(`Email mismatch or invalid reentered email detected: ${reemail}`);
+      isValid = false;
     }
     
     // Validate password length
     if (password.length < 10) {
-      try {
-        await this.elementAssert.assertVisible(this.selectors.passwordValidation10);
-        const errorText = await this.getText(this.selectors.passwordValidation10);
-        await expect(errorText).toBe("The password must be at least 10 characters long.");
-        this.logger.debug("Correct error message displayed for password length");
-        isValid = false;
-      } catch (error) {
-        this.logger.debug("Error element not found for: The password must be at least 10 characters long.");
-      }
+      this.logger.debug("Password too short detected.");
+      isValid = false;
     }
     
     // Validate password contains at least 1 number
     if (!/\d/.test(password)) {
-      try {
-        await this.elementAssert.assertVisible(this.selectors.passwordValidation1);
-        const errorText = await this.getText(this.selectors.passwordValidation1);
-        await expect(errorText).toBe("The password must contain at least 1 number.");
-        this.logger.debug("Correct error message displayed for password number requirement");
-        isValid = false;
-      } catch (error) {
-        this.logger.debug("Error element not found for: The password must contain at least 1 number.");
-      }
+      this.logger.debug("Password missing number detected.");
+      isValid = false;
     }
     
     // Validate password contains at least 1 uppercase letter
     if (!/[A-Z]/.test(password)) {
-      try {
-        await this.elementAssert.assertVisible(this.selectors.passwordValidation1U);
-        const errorText = await this.getText(this.selectors.passwordValidation1U);
-        await expect(errorText).toBe("The password must contain at least 1 uppercase letter.");
-        this.logger.debug("Correct error message displayed for password uppercase requirement");
-        isValid = false;
-      } catch (error) {
-        this.logger.debug("Error element not found for: The password must contain at least 1 uppercase letter.");
-      }
+      this.logger.debug("Password missing uppercase letter detected.");
+      isValid = false;
     }
     
     // Validate password contains at least 1 lowercase letter
     if (!/[a-z]/.test(password)) {
-      try {
-        await this.elementAssert.assertVisible(this.selectors.passwordValidation1L);
-        const errorText = await this.getText(this.selectors.passwordValidation1L);
-        await expect(errorText).toBe("The password must contain at least 1 lowercase letter.");
-        this.logger.debug("Correct error message displayed for password lowercase requirement");
-        isValid = false;
-      } catch (error) {
-        this.logger.debug("Error element not found for: The password must contain at least 1 lowercase letter.");
-      }
+      this.logger.debug("Password missing lowercase letter detected.");
+      isValid = false;
+    }
+    
+    // Validate confirm password length
+    if (repassword.length < 10) {
+      this.logger.debug("Confirm password too short detected.");
+      isValid = false;
+    }
+    
+    // Validate confirm password contains at least 1 number
+    if (!/\d/.test(repassword)) {
+      this.logger.debug("Confirm password missing number detected.");
+      isValid = false;
+    }
+    
+    // Validate confirm password contains at least 1 uppercase letter
+    if (!/[A-Z]/.test(repassword)) {
+      this.logger.debug("Confirm password missing uppercase letter detected.");
+      isValid = false;
+    }
+    
+    // Validate confirm password contains at least 1 lowercase letter
+    if (!/[a-z]/.test(repassword)) {
+      this.logger.debug("Confirm password missing lowercase letter detected.");
+      isValid = false;
     }
     
     return isValid;

@@ -1,11 +1,11 @@
 {
   "config": {
-    "configFile": "H:\\ug-mig\\playwright\\playwright.config.js",
-    "rootDir": "H:/ug-mig/playwright/tests",
+    "configFile": "D:\\Automation\\UGMigrationPlaywright\\UGmigration\\playwright\\playwright.config.js",
+    "rootDir": "D:/Automation/UGMigrationPlaywright/UGmigration/playwright/tests",
     "forbidOnly": false,
     "fullyParallel": true,
-    "globalSetup": "H:\\ug-mig\\playwright\\utils\\globalSetup.js",
-    "globalTeardown": "H:\\ug-mig\\playwright\\utils\\globalTeardown.js",
+    "globalSetup": "D:\\Automation\\UGMigrationPlaywright\\UGmigration\\playwright\\utils\\globalSetup.js",
+    "globalTeardown": "D:\\Automation\\UGMigrationPlaywright\\UGmigration\\playwright\\utils\\globalTeardown.js",
     "globalTimeout": 0,
     "grep": {},
     "grepInvert": null,
@@ -39,7 +39,7 @@
     "quiet": false,
     "projects": [
       {
-        "outputDir": "H:/ug-mig/playwright/test-results",
+        "outputDir": "D:/Automation/UGMigrationPlaywright/UGmigration/playwright/test-results",
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
@@ -47,7 +47,7 @@
         },
         "id": "chromium",
         "name": "chromium",
-        "testDir": "H:/ug-mig/playwright/tests",
+        "testDir": "D:/Automation/UGMigrationPlaywright/UGmigration/playwright/tests",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
@@ -55,7 +55,7 @@
         "timeout": 60000
       },
       {
-        "outputDir": "H:/ug-mig/playwright/test-results",
+        "outputDir": "D:/Automation/UGMigrationPlaywright/UGmigration/playwright/test-results",
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
@@ -63,7 +63,7 @@
         },
         "id": "firefox",
         "name": "firefox",
-        "testDir": "H:/ug-mig/playwright/tests",
+        "testDir": "D:/Automation/UGMigrationPlaywright/UGmigration/playwright/tests",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
@@ -71,7 +71,7 @@
         "timeout": 60000
       },
       {
-        "outputDir": "H:/ug-mig/playwright/test-results",
+        "outputDir": "D:/Automation/UGMigrationPlaywright/UGmigration/playwright/test-results",
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
@@ -79,7 +79,7 @@
         },
         "id": "webkit",
         "name": "webkit",
-        "testDir": "H:/ug-mig/playwright/tests",
+        "testDir": "D:/Automation/UGMigrationPlaywright/UGmigration/playwright/tests",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
@@ -87,7 +87,7 @@
         "timeout": 60000
       },
       {
-        "outputDir": "H:/ug-mig/playwright/test-results",
+        "outputDir": "D:/Automation/UGMigrationPlaywright/UGmigration/playwright/test-results",
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
@@ -95,7 +95,7 @@
         },
         "id": "msedge",
         "name": "msedge",
-        "testDir": "H:/ug-mig/playwright/tests",
+        "testDir": "D:/Automation/UGMigrationPlaywright/UGmigration/playwright/tests",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
@@ -103,7 +103,7 @@
         "timeout": 60000
       },
       {
-        "outputDir": "H:/ug-mig/playwright/test-results",
+        "outputDir": "D:/Automation/UGMigrationPlaywright/UGmigration/playwright/test-results",
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
@@ -111,7 +111,7 @@
         },
         "id": "mobile-chrome",
         "name": "mobile-chrome",
-        "testDir": "H:/ug-mig/playwright/tests",
+        "testDir": "D:/Automation/UGMigrationPlaywright/UGmigration/playwright/tests",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
@@ -119,7 +119,7 @@
         "timeout": 60000
       },
       {
-        "outputDir": "H:/ug-mig/playwright/test-results",
+        "outputDir": "D:/Automation/UGMigrationPlaywright/UGmigration/playwright/test-results",
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
@@ -127,7 +127,7 @@
         },
         "id": "mobile-safari",
         "name": "mobile-safari",
-        "testDir": "H:/ug-mig/playwright/tests",
+        "testDir": "D:/Automation/UGMigrationPlaywright/UGmigration/playwright/tests",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
@@ -135,7 +135,7 @@
         "timeout": 60000
       },
       {
-        "outputDir": "H:/ug-mig/playwright/test-results",
+        "outputDir": "D:/Automation/UGMigrationPlaywright/UGmigration/playwright/test-results",
         "repeatEach": 1,
         "retries": 0,
         "metadata": {
@@ -143,7 +143,7 @@
         },
         "id": "chrome-beta",
         "name": "chrome-beta",
-        "testDir": "H:/ug-mig/playwright/tests",
+        "testDir": "D:/Automation/UGMigrationPlaywright/UGmigration/playwright/tests",
         "testIgnore": [],
         "testMatch": [
           "**/*.@(spec|test).?(c|m)[jt]s?(x)"
@@ -160,58 +160,48 @@
   },
   "suites": [
     {
-      "title": "TC_01_LandingPageTest.spec.js",
-      "file": "TC_01_LandingPageTest.spec.js",
+      "title": "TC_05_PreAppDashboardTest_Fixed.spec.js",
+      "file": "TC_05_PreAppDashboardTest_Fixed.spec.js",
       "column": 0,
       "line": 0,
       "specs": [],
       "suites": [
         {
-          "title": "Landing Page Tests",
-          "file": "TC_01_LandingPageTest.spec.js",
-          "line": 6,
+          "title": "Pre-Application Dashboard Tests",
+          "file": "TC_05_PreAppDashboardTest_Fixed.spec.js",
+          "line": 12,
           "column": 6,
           "specs": [
             {
-              "title": "Verify landing page elements and navigation",
-              "ok": false,
+              "title": "Verify form validation for required fields",
+              "ok": true,
               "tags": [],
               "tests": [
                 {
-                  "timeout": 60000,
+                  "timeout": 120000,
                   "annotations": [],
                   "expectedStatus": "passed",
                   "projectId": "chromium",
                   "projectName": "chromium",
                   "results": [
                     {
-                      "workerIndex": 1,
+                      "workerIndex": 22,
                       "parallelIndex": 0,
-                      "status": "failed",
-                      "duration": 17531,
-                      "error": {
-                        "message": "Error: Element div[role=\"main\"] should be visible\n\n\u001b[31mTimed out 10000ms waiting for \u001b[39m\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m\n\nLocator: locator('div[role=\"main\"]')\nExpected: visible\nReceived: <element(s) not found>\nCall log:\n\u001b[2m  - Expect \"Element div[role=\\\"main\\\"] should be visible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('div[role=\"main\"]')\u001b[22m\n",
-                        "stack": "Error: Element div[role=\"main\"] should be visible\n\n\u001b[31mTimed out 10000ms waiting for \u001b[39m\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m\n\nLocator: locator('div[role=\"main\"]')\nExpected: visible\nReceived: <element(s) not found>\nCall log:\n\u001b[2m  - Expect \"Element div[role=\\\"main\\\"] should be visible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('div[role=\"main\"]')\u001b[22m\n\n    at ElementAssertUtils.assertVisible (H:\\ug-mig\\playwright\\utils\\elementAssertUtils.js:34:81)\n    at LandingPage.validateViewAppDetails (H:\\ug-mig\\playwright\\pages\\LandingPage.js:228:30)\n    at H:\\ug-mig\\playwright\\tests\\TC_01_LandingPageTest.spec.js:26:7\n    at H:\\ug-mig\\playwright\\tests\\TC_01_LandingPageTest.spec.js:25:5",
-                        "location": {
-                          "file": "H:\\ug-mig\\playwright\\utils\\elementAssertUtils.js",
-                          "column": 81,
-                          "line": 34
-                        },
-                        "snippet": "\u001b[90m   at \u001b[39m..\\utils\\elementAssertUtils.js:34\n\n\u001b[0m \u001b[90m 32 |\u001b[39m       \n \u001b[90m 33 |\u001b[39m       \u001b[36mconst\u001b[39m locator \u001b[33m=\u001b[39m \u001b[36mthis\u001b[39m\u001b[33m.\u001b[39mpage\u001b[33m.\u001b[39mlocator(selector)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 34 |\u001b[39m       \u001b[36mawait\u001b[39m expect(locator\u001b[33m,\u001b[39m message \u001b[33m||\u001b[39m \u001b[32m`Element ${selector} should be visible`\u001b[39m)\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 35 |\u001b[39m       \n \u001b[90m 36 |\u001b[39m       logger\u001b[33m.\u001b[39mdebug(\u001b[32m`Element is visible: ${selector}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 37 |\u001b[39m     } \u001b[36mcatch\u001b[39m (error) {\u001b[0m"
-                      },
-                      "errors": [
-                        {
-                          "location": {
-                            "file": "H:\\ug-mig\\playwright\\utils\\elementAssertUtils.js",
-                            "column": 81,
-                            "line": 34
-                          },
-                          "message": "Error: Element div[role=\"main\"] should be visible\n\n\u001b[31mTimed out 10000ms waiting for \u001b[39m\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m\n\nLocator: locator('div[role=\"main\"]')\nExpected: visible\nReceived: <element(s) not found>\nCall log:\n\u001b[2m  - Expect \"Element div[role=\\\"main\\\"] should be visible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('div[role=\"main\"]')\u001b[22m\n\n\n\u001b[90m   at \u001b[39m..\\utils\\elementAssertUtils.js:34\n\n\u001b[0m \u001b[90m 32 |\u001b[39m       \n \u001b[90m 33 |\u001b[39m       \u001b[36mconst\u001b[39m locator \u001b[33m=\u001b[39m \u001b[36mthis\u001b[39m\u001b[33m.\u001b[39mpage\u001b[33m.\u001b[39mlocator(selector)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 34 |\u001b[39m       \u001b[36mawait\u001b[39m expect(locator\u001b[33m,\u001b[39m message \u001b[33m||\u001b[39m \u001b[32m`Element ${selector} should be visible`\u001b[39m)\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 35 |\u001b[39m       \n \u001b[90m 36 |\u001b[39m       logger\u001b[33m.\u001b[39mdebug(\u001b[32m`Element is visible: ${selector}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 37 |\u001b[39m     } \u001b[36mcatch\u001b[39m (error) {\u001b[0m\n\u001b[2m    at ElementAssertUtils.assertVisible (H:\\ug-mig\\playwright\\utils\\elementAssertUtils.js:34:81)\u001b[22m\n\u001b[2m    at LandingPage.validateViewAppDetails (H:\\ug-mig\\playwright\\pages\\LandingPage.js:228:30)\u001b[22m\n\u001b[2m    at H:\\ug-mig\\playwright\\tests\\TC_01_LandingPageTest.spec.js:26:7\u001b[22m\n\u001b[2m    at H:\\ug-mig\\playwright\\tests\\TC_01_LandingPageTest.spec.js:25:5\u001b[22m"
-                        }
-                      ],
+                      "status": "passed",
+                      "duration": 42088,
+                      "errors": [],
                       "stdout": [
                         {
-                          "text": "[INFO] Navigating to https://apply-qa.apps.asu.edu/\n"
+                          "text": "Setting up account for: roger.ziemann.m0abbc74@test.asu.edu\n"
+                        },
+                        {
+                          "text": "Step 1: Navigating to https://apply-qa.apps.asu.edu/\n"
+                        },
+                        {
+                          "text": "Step 2: Selecting Online MOL and degree type\n"
+                        },
+                        {
+                          "text": "[INFO] Choosing Online MOL\n"
                         },
                         {
                           "text": "[DEBUG] Checking if element is visible: [data-cy=\"loader\"]\n"
@@ -220,79 +210,143 @@
                           "text": "[DEBUG] Checking if element is visible: [data-cy=\"progress-bar\"]\n"
                         },
                         {
-                          "text": "[INFO] Validating View Application Details functionality\n"
+                          "text": "[DEBUG] Clicking element: role=radio[name*=\"Online Online I want to take\"]\n"
                         },
                         {
-                          "text": "[DEBUG] Asserting element is visible: button:has-text(\"View Application Details\")\n"
+                          "text": "[INFO] Selecting degree type: pursue\n"
                         },
                         {
-                          "text": "[DEBUG] Element is visible: button:has-text(\"View Application Details\")\n"
+                          "text": "[DEBUG] Clicking element: role=radio[name*=\"Yes, I want to pursue an\"]\n"
                         },
                         {
-                          "text": "[DEBUG] View application details button is present on the landing page\n"
+                          "text": "[DEBUG] How would you like to attend? Online\n"
                         },
                         {
-                          "text": "[DEBUG] Clicking element: button:has-text(\"View Application Details\")\n"
+                          "text": "Step 3: Filling account creation form\n"
                         },
                         {
-                          "text": "[DEBUG] Asserting element is visible: div[role=\"main\"]\n"
+                          "text": "[INFO] Creating account with email: roger.ziemann.m0abbc74@test.asu.edu\n"
+                        },
+                        {
+                          "text": "[DEBUG] Filling \"roger.ziemann.m0abbc74@test.asu.edu\" into role=textbox[name=\"Enter your email\"]\n"
+                        },
+                        {
+                          "text": "[DEBUG] Filling \"roger.ziemann.m0abbc74@test.asu.edu\" into role=textbox[name=\"Confirm your email\"]\n"
+                        },
+                        {
+                          "text": "[DEBUG] Filling \"Testing10!\" into role=textbox[name=\"Create a password\"]\n"
+                        },
+                        {
+                          "text": "[DEBUG] Filling \"Testing10!\" into role=textbox[name=\"Confirm your password\"]\n"
+                        },
+                        {
+                          "text": "Step 4: Submitting account creation form\n"
+                        },
+                        {
+                          "text": "[INFO] Submitting account creation form\n"
+                        },
+                        {
+                          "text": "[DEBUG] Clicking element: button:has-text(\"Create account\")\n"
+                        },
+                        {
+                          "text": "[INFO] Waiting 20 seconds for account creation to process...\n"
+                        },
+                        {
+                          "text": "[DEBUG] Navigated to verify email page\n"
+                        },
+                        {
+                          "text": "Step 5: Waiting for email verification page\n"
+                        },
+                        {
+                          "text": "✓ Successfully navigated to email verification page\n"
+                        },
+                        {
+                          "text": "Step 6: Verifying email verification page elements\n"
+                        },
+                        {
+                          "text": "Log in button is visible on verify email page\n"
+                        },
+                        {
+                          "text": "✓ Email verification page elements verified\n"
+                        },
+                        {
+                          "text": "Step 7: Clicking \"Log in\" button on email verification page\n"
+                        },
+                        {
+                          "text": "Successfully clicked Log in button using getByRole\n"
+                        },
+                        {
+                          "text": "✓ Successfully clicked \"Log in\" button\n"
+                        },
+                        {
+                          "text": "Step 8: Waiting for navigation to login page\n"
+                        },
+                        {
+                          "text": "✓ Successfully navigated to login page\n"
+                        },
+                        {
+                          "text": "Step 9: Entering login credentials\n"
+                        },
+                        {
+                          "text": "✓ Login credentials submitted\n"
+                        },
+                        {
+                          "text": "Step 10: Waiting for successful login\n"
+                        },
+                        {
+                          "text": "✓ Login successful - Welcome message found\n"
+                        },
+                        {
+                          "text": "Account setup completed successfully\n"
+                        },
+                        {
+                          "text": "BeforeEach setup completed successfully\n"
+                        },
+                        {
+                          "text": "Attempting to click \"Start new application\" button without filling required fields...\n"
+                        },
+                        {
+                          "text": "Start new application button enabled: true\n"
+                        },
+                        {
+                          "text": "✓ Clicked \"Start new application\" button to trigger validation\n"
+                        },
+                        {
+                          "text": "First name error visible: false\n"
+                        },
+                        {
+                          "text": "Last name error visible: false\n"
+                        },
+                        {
+                          "text": "Date of birth error visible: false\n"
+                        },
+                        {
+                          "text": "Phone number error visible: false\n"
+                        },
+                        {
+                          "text": "Could not complete form validation test: \u001b[2mexpect(\u001b[22m\u001b[31mreceived\u001b[39m\u001b[2m).\u001b[22mtoBeTruthy\u001b[2m()\u001b[22m\n\nReceived: \u001b[31mfalse\u001b[39m\n"
                         }
                       ],
-                      "stderr": [
-                        {
-                          "text": "[ERROR] Element visibility assertion failed: div[role=\"main\"] ExpectError: Element div[role=\"main\"] should be visible\n\n\u001b[31mTimed out 10000ms waiting for \u001b[39m\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m\n\nLocator: locator('div[role=\"main\"]')\nExpected: visible\nReceived: <element(s) not found>\nCall log:\n\u001b[2m  - Expect \"Element div[role=\\\"main\\\"] should be visible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('div[role=\"main\"]')\u001b[22m\n\n    at ElementAssertUtils.assertVisible \u001b[90m(H:\\ug-mig\\playwright\\\u001b[39mutils\\elementAssertUtils.js:34:81\u001b[90m)\u001b[39m\n    at LandingPage.validateViewAppDetails \u001b[90m(H:\\ug-mig\\playwright\\\u001b[39mpages\\LandingPage.js:228:30\u001b[90m)\u001b[39m\n    at \u001b[90mH:\\ug-mig\\playwright\\\u001b[39mtests\\TC_01_LandingPageTest.spec.js:26:7\n    at \u001b[90mH:\\ug-mig\\playwright\\\u001b[39mtests\\TC_01_LandingPageTest.spec.js:25:5 {\n  matcherResult: {\n    message: \u001b[32m'\\x1B[31mTimed out 10000ms waiting for \\x1B[39m\\x1B[2mexpect(\\x1B[22m\\x1B[31mlocator\\x1B[39m\\x1B[2m).\\x1B[22mtoBeVisible\\x1B[2m()\\x1B[22m\\n'\u001b[39m +\n      \u001b[32m'\\n'\u001b[39m +\n      \u001b[32m`Locator: locator('div[role=\"main\"]')\\n`\u001b[39m +\n      \u001b[32m'Expected: visible\\n'\u001b[39m +\n      \u001b[32m'Received: <element(s) not found>\\n'\u001b[39m +\n      \u001b[32m'Call log:\\n'\u001b[39m +\n      \u001b[32m'\\x1B[2m  - Expect \"Element div[role=\\\\\"main\\\\\"] should be visible\" with timeout 10000ms\\x1B[22m\\n'\u001b[39m +\n      \u001b[32m`\\x1B[2m  - waiting for locator('div[role=\"main\"]')\\x1B[22m\\n`\u001b[39m,\n    pass: \u001b[33mfalse\u001b[39m,\n    actual: \u001b[32m'<element(s) not found>'\u001b[39m,\n    name: \u001b[32m'toBeVisible'\u001b[39m,\n    expected: \u001b[32m'visible'\u001b[39m,\n    log: [\n      \u001b[32m'  - Expect \"Element div[role=\\\\\"main\\\\\"] should be visible\" with timeout 10000ms'\u001b[39m,\n      \u001b[32m`  - waiting for locator('div[role=\"main\"]')`\u001b[39m\n    ],\n    timeout: \u001b[33m10000\u001b[39m\n  },\n  [\u001b[32mSymbol(step)\u001b[39m]: {\n    stepId: \u001b[32m'expect@17'\u001b[39m,\n    category: \u001b[32m'expect'\u001b[39m,\n    apiName: \u001b[32m'expect.toBeVisible'\u001b[39m,\n    title: \u001b[32m'Element div[role=\"main\"] should be visible'\u001b[39m,\n    params: \u001b[90mundefined\u001b[39m,\n    infectParentStepsWithError: \u001b[90mundefined\u001b[39m,\n    boxedStack: \u001b[90mundefined\u001b[39m,\n    location: {\n      file: \u001b[32m'H:\\\\ug-mig\\\\playwright\\\\utils\\\\elementAssertUtils.js'\u001b[39m,\n      line: \u001b[33m34\u001b[39m,\n      column: \u001b[33m81\u001b[39m,\n      function: \u001b[32m'ElementAssertUtils.assertVisible'\u001b[39m\n    },\n    steps: [],\n    attachmentIndices: [],\n    info: TestStepInfoImpl {\n      annotations: [],\n      _testInfo: \u001b[36m[TestInfoImpl]\u001b[39m,\n      _stepId: \u001b[32m'expect@17'\u001b[39m,\n      skip: \u001b[36m[Function (anonymous)]\u001b[39m\n    },\n    complete: \u001b[36m[Function: complete]\u001b[39m,\n    endWallTime: \u001b[33m1752739844732\u001b[39m,\n    error: {\n      message: \u001b[32m'Error: Element div[role=\"main\"] should be visible\\n'\u001b[39m +\n        \u001b[32m'\\n'\u001b[39m +\n        \u001b[32m'\\x1B[31mTimed out 10000ms waiting for \\x1B[39m\\x1B[2mexpect(\\x1B[22m\\x1B[31mlocator\\x1B[39m\\x1B[2m).\\x1B[22mtoBeVisible\\x1B[2m()\\x1B[22m\\n'\u001b[39m +\n        \u001b[32m'\\n'\u001b[39m +\n        \u001b[32m`Locator: locator('div[role=\"main\"]')\\n`\u001b[39m +\n        \u001b[32m'Expected: visible\\n'\u001b[39m +\n        \u001b[32m'Received: <element(s) not found>\\n'\u001b[39m +\n        \u001b[32m'Call log:\\n'\u001b[39m +\n        \u001b[32m'\\x1B[2m  - Expect \"Element div[role=\\\\\"main\\\\\"] should be visible\" with timeout 10000ms\\x1B[22m\\n'\u001b[39m +\n        \u001b[32m`\\x1B[2m  - waiting for locator('div[role=\"main\"]')\\x1B[22m\\n`\u001b[39m,\n      stack: \u001b[32m'Error: Element div[role=\"main\"] should be visible\\n'\u001b[39m +\n        \u001b[32m'\\n'\u001b[39m +\n        \u001b[32m'\\x1B[31mTimed out 10000ms waiting for \\x1B[39m\\x1B[2mexpect(\\x1B[22m\\x1B[31mlocator\\x1B[39m\\x1B[2m).\\x1B[22mtoBeVisible\\x1B[2m()\\x1B[22m\\n'\u001b[39m +\n        \u001b[32m'\\n'\u001b[39m +\n        \u001b[32m`Locator: locator('div[role=\"main\"]')\\n`\u001b[39m +\n        \u001b[32m'Expected: visible\\n'\u001b[39m +\n        \u001b[32m'Received: <element(s) not found>\\n'\u001b[39m +\n        \u001b[32m'Call log:\\n'\u001b[39m +\n        \u001b[32m'\\x1B[2m  - Expect \"Element div[role=\\\\\"main\\\\\"] should be visible\" with timeout 10000ms\\x1B[22m\\n'\u001b[39m +\n        \u001b[32m`\\x1B[2m  - waiting for locator('div[role=\"main\"]')\\x1B[22m\\n`\u001b[39m +\n        \u001b[32m'\\n'\u001b[39m +\n        \u001b[32m'    at ElementAssertUtils.assertVisible (H:\\\\ug-mig\\\\playwright\\\\utils\\\\elementAssertUtils.js:34:81)\\n'\u001b[39m +\n        \u001b[32m'    at LandingPage.validateViewAppDetails (H:\\\\ug-mig\\\\playwright\\\\pages\\\\LandingPage.js:228:30)\\n'\u001b[39m +\n        \u001b[32m'    at H:\\\\ug-mig\\\\playwright\\\\tests\\\\TC_01_LandingPageTest.spec.js:26:7\\n'\u001b[39m +\n        \u001b[32m'    at H:\\\\ug-mig\\\\playwright\\\\tests\\\\TC_01_LandingPageTest.spec.js:25:5'\u001b[39m,\n      cause: \u001b[90mundefined\u001b[39m\n    }\n  }\n}\n"
-                        }
-                      ],
+                      "stderr": [],
                       "retry": 0,
-                      "steps": [
-                        {
-                          "title": "should validate view application details",
-                          "duration": 10670,
-                          "error": {
-                            "message": "Error: Element div[role=\"main\"] should be visible\n\n\u001b[31mTimed out 10000ms waiting for \u001b[39m\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m\n\nLocator: locator('div[role=\"main\"]')\nExpected: visible\nReceived: <element(s) not found>\nCall log:\n\u001b[2m  - Expect \"Element div[role=\\\"main\\\"] should be visible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('div[role=\"main\"]')\u001b[22m\n",
-                            "stack": "Error: Element div[role=\"main\"] should be visible\n\n\u001b[31mTimed out 10000ms waiting for \u001b[39m\u001b[2mexpect(\u001b[22m\u001b[31mlocator\u001b[39m\u001b[2m).\u001b[22mtoBeVisible\u001b[2m()\u001b[22m\n\nLocator: locator('div[role=\"main\"]')\nExpected: visible\nReceived: <element(s) not found>\nCall log:\n\u001b[2m  - Expect \"Element div[role=\\\"main\\\"] should be visible\" with timeout 10000ms\u001b[22m\n\u001b[2m  - waiting for locator('div[role=\"main\"]')\u001b[22m\n\n    at ElementAssertUtils.assertVisible (H:\\ug-mig\\playwright\\utils\\elementAssertUtils.js:34:81)\n    at LandingPage.validateViewAppDetails (H:\\ug-mig\\playwright\\pages\\LandingPage.js:228:30)\n    at H:\\ug-mig\\playwright\\tests\\TC_01_LandingPageTest.spec.js:26:7\n    at H:\\ug-mig\\playwright\\tests\\TC_01_LandingPageTest.spec.js:25:5",
-                            "location": {
-                              "file": "H:\\ug-mig\\playwright\\utils\\elementAssertUtils.js",
-                              "column": 81,
-                              "line": 34
-                            },
-                            "snippet": "\u001b[90m   at \u001b[39m..\\utils\\elementAssertUtils.js:34\n\n\u001b[0m \u001b[90m 32 |\u001b[39m       \n \u001b[90m 33 |\u001b[39m       \u001b[36mconst\u001b[39m locator \u001b[33m=\u001b[39m \u001b[36mthis\u001b[39m\u001b[33m.\u001b[39mpage\u001b[33m.\u001b[39mlocator(selector)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 34 |\u001b[39m       \u001b[36mawait\u001b[39m expect(locator\u001b[33m,\u001b[39m message \u001b[33m||\u001b[39m \u001b[32m`Element ${selector} should be visible`\u001b[39m)\u001b[33m.\u001b[39mtoBeVisible()\u001b[33m;\u001b[39m\n \u001b[90m    |\u001b[39m                                                                                 \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 35 |\u001b[39m       \n \u001b[90m 36 |\u001b[39m       logger\u001b[33m.\u001b[39mdebug(\u001b[32m`Element is visible: ${selector}`\u001b[39m)\u001b[33m;\u001b[39m\n \u001b[90m 37 |\u001b[39m     } \u001b[36mcatch\u001b[39m (error) {\u001b[0m"
-                          }
-                        }
-                      ],
-                      "startTime": "2025-07-17T08:10:27.865Z",
+                      "startTime": "2025-10-09T06:57:53.994Z",
                       "annotations": [],
                       "attachments": [
                         {
-                          "name": "screenshot",
-                          "contentType": "image/png",
-                          "path": "H:\\ug-mig\\playwright\\test-results\\TC_01_LandingPageTest-Land-d6e7f-age-elements-and-navigation-chromium\\test-failed-1.png"
-                        },
-                        {
-                          "name": "error-context",
-                          "contentType": "text/markdown",
-                          "path": "H:\\ug-mig\\playwright\\test-results\\TC_01_LandingPageTest-Land-d6e7f-age-elements-and-navigation-chromium\\error-context.md"
-                        },
-                        {
                           "name": "trace",
                           "contentType": "application/zip",
-                          "path": "H:\\ug-mig\\playwright\\test-results\\TC_01_LandingPageTest-Land-d6e7f-age-elements-and-navigation-chromium\\trace.zip"
+                          "path": "D:\\Automation\\UGMigrationPlaywright\\UGmigration\\playwright\\test-results\\TC_05_PreAppDashboardTest_-2aca2-idation-for-required-fields-chromium\\trace.zip"
                         }
-                      ],
-                      "errorLocation": {
-                        "file": "H:\\ug-mig\\playwright\\utils\\elementAssertUtils.js",
-                        "column": 81,
-                        "line": 34
-                      }
+                      ]
                     }
                   ],
-                  "status": "unexpected"
+                  "status": "expected"
                 }
               ],
-              "id": "14d3949bb066f1ac999b-0b73123fc9fab772fc30",
-              "file": "TC_01_LandingPageTest.spec.js",
-              "line": 23,
-              "column": 3
+              "id": "771bbfffab91c8ee6657-5e341231ca88b93c4f91",
+              "file": "TC_05_PreAppDashboardTest_Fixed.spec.js",
+              "line": 686,
+              "column": 5
             }
           ]
         }
@@ -301,11 +355,11 @@
   ],
   "errors": [],
   "stats": {
-    "startTime": "2025-07-17T08:10:24.555Z",
-    "duration": 23372.099000000017,
-    "expected": 0,
+    "startTime": "2025-10-09T06:57:50.752Z",
+    "duration": 48762.28500000015,
+    "expected": 1,
     "skipped": 0,
-    "unexpected": 1,
+    "unexpected": 0,
     "flaky": 0
   }
 }

@@ -158,7 +158,9 @@ class BasePage {
    */
   async fill(selector, text) {
     this.logger.debug(`Filling "${text}" into ${selector}`);
-    await this.page.fill(selector, text, { timeout: this.actionTimeout });
+    const loc = this.page.locator(selector);
+    await expect(loc).toBeVisible({ timeout: this.assertionTimeout });
+    await loc.fill(text, { timeout: this.actionTimeout });
   }
 
   /**
