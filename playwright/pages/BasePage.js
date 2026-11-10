@@ -66,6 +66,46 @@ class BasePage {
   }
 
   /**
+   * Work out the signed-in user's application ID. The application wizard lives at
+   * /ug-app/<id>/<step> (old flat routes like /my-information now 404).
+   * Order: current URL -> APPLICATION_ID env -> dashboard "Continue" (resumes the app).
+   * @returns {Promise<string>}
+   */
+  async getApplicationId() {
+    const fromUrl = this.page.url().match(/\/ug-app\/(\d+)\//);
+    if (fromUrl) return fromUrl[1];
+    if (process.env.APPLICATION_ID) return process.env.APPLICATION_ID;
+
+    await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
+    const resume = this.page.getByRole('button', { name: 'Continue', exact: true });
+    await resume.waitFor({ state: 'visible', timeout: this.navigationTimeout });
+    await resume.click();
+    await this.page.waitForURL(/\/ug-app\/\d+\//, { timeout: this.navigationTimeout });
+    const m = this.page.url().match(/\/ug-app\/(\d+)\//);
+    if (!m) throw new Error(`Could not resolve application ID from ${this.page.url()}`);
+    return m[1];
+  }
+
+  /**
+   * Open a step of the application wizard: my-information, my-program, my-schools,
+   * my-high-school-grades, arizona-residency, review, preview.
+   *
+   * Steps are gated: the app redirects to the first incomplete step if earlier ones
+   * aren't finished. That redirect is logged, not thrown, so callers' own assertions
+   * report what page they actually got.
+   * @param {string} slug
+   * @returns {Promise<void>}
+   */
+  async gotoApplicationStep(slug) {
+    const id = await this.getApplicationId();
+    await this.page.goto(`/ug-app/${id}/${slug}`, { timeout: this.navigationTimeout });
+    await this.page.waitForLoadState('networkidle');
+    if (!this.page.url().includes(`/${slug}`)) {
+      this.logger.warn(`Requested step "${slug}" but app redirected to ${this.page.url()} (earlier steps incomplete?)`);
+    }
+  }
+
+  /**
    * Get the current URL
    * @returns {string} Current URL
    */

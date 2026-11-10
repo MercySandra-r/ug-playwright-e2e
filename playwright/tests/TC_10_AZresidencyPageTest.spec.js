@@ -56,7 +56,7 @@ test.describe('AZ Residency Page Tests', () => {
 
     test('Verify AZ Residency page loads successfully', async () => {
         // Verify page title and URL
-        await expect(azResidencyPage.page).toHaveURL(/.*az-residency/);
+        await expect(azResidencyPage.page).toHaveURL(/.*arizona-residency/);
         await expect(azResidencyPage.page.locator(azResidencyPage.selectors.pageTitle))
             .toContainText('Arizona Residency');
     });

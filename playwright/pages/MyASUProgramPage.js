@@ -69,7 +69,7 @@ class MyASUProgramPage extends BasePage {
      * @returns {Promise<void>}
      */
     async navigateToMyASUProgram() {
-        await this.page.goto('/my-asu-program');
+        await this.gotoApplicationStep('my-program');
         await this.page.waitForLoadState('networkidle');
         await this.verifyPageLoaded();
     }
@@ -79,7 +79,7 @@ class MyASUProgramPage extends BasePage {
      * @returns {Promise<void>}
      */
     async verifyPageLoaded() {
-        await expect(this.page).toHaveURL(/.*my-asu-program/);
+        await expect(this.page).toHaveURL(/.*my-program/);
         await expect(this.page.locator(this.selectors.pageTitle))
             .toContainText('My ASU Program');
     }

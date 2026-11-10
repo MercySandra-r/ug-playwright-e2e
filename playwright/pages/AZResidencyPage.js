@@ -79,7 +79,7 @@ class AZResidencyPage extends BasePage {
      * @returns {Promise<void>}
      */
     async navigateToAZResidency() {
-        await this.page.goto('/az-residency');
+        await this.gotoApplicationStep('arizona-residency');
         await this.page.waitForLoadState('networkidle');
         await this.verifyPageLoaded();
     }
@@ -89,7 +89,7 @@ class AZResidencyPage extends BasePage {
      * @returns {Promise<void>}
      */
     async verifyPageLoaded() {
-        await expect(this.page).toHaveURL(/.*az-residency/);
+        await expect(this.page).toHaveURL(/.*arizona-residency/);
         await expect(this.page.locator(this.selectors.pageTitle))
             .toContainText('Arizona Residency');
     }

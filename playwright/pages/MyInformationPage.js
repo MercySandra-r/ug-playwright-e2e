@@ -82,7 +82,7 @@ class MyInformationPage extends BasePage {
      * @returns {Promise<void>}
      */
     async navigateToMyInformation() {
-        await this.page.goto('/my-information');
+        await this.gotoApplicationStep('my-information');
         await this.page.waitForLoadState('networkidle');
         await this.verifyPageLoaded();
     }

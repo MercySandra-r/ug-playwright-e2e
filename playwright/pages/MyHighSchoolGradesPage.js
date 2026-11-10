@@ -73,7 +73,7 @@ class MyHighSchoolGradesPage extends BasePage {
      * @returns {Promise<void>}
      */
     async navigateToMyHighSchoolGrades() {
-        await this.page.goto('/my-high-school-grades');
+        await this.gotoApplicationStep('my-high-school-grades');
         await this.page.waitForLoadState('networkidle');
         await this.verifyPageLoaded();
     }

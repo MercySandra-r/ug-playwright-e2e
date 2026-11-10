@@ -4,7 +4,7 @@ const { faker } = require('@faker-js/faker');
 const LoginPage = require('../pages/LoginPage');
 const PreAppDashboardPage = require('../pages/PreAppDashboardPage');
 const LandingPage = require('../pages/LandingPage');
-const VerifyEmailPage = require('../pages/VerifyEmailPage');
+const { signUpVerifiedAccount } = require('../utils/authHelper');
 
 /**
  * Test suite for Pre-Application Dashboard functionality
@@ -26,78 +26,18 @@ test.describe('Pre-Application Dashboard Tests', () => {
      */
     async function setupUserAccount(page, user) {
         try {
-            console.log(`Setting up account for: ${user.email}`);
-            
-            // Step 1: Navigate to ASU application site and create account
-            console.log('Step 1: Navigating to https://apply-qa.apps.asu.edu/');
-            await page.goto('https://apply-qa.apps.asu.edu/', { timeout: 30000 });
+            // New flow: landing -> Online -> pursue degree -> Continue -> ASU IdP sign-up,
+            // verified with the emailed code via the Gmail test inbox (utils/authHelper).
+            const { email, password } = await signUpVerifiedAccount(page, { mode: 'online', degreeType: 'pursue' });
+            user.email = email;
+            user.password = password;
+            if (!/\/dashboard/.test(page.url())) {
+                await page.goto('/dashboard', { timeout: 30000 });
+            }
             await page.waitForLoadState('networkidle', { timeout: 30000 });
-            
-            const landingPage = new LandingPage(page);
-            
-            // Step 2: Select MOL and degree type
-            console.log('Step 2: Selecting Online MOL and degree type');
-            await landingPage.chooseOnlineMOL({ degreeType: 'pursue' });
-            
-            // Step 3: Fill account creation form with our test user data
-            console.log('Step 3: Filling account creation form');
-            await landingPage.enterAccountInfo(user.email, user.email, user.password, user.password);
-            
-            // Step 4: Submit account creation form
-            console.log('Step 4: Submitting account creation form');
-            await landingPage.submitAccountForm();
-            
-            // Step 5: Wait for and get verify email page
-            console.log('Step 5: Waiting for email verification page');
-            const verifyEmailPage = await landingPage.waitForVerifyEmailPage();
-            console.log('âœ“ Successfully navigated to email verification page');
-            
-            // Step 6: Verify email verification page elements
-            console.log('Step 6: Verifying email verification page elements');
-            await verifyEmailPage.verifyEmailPage();
-            console.log('âœ“ Email verification page elements verified');
-            
-            // Step 7: Click "Log in" button on email verification page
-            console.log('Step 7: Clicking "Log in" button on email verification page');
-            try {
-                await verifyEmailPage.clickLoginButton();
-                console.log('âœ“ Successfully clicked "Log in" button');
-            } catch (error) {
-                console.log('âŒ Failed to click login button, debugging page elements...');
-                await verifyEmailPage.debugButtonsOnPage();
-                await page.screenshot({ path: `debug-verify-email-failed-${Date.now()}.png`, fullPage: true });
-                throw error;
-            }
-            
-            // Step 8: Verify navigation to login page and enter credentials
-            console.log('Step 8: Waiting for navigation to login page');
-            await page.waitForURL('**/user/login', { timeout: 30000 });
-            console.log('âœ“ Successfully navigated to login page');
-            
-            console.log('Step 9: Entering login credentials');
-            const loginPage = new LoginPage(page);
-            await loginPage.enterCredentials(user.email, user.password);
-            await loginPage.clickLogin();
-            console.log('âœ“ Login credentials submitted');
-            
-            // Step 10: Wait for successful login and access to dashboard
-            console.log('Step 10: Waiting for successful login');
-            try {
-                await page.waitForSelector('text=Welcome', { timeout: 30000 });
-                console.log('âœ“ Login successful - Welcome message found');
-            } catch (e) {
-                console.log('Welcome message not found, navigating to dashboard directly');
-                await page.goto('https://apply-qa.apps.asu.edu/dashboard', { timeout: 30000 });
-                await page.waitForLoadState('networkidle', { timeout: 30000 });
-                console.log('âœ“ Navigated to dashboard');
-            }
-            
-            console.log('Account setup completed successfully');
             return true;
         } catch (error) {
-            console.error('Account setup failed:', error.message);
-            // Take screenshot for debugging
-            await page.screenshot({ path: `debug-setup-failed-${Date.now()}.png`, fullPage: true });
+            console.error('Account setup failed:', error instanceof Error ? error.message : String(error));
             return false;
         }
     }
