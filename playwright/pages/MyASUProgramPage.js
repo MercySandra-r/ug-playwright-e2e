@@ -160,10 +160,27 @@ class MyASUProgramPage extends BasePage {
      */
     async searchProgram(searchTerm) {
         const input = this.page.locator(this.selectors.searchInput);
-        await input.fill(searchTerm);
-        await input.press('Enter');
-        await this.page.waitForLoadState('networkidle');
-        await this.page.waitForTimeout(500);
+        const submit = async () => {
+            await this.waitForResults();
+            await input.fill(searchTerm);
+            await input.press('Enter');
+            await this.page.waitForLoadState('networkidle');
+            await this.page.waitForTimeout(500);
+            return (await input.inputValue()) === searchTerm;
+        };
+        if (await submit()) return;
+
+        // APP BUG (seen 2026-11-10): after arriving on this step via Continue from step 1
+        // (in-app navigation), Enter clears the search box and nothing is filtered. A
+        // fresh page load fixes it. Reloading drops unsaved choices, so only do it when
+        // nothing has been chosen yet.
+        if (await this.page.locator(this.selectors.firstSelectionHeading).isVisible().catch(() => false)) {
+            throw new Error(`Program search for "${searchTerm}" was ignored (app bug after in-app navigation) and a reload would drop the unsaved first choice`);
+        }
+        this.logger.warn(`Program search for "${searchTerm}" was ignored; reloading step 2 and retrying (known app bug)`);
+        await this.page.reload();
+        await this.verifyPageLoaded();
+        if (!(await submit())) throw new Error(`Program search for "${searchTerm}" still ignored after reload`);
     }
 
     /**
@@ -327,6 +344,7 @@ class MyASUProgramPage extends BasePage {
      * @returns {Promise<{ program: string, startTerm: string, location: string, backupRequired: boolean }>}
      */
     async chooseProgram({ program, startTerm, location }) {
+        await this.waitForResults();
         let heading = this.programHeading(program);
         if (!(await heading.isVisible().catch(() => false))) {
             await this.searchProgram(program.replace(/,.*$/, ''));
