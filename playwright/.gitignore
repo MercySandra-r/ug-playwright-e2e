@@ -1,0 +1,15 @@
+# Secrets / local env — never commit
+.env
+credentials.json
+token.json
+gmail-token.json
+*-token.json
+state/
+
+# Debug screenshots dropped in the working dir by specs
+debug-*.png
+
+# Test artifacts
+reports/
+test-results/
+node_modules/
