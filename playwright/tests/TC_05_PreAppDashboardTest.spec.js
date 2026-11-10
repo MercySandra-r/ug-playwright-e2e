@@ -325,61 +325,8 @@ test.describe('Pre-Application Dashboard Tests', () => {
         await dashboardPage.page.screenshot({ path: `personal-info-form-filled-${Date.now()}.png`, fullPage: true });
         console.log('âœ“ Screenshot taken of filled form');
 
-        // Wait a moment for the button to become enabled
-        await dashboardPage.page.waitForTimeout(1000);
-
-        try {
-            // Click "Start new application" button
-            console.log('Clicking "Start new application" button...');
-            const startButton = dashboardPage.page.getByRole('button', { name: 'Start new application' });
-            await startButton.waitFor({ state: 'visible', timeout: 10000 });
-            
-            // Check if button is enabled
-            const isEnabled = await startButton.isEnabled();
-            if (isEnabled) {
-                await startButton.click();
-                console.log('âœ“ "Start new application" button clicked successfully');
-                
-                // Wait for navigation or page change
-                await dashboardPage.page.waitForTimeout(3000);
-                console.log(`âœ“ Navigated to: ${dashboardPage.page.url()}`);
-            } else {
-                console.log('âš ï¸ "Start new application" button is still disabled');
-                
-                // Take screenshot for debugging
-                await dashboardPage.page.screenshot({ path: `button-disabled-${Date.now()}.png`, fullPage: true });
-            }
-        } catch (error) {
-            console.log(`âš ï¸ Could not click "Start new application" button: ${error.message}`);
-            
-            // Try alternative approaches
-            try {
-                console.log('Trying alternative button selectors...');
-                const altButton = dashboardPage.page.locator('button').filter({ hasText: /start.*application/i });
-                if (await altButton.count() > 0) {
-                    await altButton.first().click();
-                    console.log('âœ“ Alternative "Start application" button clicked');
-                } else {
-                    console.log('âš ï¸ No start application button found');
-                    
-                    // List all available buttons for debugging
-                    const allButtons = await dashboardPage.page.locator('button').all();
-                    console.log('Available buttons:');
-                    for (const button of allButtons) {
-                        try {
-                            const text = await button.textContent();
-                            const isVisible = await button.isVisible();
-                            const isEnabled = await button.isEnabled();
-                            if (isVisible && text && text.trim()) {
-                                console.log(`  - "${text.trim()}" (enabled: ${isEnabled})`);
-                            }
-                        } catch (e) {}
-                    }
-                }
-            } catch (altError) {
-                console.log(`âš ï¸ Alternative button click also failed: ${altError.message}`);
-            }
-        }
+        // "Start new application" is clicked once, after the validation steps below.
+        // (Clicking it here opened the BriteVerify dialog over the rest of the form.)
 
         // 2. Set Date of Birth and Verify
         console.log('ðŸ“… Setting and verifying date of birth...');
@@ -417,11 +364,15 @@ test.describe('Pre-Application Dashboard Tests', () => {
 
         await startButton.click();
 
+        // BriteVerify may question the contact details (e.g. 555 numbers). That dialog is
+        // expected app behaviour; submit as is.
+        await dashboardPage.handleBriteVerifyPopup('submit');
+
         // 6. Verify Successful Navigation/Submission
-        console.log('â³ Waiting for submission to complete...');
-        // Wait for the URL to change, indicating a successful submission
-        await dashboardPage.page.waitForURL('**/my/applications', { timeout: 30000 });
-        console.log('âœ“ Form submitted successfully and navigated to applications page');
+        // A started application opens the wizard at /ug-app/<applicationId>/my-information.
+        await dashboardPage.page.waitForURL(/\/ug-app\/\d+\/my-information/, { timeout: 45000 });
+        await expect(dashboardPage.page.getByRole('heading', { name: 'My information', level: 1 })).toBeVisible();
+        console.log(`Application started: ${dashboardPage.page.url()}`);
 
         console.log('âœ… Personal information form filling and button click completed');
         console.log('=== Personal Information Form Test Completed ===');
