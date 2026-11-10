@@ -92,7 +92,7 @@ class AsuIdpPage extends BasePage {
      */
     async getFormError(timeoutMs = 8000) {
         const error = this.page
-            .getByText(/session invalid|already (exists|registered|in use)|account exists|try again|invalid/i)
+            .getByText(/session invalid|already (exists|registered|in use)|account exists|try again|invalid|too many|limit|exceeded/i)
             .first();
         const shown = await error
             .waitFor({ state: 'visible', timeout: timeoutMs })
