@@ -2,256 +2,151 @@
 const { test, expect } = require('@playwright/test');
 const LoginPage = require('../pages/LoginPage');
 const PreviewPage = require('../pages/PreviewPage');
-const path = require('path');
-
-// Test data
-const testUser = {
-    email: process.env.TEST_EMAIL || 'test@example.com',
-    password: process.env.TEST_PASSWORD || 'TestPassword123!'
-};
-
-// Test data file paths
-const testDataDir = path.join(__dirname, 'test-data');
-const reviewDataPath = path.join(testDataDir, 'testdata.xlsx');
-const previewDataPath = path.join(testDataDir, 'testdata.xlsx');
+const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashboardPage');
 
 /**
- * Test suite for Preview functionality
+ * "Preview Submitted Application" (/ug-app/<id>/preview), against the live page.
+ *
+ * The preview only exists after submission, so this needs SUBMITTED_TEST_EMAIL /
+ * SUBMITTED_TEST_PASSWORD (an account with a submitted application, created through the
+ * journey defaults). Read-only: the PDF is not downloaded, nothing is submitted.
+ * The old Excel comparison tests are replaced by a live comparison with Next steps.
  */
 test.describe('Preview Page Tests', () => {
-    let loginPage;
+    test.describe.configure({ mode: 'serial', timeout: 120000 });
+    test.skip(!process.env.SUBMITTED_TEST_EMAIL || !process.env.SUBMITTED_TEST_PASSWORD,
+        'Set SUBMITTED_TEST_EMAIL and SUBMITTED_TEST_PASSWORD to an account with a submitted application');
+
+    /** @type {import('@playwright/test').BrowserContext} */
+    let context;
+    /** @type {import('@playwright/test').Page} */
+    let page;
+    /** @type {PreviewPage} */
     let previewPage;
-    
-    test.beforeEach(async ({ page }) => {
-        loginPage = new LoginPage(page);
+
+    test.beforeAll(async ({ browser }, testInfo) => {
+        testInfo.setTimeout(180000);
+        context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+        page = await context.newPage();
+        await new LoginPage(page).login(/** @type {string} */ (process.env.SUBMITTED_TEST_EMAIL), /** @type {string} */ (process.env.SUBMITTED_TEST_PASSWORD));
         previewPage = new PreviewPage(page);
-        
-        // Login and navigate to the preview page
-        await loginPage.navigateToLoginPage();
-        await loginPage.login(testUser.email, testUser.password);
-        await previewPage.navigateToPreviewPage();
     });
-    
+
+    test.afterAll(async () => {
+        await context?.close();
+    });
+
+    const freshPage = () => previewPage.navigateToPreviewPage();
+
     test('Verify Preview page loads successfully', async () => {
-        // Verify page title and URL
-        await expect(previewPage.page).toHaveURL(/.*preview/);
-        await expect(previewPage.page.locator(previewPage.selectors.pageTitle)).toBeVisible();
+        await freshPage();
+        await expect(page.locator(previewPage.selectors.heading)).toBeVisible();
     });
-    
+
     test('Validate Preview page content', async () => {
-        // Verify the page content is valid
-        const isPageValid = await previewPage.validatePreview();
-        expect(isPageValid).toBeTruthy();
+        await freshPage();
+        await previewPage.validatePreview();
     });
-    
+
+    test('Verify application ID and submission date', async () => {
+        await freshPage();
+        const { applicationId, submittedOn } = await previewPage.getApplicationHeader();
+        expect(applicationId).toBe(previewPage.applicationId);
+        expect(submittedOn).toMatch(/^[A-Z][a-z]+ \d{1,2}, \d{4}$/);
+    });
+
     test('Verify Download PDF button is enabled', async () => {
-        // Verify the Download PDF button is enabled
-        const isDownloadEnabled = await previewPage.verifyDownloadPdfButton();
-        expect(isDownloadEnabled).toBeTruthy();
+        await freshPage();
+        await previewPage.verifyDownloadPdfButton();
     });
-    
+
     test('Verify Back button functionality', async () => {
-        // Click the Back button and verify navigation
-        const isNavigationSuccessful = await previewPage.clickBackButton();
-        expect(isNavigationSuccessful).toBeTruthy();
+        await freshPage();
+        await previewPage.clickBackButton();
+        await expect(page.getByRole('heading', { name: 'Next steps', level: 1 })).toBeVisible();
     });
-    
+
     test('Verify Profile section details', async () => {
-        // Get profile section details
-        const profileDetails = await previewPage.getProfileSection();
-        
-        // Verify we have some details
-        expect(profileDetails.length).toBeGreaterThan(0);
-        
-        // Log the details for debugging
-        console.log('Profile Details:', JSON.stringify(profileDetails, null, 2));
-        
-        // Example check - adjust based on your actual data
-        const nameDetail = profileDetails.find(item => item.key.toLowerCase().includes('name'));
-        expect(nameDetail).toBeDefined();
-        expect(nameDetail.value).toBeTruthy();
+        await freshPage();
+        expect(await previewPage.getSectionValue('Profile', 'Legal name')).toBe('Qa Automation');
+        expect(await previewPage.getSectionValue('Profile', 'Date of birth')).toBe('2000-06-15');
+        expect(await previewPage.getSectionValue('Profile', 'Email')).toBe(process.env.SUBMITTED_TEST_EMAIL);
     });
-    
+
     test('Verify My Information section details', async () => {
-        // Get my information section details
-        const myInfoDetails = await previewPage.getMyInfoSection();
-        
-        // Verify we have some details
-        expect(myInfoDetails.length).toBeGreaterThan(0);
-        
-        // Log the details for debugging
-        console.log('My Info Details:', JSON.stringify(myInfoDetails, null, 2));
+        await freshPage();
+        expect(await previewPage.getSectionValue('My information', 'Legal sex')).toBe('Female');
+        expect(await previewPage.getSectionValue('My information', 'Primary language spoken at home')).toBe('English');
+        expect(await previewPage.getSectionValue('My information', 'U.S. citizenship')).toBe('I am not a U.S. citizen');
     });
-    
+
     test('Verify My Program section details', async () => {
-        // Get my program section details
-        const myProgramDetails = await previewPage.getMyProgramSection();
-        
-        // Verify we have some details
-        expect(myProgramDetails.length).toBeGreaterThan(0);
-        
-        // Log the details for debugging
-        console.log('My Program Details:', JSON.stringify(myProgramDetails, null, 2));
+        await freshPage();
+        expect(await previewPage.getProgram()).toMatch(/, [A-Z]{2,4}$/);
+        expect(await previewPage.getSectionValue('My program', 'Location')).toBe('ASU Online');
+        expect(await previewPage.getSectionValue('My program', 'Starting term')).toMatch(/^(Spring|Summer|Fall) \d{4}/);
     });
-    
+
     test('Verify My Schools section details', async () => {
-        // Get my schools section details
-        const mySchoolsDetails = await previewPage.getMySchoolsSection();
-        
-        // Verify we have some details
-        expect(mySchoolsDetails.length).toBeGreaterThan(0);
-        
-        // Log the details for debugging
-        console.log('My Schools Details:', JSON.stringify(mySchoolsDetails, null, 2));
+        await freshPage();
+        expect(await previewPage.getSectionValue('My schools', 'High school name')).toBe('Tempe High School');
     });
-    
+
     test('Verify High School Grades section details', async () => {
-        // Get high school grades section details
-        const highSchoolGradesDetails = await previewPage.getHighSchoolGradesSection();
-        
-        // This section might be empty for some users, so we just check if the method runs without errors
-        console.log('High School Grades Details:', JSON.stringify(highSchoolGradesDetails, null, 2));
-        expect(highSchoolGradesDetails).toBeDefined();
+        await freshPage();
+        expect(await previewPage.getSectionValue('My high school grades', 'Self-reported')).toMatch(/^(Yes|No)$/);
     });
-    
+
     test('Verify Arizona Residency section details', async () => {
-        // Get Arizona residency section details
-        const arizonaResidencyDetails = await previewPage.getArizonaResidencySection();
-        
-        // This section might be empty for some users, so we just check if the method runs without errors
-        console.log('Arizona Residency Details:', JSON.stringify(arizonaResidencyDetails, null, 2));
-        expect(arizonaResidencyDetails).toBeDefined();
+        await freshPage();
+        const state = await previewPage.getSectionValue('Arizona residency', 'Begin by selecting the state you consider to be your permanent home.');
+        expect(['California', 'Arizona']).toContain(state);
     });
-    
+
+    test('Preview matches the Next steps application summary', async () => {
+        await freshPage();
+        const program = await previewPage.getProgram();
+        const location = await previewPage.getSectionValue('My program', 'Location');
+        const term = await previewPage.getSectionValue('My program', 'Starting term');
+
+        const dashboard = new PostAppSubmissionDashboardPage(page);
+        dashboard.applicationId = previewPage.applicationId;
+        await dashboard.navigateToDashboard();
+        const summary = await dashboard.getApplicationSummary();
+        expect(summary.program).toBe(program);
+        expect(summary.location).toBe(location);
+        expect(summary.term).toBe(term);
+    });
+
     test('Verify Application Affidavit section', async () => {
-        // Verify the application affidavit section
-        const isAffidavitValid = await previewPage.verifyApplicationAffidavit();
-        expect(isAffidavitValid).toBeTruthy();
+        await freshPage();
+        await previewPage.verifyApplicationAffidavit();
+        await previewPage.clickReadAffidavitLink();
     });
-    
-    test('Verify Read Affidavit link functionality', async ({ page }) => {
-        test.skip(!!process.env.CI, 'Skipping external links test in CI environment');
-        
-        // Click on the Read Affidavit link and verify it works
-        const isLinkValid = await previewPage.clickReadAffidavitLink();
-        expect(isLinkValid).toBe(true);
-    });
-    
-    test('Verify Affidavit checkbox is disabled', async () => {
-        // Verify the affidavit checkbox is disabled
-        const isCheckboxDisabled = await previewPage.verifyAffidavitCheckboxDisabled();
-        expect(isCheckboxDisabled).toBeTruthy();
-    });
-    
+
     test('Verify Return to Previous Page functionality', async () => {
-        // Click on the Return to Previous Page button and verify navigation
-        const isNavigationSuccessful = await previewPage.clickReturnToPreviousPage();
-        expect(isNavigationSuccessful).toBeTruthy();
+        await freshPage();
+        await previewPage.clickReturnToPreviousPage();
+        await expect(page.getByRole('heading', { name: 'Next steps', level: 1 })).toBeVisible();
     });
-    
-    test('Verify application status after submission', async ({ page }) => {
-        // Sign out and log back in to check the application status
+
+    test('Verify responsive design on a phone viewport', async () => {
+        await page.setViewportSize({ width: 375, height: 812 });
         try {
-            await page.goto('/dashboard');
-            await page.waitForLoadState('networkidle');
-            await page.click('[data-cy="profile-icon"]');
-            await page.click('button:has-text("Sign Out")');
-            await page.waitForLoadState('networkidle');
-        } catch (error) {
-            console.log('Sign out failed:', error.message);
-            throw error;
+            await freshPage();
+            await expect(page.locator(previewPage.selectors.downloadPdfButton)).toBeVisible();
+            await expect(previewPage.sectionButton('Profile')).toBeVisible();
+        } finally {
+            await page.setViewportSize({ width: 1280, height: 720 });
         }
-        
-        // Log back in
-        await loginPage.navigateToLoginPage();
-        const isLoggedIn = await loginPage.login(testUser.email, testUser.password);
-        expect(isLoggedIn).toBeTruthy();
-        
-        // Verify the application status
-        const { status, date } = await previewPage.verifyApplicationStatus();
-        
-        // Check if the status indicates submission
-        expect(status).toMatch(/submitted|completed|in review/i);
-        
-        // Check if the date is in a valid format (YYYY-MM-DD or similar)
-        const dateRegex = /\d{4}[-/]\d{1,2}[-/]\d{1,2}/;
-        expect(date).toMatch(dateRegex);
     });
-    
-    test('Compare Review and Preview data from Excel files', async ({ page }) => {
-        // Skip if running in CI environment or if test data files don't exist
-        test.skip(!!process.env.CI || !require('fs').existsSync(reviewDataPath) || !require('fs').existsSync(previewDataPath), 
-            'Skipping Excel comparison test in CI environment or missing test data files');
-        
-        // Compare review and preview data from Excel files
-        const { matches, mismatches } = await previewPage.compareReviewAndPreview(
-            reviewDataPath,
-            previewDataPath,
-            'ReviewPageData',
-            'PreviewPageData'
-        );
-        
-        // Log the comparison results
-        console.log(`Found ${matches.length} matching items and ${mismatches.length} mismatches`);
-        
-        if (mismatches.length > 0) {
-            console.log('Mismatches:', JSON.stringify(mismatches, null, 2));
-        }
-        
-        // Fail the test if there are any mismatches
-        expect(mismatches.length).toBe(0);
-    });
-    
-    test('Compare Preview data with Excel data', async ({ page }) => {
-        // Skip if running in CI environment or if test data files don't exist
-        test.skip(!!process.env.CI || !require('fs').existsSync(previewDataPath), 
-            'Skipping Excel comparison test in CI environment or missing test data files');
-        
-        // Compare profile section with Excel data
-        const { matches, mismatches } = await previewPage.compareWithExcel(
-            previewDataPath,
-            'PreviewPageData',
-            'profile'
-        );
-        
-        // Log the comparison results
-        console.log(`Profile Section - Matches: ${matches.length}, Mismatches: ${mismatches.length}`);
-        
-        if (mismatches.length > 0) {
-            console.log('Mismatches:', JSON.stringify(mismatches, null, 2));
-        }
-        
-        // Fail the test if there are any mismatches
-        expect(mismatches.length).toBe(0);
-    });
-    
-    test('Verify responsive design on different viewports', async () => {
-        // Test on mobile viewport
-        await previewPage.page.setViewportSize({ width: 375, height: 667 });
-        
-        // Verify the page is still functional on mobile
-        const isPageValidMobile = await previewPage.validatePreview();
-        expect(isPageValidMobile).toBeTruthy();
-        
-        // Test on tablet viewport
-        await previewPage.page.setViewportSize({ width: 768, height: 1024 });
-        
-        // Verify the page is still functional on tablet
-        const isPageValidTablet = await previewPage.validatePreview();
-        expect(isPageValidTablet).toBeTruthy();
-    });
-    
-    test('Verify accessibility of the preview page', async () => {
-        // Run accessibility scan
-        const accessibilityScanResults = await previewPage.page.accessibility.snapshot();
-        
-        // Log any accessibility issues
-        if (accessibilityScanResults && accessibilityScanResults.violations) {
-            console.log('Accessibility issues found:', accessibilityScanResults.violations);
-        }
-        
-        // This is a basic check - in a real scenario, you might want to fail the test
-        // if there are critical accessibility issues
-        expect(true).toBeTruthy();
+
+    test('Verify basic accessibility of the preview page', async () => {
+        await freshPage();
+        await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
+        const unnamed = await page.locator('main a, main button').evaluateAll((els) =>
+            els.filter((e) => (e instanceof HTMLElement) && e.offsetParent !== null
+                && !(e.getAttribute('aria-label') || e.textContent || '').trim()).length);
+        expect(unnamed).toBe(0);
     });
 });
