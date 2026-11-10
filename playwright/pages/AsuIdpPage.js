@@ -188,7 +188,7 @@ class AsuIdpPage extends BasePage {
         await this.page.waitForURL(/apply-qa\.apps\.asu\.edu\/(dashboard|easso\/callback)/, {
             timeout: timeoutMs,
         });
-        await this.page.waitForLoadState('networkidle');
+        await this.settle();
     }
 }
 

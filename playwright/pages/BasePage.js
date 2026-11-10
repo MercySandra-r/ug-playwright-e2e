@@ -71,6 +71,17 @@ class BasePage {
   }
 
   /**
+   * Give the page a moment to go network-idle, without failing if it never does.
+   * The app sometimes keeps background requests open (analytics/polling), so a hard
+   * 'networkidle' wait can hang; callers wait for their real UI afterwards.
+   * @param {number} [timeoutMs]
+   * @returns {Promise<void>}
+   */
+  async settle(timeoutMs = 10000) {
+    await this.page.waitForLoadState('networkidle', { timeout: timeoutMs }).catch(() => {});
+  }
+
+  /**
    * Work out the signed-in user's application ID. The application wizard lives at
    * /ug-app/<id>/<step> (old flat routes like /my-information now 404).
    * Order: this.applicationId (set by the test) -> current URL -> APPLICATION_ID env
@@ -106,7 +117,7 @@ class BasePage {
   async gotoApplicationStep(slug) {
     const id = await this.getApplicationId();
     await this.page.goto(`/ug-app/${id}/${slug}`, { timeout: this.navigationTimeout });
-    await this.page.waitForLoadState('networkidle');
+    await this.settle();
     if (!this.page.url().includes(`/${slug}`)) {
       this.logger.warn(`Requested step "${slug}" but app redirected to ${this.page.url()} (earlier steps incomplete?)`);
     }
