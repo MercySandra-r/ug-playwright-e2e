@@ -1,444 +1,316 @@
 // @ts-check
 const { expect } = require('@playwright/test');
 const BasePage = require('./BasePage');
-const XLSX = require('xlsx');
-const path = require('path');
+
+/** Review sections, and the wizard step each one's Edit button opens. */
+const SECTIONS = {
+    'Profile': '/profile',
+    'My information': '/my-information',
+    'My program': '/my-program',
+    'My schools': '/my-schools',
+    'My high school grades': '/my-high-school-grades',
+    'Arizona residency': '/arizona-residency',
+};
 
 /**
- * Page Object for Review Page functionality
+ * Page Object for step 6 of the application wizard: "Review"
+ * (/ug-app/<applicationId>/review).
+ *
+ * Rebuilt against the live page on 2026-11-10:
+ *  - Six collapsible summary sections (Profile ... Arizona residency); each expands into
+ *    label/value pairs and has an Edit button that opens that step.
+ *  - Application affidavit (transcripts, academic integrity, ACD 401 / asu.edu/reportit
+ *    links) and a required "I, <name>, certify..." checkbox.
+ *  - "Pay your application fee": nonrefundable amount due (e.g. $75.00) and a
+ *    "Choose a payment option" radiogroup: "Pay now (Visa, Mastercard, Discover or
+ *    American Express)" or "Pay later". Card brands are no longer chosen on this page.
+ *  - Footer: "Previous step", "Submit application".
+ *
+ * submitApplication() is IRREVERSIBLE (it submits the application). Tests gate it
+ * behind REVIEW_ALLOW_SUBMIT=1. This page object never enters card details.
  */
 class ReviewPage extends BasePage {
     /**
      * @param {import('@playwright/test').Page} page - The Playwright page object
      */
     constructor(page) {
-        super(page, 'ReviewPage');
-        
-        // Define page selectors
+        super(page);
+
         this.selectors = {
-            // Page header and navigation
-            pageTitle: 'h1',
-            reviewPageContent: '.review-page-content',
-            
-            // Section headers
-            sectionHeaders: 'h2.section-header',
-            
-            // Edit buttons
-            editButtons: 'button:has-text("Edit")',
-            
-            // Profile Section
-            profileSection: '#profile-section',
-            profileDetails: '#profile-section .detail-item',
-            
-            // My Information Section
-            myInfoSection: '#my-information-section',
-            myInfoDetails: '#my-information-section .detail-item',
-            
-            // My Program Section
-            myProgramSection: '#my-program-section',
-            myProgramDetails: '#my-program-section .detail-item',
-            
-            // My Schools Section
-            mySchoolsSection: '#my-schools-section',
-            mySchoolsDetails: '#my-schools-section .detail-item',
-            
-            // My High School Grades Section
-            highSchoolGradesSection: '#high-school-grades-section',
-            highSchoolGradesDetails: '#high-school-grades-section .detail-item',
-            
-            // Arizona Residency Section
-            arizonaResidencySection: '#arizona-residency-section',
-            arizonaResidencyDetails: '#arizona-residency-section .detail-item',
-            
-            // Application Affidavit
-            applicationAffidavitSection: '#application-affidavit',
-            affidavitCheckbox: '#affidavit-checkbox',
-            
-            // Application Fee Section
-            applicationFeeSection: '#application-fee-section',
-            paymentMethods: '.payment-method',
-            visaCardOption: '#visa-card-option',
-            mastercardOption: '#mastercard-option',
-            discoverOption: '#discover-option',
-            payLaterOption: '#pay-later-option',
-            
-            // Submit Application Button
-            submitApplicationButton: 'button:has-text("Submit Application")',
-            
-            // Confirmation Modal
-            confirmationModal: '.confirmation-modal',
-            confirmButton: 'button:has-text("Confirm")',
-            cancelButton: 'button:has-text("Cancel")',
-            
-            // Error Messages
-            errorMessage: '.error-message',
-            validationError: '.validation-error',
-            
-            // Success Message
-            successMessage: '.success-message',
-            
-            // Links
-            externalLinks: 'a.external-link'
+            heading: 'role=heading[name="Review"][level=1]',
+            affidavitHeading: 'role=heading[name="Application affidavit"]',
+            certifyCheckbox: 'role=checkbox[name=/certify that all information is correct and complete/]',
+            feeHeading: 'role=heading[name="Pay your application fee"]',
+            paymentGroup: 'role=radiogroup[name="Choose a payment option"]',
+            payNow: 'role=radio[name="Pay now (Visa, Mastercard, Discover or American Express)"]',
+            payLater: 'role=radio[name="Pay later"]',
+            submitButton: 'role=button[name="Submit application"]',
+            previousStepButton: 'role=button[name="Previous step"]',
+            acd401Link: 'role=link[name=/^ACD 401: Prohibition Against Discrimination/]',
+            reportItLink: 'role=link[name="asu.edu/reportit"]',
         };
+        this.SECTIONS = SECTIONS;
     }
-    
+
+    // ------------------------------------------------------------------ navigation
+
     /**
-     * Navigate to the Review page
+     * Open step 6 of the signed-in user's application.
      * @returns {Promise<void>}
      */
     async navigateToReviewPage() {
         await this.gotoApplicationStep('review');
-        await this.page.waitForLoadState('networkidle');
         await this.verifyPageLoaded();
     }
-    
+
     /**
-     * Verify the Review page is loaded
-     * @returns {Promise<boolean>} Whether the page is loaded
-     */
-    async verifyPageLoaded() {
-        try {
-            await this.page.waitForSelector(this.selectors.pageTitle, { state: 'visible' });
-            await this.page.waitForSelector(this.selectors.reviewPageContent, { state: 'visible' });
-            return true;
-        } catch (error) {
-            return false;
-        }
-    }
-    
-    /**
-     * Validate the Review page content
-     * @returns {Promise<boolean>} Whether the page content is valid
-     */
-    async validateReview() {
-        try {
-            // Check if all sections are present
-            const sections = [
-                this.selectors.profileSection,
-                this.selectors.myInfoSection,
-                this.selectors.myProgramSection,
-                this.selectors.mySchoolsSection,
-                this.selectors.highSchoolGradesSection,
-                this.selectors.arizonaResidencySection,
-                this.selectors.applicationAffidavitSection,
-                this.selectors.applicationFeeSection
-            ];
-            
-            for (const section of sections) {
-                await this.page.waitForSelector(section, { state: 'visible' });
-            }
-            
-            return true;
-        } catch (error) {
-            console.error('Error validating review page:', error);
-            return false;
-        }
-    }
-    
-    /**
-     * Get section details as key-value pairs
-     * @param {string} sectionSelector - The selector for the section
-     * @param {string} itemSelector - The selector for the detail items
-     * @returns {Promise<Array<{key: string, value: string}>>} Array of key-value pairs
-     */
-    async getSectionDetails(sectionSelector, itemSelector) {
-        const details = [];
-        const section = this.page.locator(sectionSelector);
-        const items = section.locator(itemSelector);
-        const count = await items.count();
-        
-        for (let i = 0; i < count; i++) {
-            const item = items.nth(i);
-            const text = await item.textContent();
-            // Assuming the format is "Label: Value"
-            const [key, ...valueParts] = text.split(':').map(part => part.trim());
-            const value = valueParts.join(':').trim();
-            
-            if (key && value) {
-                details.push({ key, value });
-            }
-        }
-        
-        return details;
-    }
-    
-    /**
-     * Get profile section details
-     * @returns {Promise<Array<{key: string, value: string}>>} Array of profile details
-     */
-    async getProfileSection() {
-        return this.getSectionDetails(
-            this.selectors.profileSection,
-            this.selectors.profileDetails
-        );
-    }
-    
-    /**
-     * Get my information section details
-     * @returns {Promise<Array<{key: string, value: string}>>} Array of my information details
-     */
-    async getMyInfoSection() {
-        return this.getSectionDetails(
-            this.selectors.myInfoSection,
-            this.selectors.myInfoDetails
-        );
-    }
-    
-    /**
-     * Get my program section details
-     * @returns {Promise<Array<{key: string, value: string}>>} Array of my program details
-     */
-    async getMyProgramSection() {
-        return this.getSectionDetails(
-            this.selectors.myProgramSection,
-            this.selectors.myProgramDetails
-        );
-    }
-    
-    /**
-     * Get my schools section details
-     * @returns {Promise<Array<{key: string, value: string}>>} Array of my schools details
-     */
-    async getMySchoolsSection() {
-        return this.getSectionDetails(
-            this.selectors.mySchoolsSection,
-            this.selectors.mySchoolsDetails
-        );
-    }
-    
-    /**
-     * Get high school grades section details
-     * @returns {Promise<Array<{key: string, value: string}>>} Array of high school grades details
-     */
-    async getHighSchoolGradesSection() {
-        return this.getSectionDetails(
-            this.selectors.highSchoolGradesSection,
-            this.selectors.highSchoolGradesDetails
-        );
-    }
-    
-    /**
-     * Get Arizona residency section details
-     * @returns {Promise<Array<{key: string, value: string}>>} Array of Arizona residency details
-     */
-    async getArizonaResidencySection() {
-        return this.getSectionDetails(
-            this.selectors.arizonaResidencySection,
-            this.selectors.arizonaResidencyDetails
-        );
-    }
-    
-    /**
-     * Click the edit button for a section
-     * @param {string} sectionName - The name of the section to edit
      * @returns {Promise<void>}
      */
-    async clickEditSection(sectionName) {
-        const sectionHeader = this.page.locator('h2', { hasText: sectionName });
-        const editButton = sectionHeader.locator('xpath=..').locator('button:has-text("Edit")');
-        await editButton.click();
-        await this.page.waitForLoadState('networkidle');
+    async verifyPageLoaded() {
+        await expect(this.page).toHaveURL(/\/ug-app\/\d+\/review/, { timeout: this.navigationTimeout });
+        await expect(this.page.locator(this.selectors.heading)).toBeVisible({ timeout: this.navigationTimeout });
     }
-    
+
     /**
-     * Verify application affidavit section
-     * @returns {Promise<boolean>} Whether the affidavit section is valid
+     * Sections, affidavit, fee and submit button are present.
+     * @returns {Promise<void>}
+     */
+    async validateReview() {
+        await expect(this.page.getByRole('heading', { name: 'Review and submit your application' })).toBeVisible();
+        for (const name of Object.keys(SECTIONS)) {
+            await expect(this.sectionButton(name)).toBeVisible();
+        }
+        await expect(this.page.locator(this.selectors.affidavitHeading)).toBeVisible();
+        await expect(this.page.locator(this.selectors.certifyCheckbox)).toBeVisible();
+        await expect(this.page.locator(this.selectors.feeHeading)).toBeVisible();
+        await expect(this.page.locator(this.selectors.submitButton)).toBeVisible();
+    }
+
+    // ------------------------------------------------------------------ sections
+
+    /**
+     * The disclosure button for a section (its name is "<Section> Edit").
+     * @param {string} name
+     * @returns {import('@playwright/test').Locator}
+     */
+    sectionButton(name) {
+        return this.page.getByRole('button', { name: `${name} Edit`, exact: true });
+    }
+
+    /**
+     * @param {string} name
+     * @returns {Promise<void>}
+     */
+    async expandSection(name) {
+        const btn = this.sectionButton(name);
+        if ((await btn.getAttribute('aria-expanded')) !== 'true') await btn.click();
+        await expect(btn).toHaveAttribute('aria-expanded', 'true', { timeout: this.assertionTimeout });
+    }
+
+    /**
+     * Expand a section and read its text lines in order, e.g.
+     * ['Legal name', 'Qa Automation', 'Preferred first name', 'No data has been entered', ...].
+     * Labels can repeat (My program lists Location/Starting term per choice) and some
+     * sections have sub-headings, so use getSectionValue() to look values up.
+     * @param {string} name - a key of SECTIONS
+     * @returns {Promise<string[]>}
+     */
+    async getSectionLines(name) {
+        await this.expandSection(name);
+        const buttonId = await this.sectionButton(name).getAttribute('id');
+        return this.page.evaluate((id) => {
+            const btn = id && document.getElementById(id);
+            const panelId = btn && btn.getAttribute('aria-controls');
+            const panel = panelId && document.getElementById(panelId);
+            if (!panel) return [];
+            return [...panel.querySelectorAll('p')]
+                .map((p) => (p.textContent || '').replace(/\s+/g, ' ').trim().replace(/^"(.*)"$/, '$1'))
+                .filter(Boolean);
+        }, buttonId);
+    }
+
+    /**
+     * The value shown after the nth occurrence of a label in a section.
+     * @param {string} name - section, a key of SECTIONS
+     * @param {string} label - e.g. 'Legal sex', 'Starting term'
+     * @param {number} [nth] - 0-based occurrence (e.g. 1 for the second choice's Location)
+     * @returns {Promise<string|undefined>}
+     */
+    async getSectionValue(name, label, nth = 0) {
+        const lines = await this.getSectionLines(name);
+        let seen = -1;
+        for (let i = 0; i < lines.length - 1; i++) {
+            if (lines[i] === label && ++seen === nth) return lines[i + 1];
+        }
+        return undefined;
+    }
+
+    /**
+     * Old API name: the section's lines.
+     * @param {string} name
+     * @returns {Promise<string[]>}
+     */
+    async getSectionDetails(name) { return this.getSectionLines(name); }
+
+    /** @returns {Promise<string[]>} */
+    async getProfileSection() { return this.getSectionLines('Profile'); }
+
+    /** @returns {Promise<string[]>} */
+    async getMyInfoSection() { return this.getSectionLines('My information'); }
+
+    /** @returns {Promise<string[]>} */
+    async getMyProgramSection() { return this.getSectionLines('My program'); }
+
+    /** @returns {Promise<string[]>} */
+    async getMySchoolsSection() { return this.getSectionLines('My schools'); }
+
+    /** @returns {Promise<string[]>} */
+    async getHighSchoolGradesSection() { return this.getSectionLines('My high school grades'); }
+
+    /** @returns {Promise<string[]>} */
+    async getArizonaResidencySection() { return this.getSectionLines('Arizona residency'); }
+
+    /**
+     * Click a section's Edit button; it opens that step (or Profile).
+     * @param {string} name - a key of SECTIONS
+     * @returns {Promise<void>}
+     */
+    async clickEditSection(name) {
+        await this.expandSection(name);
+        await this.sectionButton(name).getByRole('button', { name: 'Edit', exact: true }).click();
+        const slug = SECTIONS[/** @type {keyof typeof SECTIONS} */ (name)];
+        await this.page.waitForURL(new RegExp(slug.replace(/\//g, '\\/')), { timeout: this.navigationTimeout });
+    }
+
+    // ------------------------------------------------------------------ affidavit
+
+    /**
+     * Affidavit sections and the certify checkbox are shown.
+     * @returns {Promise<void>}
      */
     async verifyApplicationAffidavit() {
-        try {
-            await this.page.waitForSelector(this.selectors.applicationAffidavitSection, { state: 'visible' });
-            
-            // Check if the affidavit text is present
-            const affidavitText = await this.page.locator(this.selectors.applicationAffidavitSection).textContent();
-            const hasAffidavitText = affidavitText && affidavitText.length > 0;
-            
-            // Check if the checkbox is present
-            const hasCheckbox = await this.page.locator(this.selectors.affidavitCheckbox).isVisible();
-            
-            return hasAffidavitText && hasCheckbox;
-        } catch (error) {
-            console.error('Error verifying application affidavit:', error);
-            return false;
+        await expect(this.page.locator(this.selectors.affidavitHeading)).toBeVisible();
+        for (const h of ['Submitting Official Transcripts (For Degree-Seeking Students)', 'Academic Integrity',
+            'Prohibition Against Discrimination, Harassment and Retaliation']) {
+            await expect(this.page.getByRole('heading', { name: h })).toBeVisible();
         }
+        await expect(this.page.locator(this.selectors.certifyCheckbox)).toBeVisible();
     }
-    
+
     /**
-     * Verify application fee section
-     * @returns {Promise<boolean>} Whether the fee section is valid
+     * Tick (or untick) the affidavit certification.
+     * @param {boolean} [certify]
+     * @returns {Promise<void>}
+     */
+    async certifyAffidavit(certify = true) {
+        const box = this.page.locator(this.selectors.certifyCheckbox);
+        if ((await box.isChecked()) !== certify) await box.click();
+        if (certify) await expect(box).toBeChecked();
+        else await expect(box).not.toBeChecked();
+    }
+
+    /**
+     * Flow-spec name: certify the affidavit.
+     * @returns {Promise<void>}
+     */
+    async acknowledgeAndContinue() {
+        await this.certifyAffidavit(true);
+    }
+
+    /**
+     * The affidavit's external links.
+     * @returns {Promise<{ acd401: string|null, reportIt: string|null }>}
+     */
+    async verifyExternalLinks() {
+        const acd401 = await this.page.locator(this.selectors.acd401Link).getAttribute('href');
+        const reportIt = await this.page.locator(this.selectors.reportItLink).getAttribute('href');
+        return { acd401, reportIt };
+    }
+
+    // ------------------------------------------------------------------ fee and payment
+
+    /**
+     * Read the fee section.
+     * @returns {Promise<{ amount: string, options: string[] }>}
      */
     async verifyApplicationFeeSection() {
-        try {
-            await this.page.waitForSelector(this.selectors.applicationFeeSection, { state: 'visible' });
-            
-            // Check if payment methods are present
-            const paymentMethods = this.page.locator(this.selectors.paymentMethods);
-            const paymentMethodsCount = await paymentMethods.count();
-            
-            return paymentMethodsCount > 0;
-        } catch (error) {
-            console.error('Error verifying application fee section:', error);
-            return false;
-        }
+        await expect(this.page.locator(this.selectors.feeHeading)).toBeVisible();
+        const amount = (await this.page.getByRole('heading', { name: /^\$\d+(\.\d{2})?$/ }).first().innerText()).trim();
+        const options = (await this.page.locator(this.selectors.paymentGroup).getByRole('radio').allInnerTexts())
+            .map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean);
+        return { amount, options: [...new Set(options)] };
     }
-    
+
     /**
-     * Select a payment method
-     * @param {string} method - The payment method to select (visa, mastercard, discover, payLater)
+     * Choose a payment option. Card brands from the old API ('Visa', 'MasterCard',
+     * 'Discover', 'American Express') all mean "Pay now"; 'later'/'Pay Later' -> "Pay later".
+     * Choosing only marks the radio; nothing is charged until submission/payment.
+     * @param {string} method
      * @returns {Promise<void>}
      */
     async selectPaymentMethod(method) {
-        let selector;
-        
-        switch (method.toLowerCase()) {
-            case 'visa':
-                selector = this.selectors.visaCardOption;
-                break;
-            case 'mastercard':
-                selector = this.selectors.mastercardOption;
-                break;
-            case 'discover':
-                selector = this.selectors.discoverOption;
-                break;
-            case 'paylater':
-                selector = this.selectors.payLaterOption;
-                break;
-            default:
-                throw new Error(`Unsupported payment method: ${method}`);
-        }
-        
-        await this.page.click(selector);
-        await this.page.waitForLoadState('networkidle');
+        const later = /later/i.test(method);
+        const radio = this.page.locator(later ? this.selectors.payLater : this.selectors.payNow);
+        await radio.click();
+        await expect(radio).toHaveAttribute('aria-checked', 'true', { timeout: this.assertionTimeout });
     }
-    
+
     /**
-     * Submit the application
-     * @param {Object} options - Options for submission
-     * @param {boolean} [options.confirm=true] - Whether to confirm the submission
-     * @returns {Promise<boolean>} Whether the submission was successful
+     * Flow-spec name. Fee waivers aren't offered on this page as of 2026-11-10, so this
+     * chooses "Pay later".
+     * @returns {Promise<void>}
      */
-    async submitApplication(options = { confirm: true }) {
-        try {
-            // Scroll to the submit button and click it
-            await this.page.click(this.selectors.submitApplicationButton);
-            
-            if (options.confirm) {
-                // Wait for the confirmation modal and confirm
-                await this.page.waitForSelector(this.selectors.confirmationModal, { state: 'visible' });
-                await this.page.click(this.selectors.confirmButton);
-                await this.page.waitForLoadState('networkidle');
-                
-                // Check for success message or redirect
-                const success = await this.page.$(this.selectors.successMessage) || 
-                               !(await this.page.$(this.selectors.submitApplicationButton));
-                
-                return !!success;
-            }
-            
-            return true;
-        } catch (error) {
-            console.error('Error submitting application:', error);
-            return false;
-        }
+    async handlePaymentOrWaiver() {
+        await this.selectPaymentMethod('later');
     }
-    
-    /**
-     * Verify all external links in the review page
-     * @returns {Promise<Array<{text: string, url: string, status: number}>>} Array of link verification results
-     */
-    async verifyExternalLinks() {
-        const results = [];
-        const links = this.page.locator(this.selectors.externalLinks);
-        const count = await links.count();
-        
-        for (let i = 0; i < count; i++) {
-            const link = links.nth(i);
-            const text = await link.textContent();
-            const url = await link.getAttribute('href');
-            
-            // Open the link in a new tab
-            const [newPage] = await Promise.all([
-                this.page.waitForEvent('popup'),
-                link.click()
-            ]);
-            
-            // Wait for the page to load
-            await newPage.waitForLoadState('load');
-            
-            // Get the status code (simplified - in a real scenario, you might need to make an HTTP request)
-            const status = 200; // Placeholder - actual implementation would check the response status
-            
-            // Store the result
-            results.push({ text, url, status });
-            
-            // Close the new tab
-            await newPage.close();
-        }
-        
-        return results;
+
+    // ------------------------------------------------------------------ flow-spec checks
+
+    /** @returns {Promise<void>} */
+    async verifyPersonalInformation() {
+        expect(await this.getSectionValue('Profile', 'Legal name')).toBeTruthy();
+        expect(await this.getSectionValue('Profile', 'Email')).toContain('@');
     }
-    
+
     /**
-     * Compare data from the review page with expected data from an Excel file
-     * @param {string} filePath - Path to the Excel file
-     * @param {string} sheetName - Name of the sheet containing expected data
-     * @param {string} section - The section to compare (profile, myInfo, myProgram, etc.)
-     * @returns {Promise<{matches: Array<{key: string, expected: string, actual: string}>, mismatches: Array<{key: string, expected: string, actual: string}>}>} Comparison results
+     * Chosen programs. One program is labelled "Program"; with a backup the section shows
+     * "First choice" and "Second choice".
+     * @returns {Promise<{ first?: string, second?: string }>}
      */
-    async compareWithExcel(filePath, sheetName, section) {
-        // Get the actual data from the page
-        let actualData;
-        
-        switch (section.toLowerCase()) {
-            case 'profile':
-                actualData = await this.getProfileSection();
-                break;
-            case 'myinfo':
-                actualData = await this.getMyInfoSection();
-                break;
-            case 'myprogram':
-                actualData = await this.getMyProgramSection();
-                break;
-            case 'myschools':
-                actualData = await this.getMySchoolsSection();
-                break;
-            case 'highschoolgrades':
-                actualData = await this.getHighSchoolGradesSection();
-                break;
-            case 'arizonaresidency':
-                actualData = await this.getArizonaResidencySection();
-                break;
-            default:
-                throw new Error(`Unsupported section: ${section}`);
-        }
-        
-        // Read expected data from Excel
-        const workbook = XLSX.readFile(filePath);
-        const worksheet = workbook.Sheets[sheetName];
-        const expectedData = XLSX.utils.sheet_to_json(worksheet, { header: ['key', 'value'] });
-        
-        // Convert actual data to a map for easier comparison
-        const actualMap = new Map();
-        for (const item of actualData) {
-            actualMap.set(item.key, item.value);
-        }
-        
-        // Compare the data
-        const matches = [];
-        const mismatches = [];
-        
-        for (const expectedItem of expectedData) {
-            const key = expectedItem.key;
-            const expectedValue = expectedItem.value;
-            const actualValue = actualMap.get(key);
-            
-            if (actualValue === expectedValue) {
-                matches.push({ key, expected: expectedValue, actual: actualValue });
-            } else {
-                mismatches.push({ key, expected: expectedValue, actual: actualValue });
-            }
-        }
-        
-        return { matches, mismatches };
+    async getChosenPrograms() {
+        const first = (await this.getSectionValue('My program', 'First choice')) ?? (await this.getSectionValue('My program', 'Program'));
+        const second = await this.getSectionValue('My program', 'Second choice');
+        return { first, second };
+    }
+
+    /** @returns {Promise<void>} */
+    async verifyProgramInformation() {
+        expect((await this.getChosenPrograms()).first).toBeTruthy();
+    }
+
+    /** @returns {Promise<void>} */
+    async verifySchoolInformation() {
+        expect(await this.getSectionValue('My schools', 'High school name')).toBeTruthy();
+    }
+
+    /** @returns {Promise<void>} */
+    async verifyResidencyInformation() {
+        expect((await this.getArizonaResidencySection()).length).toBeGreaterThan(0);
+    }
+
+    // ------------------------------------------------------------------ submission (irreversible)
+
+    /**
+     * IRREVERSIBLE: click "Submit application". Certifies the affidavit and chooses
+     * "Pay later" first unless told not to. Callers must gate this explicitly.
+     * @param {{ certify?: boolean, paymentOption?: 'now'|'later'|null }} [options]
+     * @returns {Promise<void>}
+     */
+    async submitApplication({ certify = true, paymentOption = 'later' } = {}) {
+        if (certify) await this.certifyAffidavit(true);
+        if (paymentOption) await this.selectPaymentMethod(paymentOption);
+        this.logger.warn('Submitting the application (irreversible)');
+        await this.page.locator(this.selectors.submitButton).click();
     }
 }
 

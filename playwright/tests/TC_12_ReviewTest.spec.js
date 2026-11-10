@@ -1,264 +1,148 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const LoginPage = require('../pages/LoginPage');
+const { startApplicationAt, resumeApplication } = require('../utils/applicationJourney');
 const ReviewPage = require('../pages/ReviewPage');
-const path = require('path');
-
-// Test data
-const testUser = {
-    email: process.env.TEST_EMAIL || 'test@example.com',
-    password: process.env.TEST_PASSWORD || 'TestPassword123!',
-    paymentInfo: {
-        cardNumber: '4111111111111111',
-        expiryDate: '12/25',
-        cvv: '123',
-        nameOnCard: 'Test User',
-        address: '123 Test St',
-        city: 'Test City',
-        state: 'AZ',
-        zip: '85281',
-        country: 'United States'
-    }
-};
 
 /**
- * Test suite for Review Page functionality
+ * Review (step 6 of the application wizard), against the live page.
+ *
+ * One fresh account per run (beforeAll) taken through steps 1-5 with the journey
+ * defaults (Qa Automation, Female, English, not a U.S. citizen, Anthropology BA, Tempe
+ * High School, no self-reported grades, California). Account creation is
+ * rate-limited per hour; this suite creates one.
+ *
+ * SUBMISSION IS IRREVERSIBLE: the two submit tests only run with REVIEW_ALLOW_SUBMIT=1.
+ * Card payment is never exercised.
+ *
+ * The old Excel comparison test is gone: its data file never existed.
+ *
+ * Debugging without creating accounts: set REVIEW_TEST_EMAIL and REVIEW_TEST_PASSWORD to
+ * an account whose application is on Review (and not submitted).
  */
 test.describe('Review Page Tests', () => {
-    let loginPage;
+    test.describe.configure({ mode: 'serial', timeout: 120000 });
+    const allowSubmit = process.env.REVIEW_ALLOW_SUBMIT === '1';
+
+    /** @type {import('@playwright/test').BrowserContext} */
+    let context;
+    /** @type {import('@playwright/test').Page} */
+    let page;
+    /** @type {ReviewPage} */
     let reviewPage;
-    
-    test.beforeEach(async ({ page }) => {
-        loginPage = new LoginPage(page);
+
+    test.beforeAll(async ({ browser }, testInfo) => {
+        testInfo.setTimeout(600000);
+        context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+        page = await context.newPage();
         reviewPage = new ReviewPage(page);
-        
-        // Login and navigate to review page
-        await loginPage.navigateToLoginPage();
-        await loginPage.login(testUser.email, testUser.password);
-        await reviewPage.navigateToReviewPage();
+        reviewPage.applicationId = process.env.REVIEW_TEST_EMAIL && process.env.REVIEW_TEST_PASSWORD
+            ? await resumeApplication(page, process.env.REVIEW_TEST_EMAIL, process.env.REVIEW_TEST_PASSWORD)
+            : await startApplicationAt(page, 'review');
     });
-    
+
+    test.afterAll(async () => {
+        await context?.close();
+    });
+
+    const freshPage = () => reviewPage.navigateToReviewPage();
+
     test('Verify Review page loads successfully', async () => {
-        // Verify page title and URL
-        await expect(reviewPage.page).toHaveURL(/.*review/);
-        await expect(reviewPage.page.locator(reviewPage.selectors.pageTitle)).toBeVisible();
+        await freshPage();
+        await reviewPage.validateReview();
     });
-    
-    test('Validate Review page content', async () => {
-        // Verify the page content is valid
-        const isPageValid = await reviewPage.validateReview();
-        expect(isPageValid).toBeTruthy();
-    });
-    
+
     test('Verify Profile section details', async () => {
-        // Get profile section details
-        const profileDetails = await reviewPage.getProfileSection();
-        
-        // Verify we have some details
-        expect(profileDetails.length).toBeGreaterThan(0);
-        
-        // Log the details for debugging
-        console.log('Profile Details:', JSON.stringify(profileDetails, null, 2));
-        
-        // Example check - adjust based on your actual data
-        const nameDetail = profileDetails.find(item => item.key.toLowerCase().includes('name'));
-        expect(nameDetail).toBeDefined();
-        expect(nameDetail.value).toBeTruthy();
+        await freshPage();
+        expect(await reviewPage.getSectionValue('Profile', 'Legal name')).toBe('Qa Automation');
+        expect(await reviewPage.getSectionValue('Profile', 'Date of birth')).toBe('2000-06-15');
+        expect(await reviewPage.getSectionValue('Profile', 'Email')).toMatch(/^ugnaaqaautomation1\+asuqa\d{4}@gmail\.com$/);
+        expect(await reviewPage.getSectionValue('Profile', 'Phone')).toBe('+1 (202) 555-1234');
     });
-    
+
     test('Verify My Information section details', async () => {
-        // Get my information section details
-        const myInfoDetails = await reviewPage.getMyInfoSection();
-        
-        // Verify we have some details
-        expect(myInfoDetails.length).toBeGreaterThan(0);
-        
-        // Log the details for debugging
-        console.log('My Info Details:', JSON.stringify(myInfoDetails, null, 2));
+        await freshPage();
+        expect(await reviewPage.getSectionValue('My information', 'Legal sex')).toBe('Female');
+        expect(await reviewPage.getSectionValue('My information', 'Primary language spoken at home')).toBe('English');
+        expect(await reviewPage.getSectionValue('My information', 'U.S. citizenship')).toBe('I am not a U.S. citizen');
+        expect(await reviewPage.getSectionValue('My information', 'Home address')).toContain('Tempe, AZ');
     });
-    
+
     test('Verify My Program section details', async () => {
-        // Get my program section details
-        const myProgramDetails = await reviewPage.getMyProgramSection();
-        
-        // Verify we have some details
-        expect(myProgramDetails.length).toBeGreaterThan(0);
-        
-        // Log the details for debugging
-        console.log('My Program Details:', JSON.stringify(myProgramDetails, null, 2));
+        await freshPage();
+        // "Program" for a single choice; "First choice"/"Second choice" with a backup.
+        const { first } = await reviewPage.getChosenPrograms();
+        expect(first).toMatch(/, [A-Z]{2,4}$/);
+        expect(await reviewPage.getSectionValue('My program', 'Location')).toBe('ASU Online');
+        expect(await reviewPage.getSectionValue('My program', 'Starting term')).toMatch(/^(Spring|Summer|Fall) \d{4}/);
     });
-    
+
     test('Verify My Schools section details', async () => {
-        // Get my schools section details
-        const mySchoolsDetails = await reviewPage.getMySchoolsSection();
-        
-        // Verify we have some details
-        expect(mySchoolsDetails.length).toBeGreaterThan(0);
-        
-        // Log the details for debugging
-        console.log('My Schools Details:', JSON.stringify(mySchoolsDetails, null, 2));
+        await freshPage();
+        expect(await reviewPage.getSectionValue('My schools', 'High school name')).toBe('Tempe High School');
+        expect(await reviewPage.getSectionValue('My schools', 'Location')).toBe('Tempe, Arizona, United States');
     });
-    
+
     test('Verify High School Grades section details', async () => {
-        // Get high school grades section details
-        const highSchoolGradesDetails = await reviewPage.getHighSchoolGradesSection();
-        
-        // Verify we have some details
-        expect(highSchoolGradesDetails.length).toBeGreaterThan(0);
-        
-        // Log the details for debugging
-        console.log('High School Grades Details:', JSON.stringify(highSchoolGradesDetails, null, 2));
+        await freshPage();
+        expect(await reviewPage.getSectionValue('My high school grades', 'Self-reported')).toMatch(/^(Yes|No)$/);
     });
-    
+
     test('Verify Arizona Residency section details', async () => {
-        // Get Arizona residency section details
-        const arizonaResidencyDetails = await reviewPage.getArizonaResidencySection();
-        
-        // Verify we have some details
-        expect(arizonaResidencyDetails.length).toBeGreaterThan(0);
-        
-        // Log the details for debugging
-        console.log('Arizona Residency Details:', JSON.stringify(arizonaResidencyDetails, null, 2));
+        await freshPage();
+        const state = await reviewPage.getSectionValue('Arizona residency', 'Begin by selecting the state you consider to be your permanent home.');
+        expect(['California', 'Arizona']).toContain(state);
     });
-    
+
+    test('Edit a section opens its step', async () => {
+        await freshPage();
+        await reviewPage.clickEditSection('My schools');
+        await expect(page.getByRole('heading', { name: 'My schools', level: 1 })).toBeVisible();
+    });
+
     test('Verify Application Affidavit section', async () => {
-        // Verify the application affidavit section
-        const isAffidavitValid = await reviewPage.verifyApplicationAffidavit();
-        expect(isAffidavitValid).toBeTruthy();
+        await freshPage();
+        await reviewPage.verifyApplicationAffidavit();
+        await reviewPage.certifyAffidavit(true);
+        await reviewPage.certifyAffidavit(false);
     });
-    
-    test('Verify Application Fee section', async () => {
-        // Verify the application fee section
-        const isFeeSectionValid = await reviewPage.verifyApplicationFeeSection();
-        expect(isFeeSectionValid).toBeTruthy();
-    });
-    
-    test('Select Visa payment method', async () => {
-        // Select Visa as payment method
-        await reviewPage.selectPaymentMethod('visa');
-        
-        // Verify the selection (assuming there's a way to verify the selected payment method)
-        // This is a placeholder - adjust based on your actual implementation
-        const isVisaSelected = await reviewPage.page.isVisible(reviewPage.selectors.visaCardOption);
-        expect(isVisaSelected).toBeTruthy();
-    });
-    
-    test('Select MasterCard payment method', async () => {
-        // Select MasterCard as payment method
-        await reviewPage.selectPaymentMethod('mastercard');
-        
-        // Verify the selection
-        const isMastercardSelected = await reviewPage.page.isVisible(reviewPage.selectors.mastercardOption);
-        expect(isMastercardSelected).toBeTruthy();
-    });
-    
-    test('Select Discover payment method', async () => {
-        // Select Discover as payment method
-        await reviewPage.selectPaymentMethod('discover');
-        
-        // Verify the selection
-        const isDiscoverSelected = await reviewPage.page.isVisible(reviewPage.selectors.discoverOption);
-        expect(isDiscoverSelected).toBeTruthy();
-    });
-    
-    test('Select Pay Later option', async () => {
-        // Select Pay Later option
-        await reviewPage.selectPaymentMethod('paylater');
-        
-        // Verify the selection
-        const isPayLaterSelected = await reviewPage.page.isVisible(reviewPage.selectors.payLaterOption);
-        expect(isPayLaterSelected).toBeTruthy();
-    });
-    
+
     test('Verify external links', async () => {
-        test.skip(!!process.env.CI, 'Skipping external links test in CI environment');
-        
-        // Verify all external links
-        const linkResults = await reviewPage.verifyExternalLinks();
-        
-        // Log the results
-        console.log('Link verification results:', JSON.stringify(linkResults, null, 2));
-        
-        // Check for any failed links
-        const failedLinks = linkResults.filter(link => link.status !== 200);
-        expect(failedLinks.length).toBe(0);
+        await freshPage();
+        const { acd401, reportIt } = await reviewPage.verifyExternalLinks();
+        expect(acd401).toMatch(/asu\.edu/);
+        expect(reportIt).toMatch(/asu\.edu\/reportit/);
     });
-    
-    test('Compare profile section with Excel data', async () => {
-        test.skip(!!process.env.CI, 'Skipping Excel comparison test in CI environment');
-        
-        // Path to the Excel file
-        const excelFilePath = path.join(__dirname, 'test-data', 'review-data.xlsx');
-        
-        // Compare profile section with Excel data
-        const { matches, mismatches } = await reviewPage.compareWithExcel(
-            excelFilePath,
-            'Profile',
-            'profile'
-        );
-        
-        // Log the comparison results
-        console.log('Profile Section - Matches:', matches.length);
-        console.log('Profile Section - Mismatches:', mismatches.length);
-        
-        if (mismatches.length > 0) {
-            console.log('Mismatch Details:', JSON.stringify(mismatches, null, 2));
-        }
-        
-        // Verify there are no mismatches
-        expect(mismatches.length).toBe(0);
+
+    test('Verify Application Fee section', async () => {
+        await freshPage();
+        const { amount, options } = await reviewPage.verifyApplicationFeeSection();
+        expect(amount).toMatch(/^\$\d+\.\d{2}$/);
+        expect(options).toEqual(['Pay now (Visa, Mastercard, Discover or American Express)', 'Pay later']);
     });
-    
-    test('Submit application with confirmation', async () => {
-        test.skip(!!process.env.CI, 'Skipping application submission test in CI environment');
-        
-        // Select a payment method
-        await reviewPage.selectPaymentMethod('visa');
-        
-        // Fill in payment details (assuming there are fields for this)
-        // This is a placeholder - adjust based on your actual implementation
-        // await reviewPage.page.fill('#card-number', testUser.paymentInfo.cardNumber);
-        // await reviewPage.page.fill('#expiry-date', testUser.paymentInfo.expiryDate);
-        // await reviewPage.page.fill('#cvv', testUser.paymentInfo.cvv);
-        // await reviewPage.page.fill('#name-on-card', testUser.paymentInfo.nameOnCard);
-        
-        // Check the affidavit checkbox
-        await reviewPage.page.check(reviewPage.selectors.affidavitCheckbox);
-        
-        // Submit the application with confirmation
-        const isSubmitted = await reviewPage.submitApplication({ confirm: true });
-        
-        // Verify the submission was successful
-        expect(isSubmitted).toBeTruthy();
-        
-        // Verify we're redirected to a confirmation/success page
-        await expect(reviewPage.page).toHaveURL(/.*confirmation|success/);
+
+    test('Select payment option (Pay now / Pay later)', async () => {
+        await freshPage();
+        await reviewPage.selectPaymentMethod('Visa'); // old card-brand names map to "Pay now"
+        await expect(page.locator(reviewPage.selectors.payNow)).toHaveAttribute('aria-checked', 'true');
+        await reviewPage.selectPaymentMethod('Pay later');
+        await expect(page.locator(reviewPage.selectors.payLater)).toHaveAttribute('aria-checked', 'true');
+        await expect(page.locator(reviewPage.selectors.payNow)).toHaveAttribute('aria-checked', 'false');
     });
-    
-    test('Cancel application submission', async () => {
-        // Click the submit button
-        await reviewPage.page.click(reviewPage.selectors.submitApplicationButton);
-        
-        // Wait for the confirmation modal
-        await reviewPage.page.waitForSelector(reviewPage.selectors.confirmationModal, { state: 'visible' });
-        
-        // Click the cancel button
-        await reviewPage.page.click(reviewPage.selectors.cancelButton);
-        
-        // Verify we're still on the review page
-        await expect(reviewPage.page).toHaveURL(/.*review/);
+
+    test('Verify error message when submitting without certifying', async () => {
+        test.skip(!allowSubmit, 'Clicks Submit application; set REVIEW_ALLOW_SUBMIT=1 to run');
+        await freshPage();
+        await reviewPage.certifyAffidavit(false);
+        await reviewPage.selectPaymentMethod('later');
+        await page.locator(reviewPage.selectors.submitButton).click();
+        await expect(page.getByText(/required|certify|must/i).first()).toBeVisible();
+        await expect(page).toHaveURL(/\/review/);
     });
-    
-    test('Verify error message when submitting without required fields', async () => {
-        // Try to submit without checking the affidavit
-        await reviewPage.page.click(reviewPage.selectors.submitApplicationButton);
-        
-        // Verify error message is displayed
-        const hasError = await reviewPage.page.isVisible(reviewPage.selectors.errorMessage);
-        expect(hasError).toBeTruthy();
-        
-        // Verify the error message text
-        const errorText = await reviewPage.page.textContent(reviewPage.selectors.errorMessage);
-        expect(errorText).toContain('Please complete all required sections');
+
+    test('Submit application (Pay later)', async () => {
+        test.skip(!allowSubmit, 'Submits the application; set REVIEW_ALLOW_SUBMIT=1 to run');
+        await freshPage();
+        await reviewPage.submitApplication({ certify: true, paymentOption: 'later' });
+        await page.waitForURL((u) => !/\/review/.test(u.pathname), { timeout: 60000 });
     });
 });
