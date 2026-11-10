@@ -44,9 +44,14 @@ async function reserveFreshEmail(gmail, maxSkips = 20) {
  * @param {string} [opts.password] - >=10 chars, mixed case + number.
  * @param {GmailUtils} [opts.gmail] - Reuse an initialized GmailUtils instance.
  * @param {number} [opts.maxAttempts] - Sign-up attempts on "already exists" (default 3).
+ * @param {'in-person'|'online'|'random'} [opts.mode] - Learning mode chosen on the landing
+ *   page before Continue (default 'online'). The app carries it into the new application.
+ * @param {'pursue'|'individual'} [opts.degreeType] - Default 'pursue'.
  * @returns {Promise<{ email: string, password: string }>}
  */
 async function signUpVerifiedAccount(page, opts = {}) {
+    const mode = opts.mode || 'online';
+    const degreeType = opts.degreeType || 'pursue';
     const password = opts.password || 'AsuQaTest1234!';
     const maxAttempts = opts.email ? 1 : opts.maxAttempts || 3;
     const idp = new AsuIdpPage(page);
@@ -54,11 +59,13 @@ async function signUpVerifiedAccount(page, opts = {}) {
     if (!opts.gmail) await gmail.initialize();
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        await idp.startFromApp({ mode, degreeType });
+        await idp.openSignupFromIdp();
+
+        // Reserve the address only once the sign-up form is up, so failures earlier
+        // in the flow don't burn sequence numbers.
         const email = opts.email || (await reserveFreshEmail(gmail));
         const since = new Date();
-
-        await idp.startFromApp();
-        await idp.openSignupFromIdp();
         await idp.signUp(email, password);
 
         const formError = await idp.getFormError();

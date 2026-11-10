@@ -90,7 +90,7 @@ class PreviewPage extends BasePage {
      * @returns {Promise<void>}
      */
     async navigateToPreviewPage() {
-        await this.page.goto('/preview');
+        await this.gotoApplicationStep('preview');
         await this.page.waitForLoadState('networkidle');
         await this.verifyPageLoaded();
     }

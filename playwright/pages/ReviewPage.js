@@ -87,7 +87,7 @@ class ReviewPage extends BasePage {
      * @returns {Promise<void>}
      */
     async navigateToReviewPage() {
-        await this.page.goto('/review');
+        await this.gotoApplicationStep('review');
         await this.page.waitForLoadState('networkidle');
         await this.verifyPageLoaded();
     }

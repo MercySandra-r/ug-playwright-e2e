@@ -35,7 +35,7 @@ test.describe('My ASU Program Page Tests', () => {
 
     test('Verify My ASU Program page loads successfully', async () => {
         // Verify page title and URL
-        await expect(myASUProgramPage.page).toHaveURL(/.*my-asu-program/);
+        await expect(myASUProgramPage.page).toHaveURL(/.*my-program/);
         await expect(myASUProgramPage.page.locator(myASUProgramPage.selectors.pageTitle))
             .toContainText('My ASU Program');
     });

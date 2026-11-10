@@ -14,13 +14,11 @@ class LoginPage extends BasePage {
         // Define page selectors
         this.selectors = {
             // Login Form
-            // emailInput, passwordInput, loginButton, and createAccountLink now use getByRole - see respective methods
+            // emailInput, passwordInput and loginButton now use getByRole - see respective methods
             emailInput: 'input[name="email"]', // Legacy selector - use getByRole in methods
             passwordInput: 'input[name="password"]', // Legacy selector - use getByRole in methods
             loginButton: 'button:has-text("Log In")', // Legacy selector - use getByRole in methods
             loginWithAsuriteButton: 'button:has-text("Log In with ASURITE")',
-            createAccountLink: 'a[href*="/user/signup"]', // Legacy selector - use getByRole in methods
-            resetPasswordLink: 'a[href*="/user/reset-password"]',
             
             // Error Messages
             emailNotFoundError: 'text=Email not found',
@@ -41,27 +39,31 @@ class LoginPage extends BasePage {
      * @returns {Promise<void>}
      */
     async navigateToLoginPage() {
-        await this.page.goto('/user/login');
-        await this.page.waitForLoadState('networkidle');
+        // The app's own /user/login page is gone (404). Sign-in now happens on ASU's
+        // IdP (login.asu.edu), reached from the app's "Sign in" button.
+        const AsuIdpPage = require('./AsuIdpPage');
+        const idp = new AsuIdpPage(this.page);
+        await idp.startFromApp();
+        await idp.openLoginFromIdp();
     }
 
     /**
-     * Enter login credentials
+     * Enter login credentials on the IdP "Sign in with email" form.
      * @param {string} email - The email to enter
      * @param {string} password - The password to enter
      * @returns {Promise<void>}
      */
     async enterCredentials(email, password) {
-        await this.page.getByRole('textbox', { name: 'Email' }).fill(email);
-        await this.page.getByRole('textbox', { name: 'Password' }).fill(password);
+        await this.page.getByRole('textbox', { name: 'Email', exact: true }).fill(email);
+        await this.page.getByRole('textbox', { name: 'Password', exact: true }).fill(password);
     }
 
     /**
-     * Click the login button
+     * Submit the IdP sign-in form.
      * @returns {Promise<void>}
      */
     async clickLogin() {
-        await this.page.getByRole('button', { name: 'Log in', exact: true }).click();
+        await this.page.getByRole('button', { name: 'Sign in', exact: true }).click();
         await this.page.waitForLoadState('networkidle');
     }
 
@@ -119,37 +121,24 @@ class LoginPage extends BasePage {
     }
 
     /**
-     * Click the create account link
-     * @returns {Promise<void>}
-     */
-    async clickCreateAccountLink() {
-        await this.page.getByRole('link', { name: 'Create an account' }).click();
-        await this.page.waitForLoadState('networkidle');
-    }
-
-    /**
-     * Click the reset password link
-     * @returns {Promise<void>}
-     */
-    async clickResetPasswordLink() {
-        await this.page.click(this.selectors.resetPasswordLink);
-        await this.page.waitForLoadState('networkidle');
-    }
-
-    /**
      * Perform a complete login with credentials
      * @param {string} email - The email to login with
      * @param {string} password - The password to login with
      * @returns {Promise<boolean>} - Returns true if login was successful, false otherwise
      */
     async login(email, password) {
-        await this.navigateToLoginPage();
+        // Callers often run navigateToLoginPage() first; only start over if we're not
+        // already on the IdP email sign-in form.
+        if (!/login\.asu\.edu\/email-password-login/.test(this.page.url())) {
+            await this.navigateToLoginPage();
+        }
         await this.enterCredentials(email, password);
         await this.clickLogin();
-        
-        // Check if login was successful by looking for Welcome message
+
+        // Success = the OAuth callback returned us to the application.
         try {
-            await this.page.waitForSelector('text=Welcome', { timeout: 70000 });
+            await this.page.waitForURL(/apply-qa\.apps\.asu\.edu\/(?!easso)/, { timeout: 45000 });
+            await this.page.waitForLoadState('networkidle');
             return true;
         } catch (e) {
             return false;

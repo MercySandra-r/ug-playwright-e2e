@@ -38,13 +38,30 @@ class AsuIdpPage extends BasePage {
      * skips that hand-off and the IdP rejects the submit with
      * "Session invalid, please try again."
      */
-    async startFromApp() {
+    /**
+     * @param {Object} [opts]
+     * @param {'in-person'|'online'|'random'} [opts.mode] - When set, take the new-applicant
+     *   path: landing -> learning mode -> degree type -> Continue. Otherwise click "Sign in".
+     * @param {'pursue'|'individual'} [opts.degreeType]
+     */
+    async startFromApp(opts = {}) {
         await this.page.goto('/', { timeout: this.navigationTimeout });
-        const signIn = this.page
-            .getByRole('link', { name: /^sign in$/i })
-            .or(this.page.getByRole('button', { name: /^sign in$/i }))
-            .first();
-        await signIn.click();
+        if (opts.mode) {
+            // Lazy require: LandingPage -> authHelper -> AsuIdpPage would otherwise be circular.
+            const LandingPage = require('./LandingPage');
+            const landing = new LandingPage(this.page);
+            const degreeType = opts.degreeType || 'pursue';
+            if (opts.mode === 'in-person') await landing.chooseInPersonMOL({ degreeType });
+            else if (opts.mode === 'online') await landing.chooseOnlineMOL({ degreeType });
+            else await landing.chooseRandomMOL({ degreeType });
+            await this.page.getByRole('button', { name: 'Continue', exact: true }).click();
+        } else {
+            const signIn = this.page
+                .getByRole('link', { name: /^sign in$/i })
+                .or(this.page.getByRole('button', { name: /^sign in$/i }))
+                .first();
+            await signIn.click();
+        }
         await this.page.waitForURL(/login\.asu\.edu/, { timeout: this.navigationTimeout });
         await expect(this.page.getByRole('link', { name: 'Sign up with email' })).toBeVisible({
             timeout: this.navigationTimeout,

@@ -70,7 +70,7 @@ class MySchoolsPage extends BasePage {
      * @returns {Promise<void>}
      */
     async navigateToMySchools() {
-        await this.page.goto('/my-schools');
+        await this.gotoApplicationStep('my-schools');
         await this.page.waitForLoadState('networkidle');
         await this.verifyPageLoaded();
     }
