@@ -6,9 +6,10 @@ const PreAppDashboardPage = require('../pages/PreAppDashboardPage');
 const MyInformationPage = require('../pages/MyInformationPage');
 const MyASUProgramPage = require('../pages/MyASUProgramPage');
 const MySchoolsPage = require('../pages/MySchoolsPage');
+const MyHighSchoolGradesPage = require('../pages/MyHighSchoolGradesPage');
 
 /** Wizard steps in order, by URL slug. */
-const STEPS = ['my-information', 'my-program', 'my-schools', 'my-high-school-grades'];
+const STEPS = ['my-information', 'my-program', 'my-schools', 'my-high-school-grades', 'arizona-residency'];
 
 /**
  * Create a fresh account and application, then complete every step before `step`
@@ -17,7 +18,7 @@ const STEPS = ['my-information', 'my-program', 'my-schools', 'my-high-school-gra
  * Creates ONE account (the IdP limits sign-ups per hour).
  *
  * @param {import('@playwright/test').Page} page
- * @param {'my-information'|'my-program'|'my-schools'|'my-high-school-grades'} step
+ * @param {'my-information'|'my-program'|'my-schools'|'my-high-school-grades'|'arizona-residency'} step
  * @returns {Promise<string>} the application ID
  */
 async function startApplicationAt(page, step) {
@@ -48,6 +49,12 @@ async function startApplicationAt(page, step) {
         await schools.markNoCollegeAttended();
         await schools.acknowledgeTranscripts();
         await schools.saveAndContinue();
+    }
+    if (target > 3) {
+        const grades = new MyHighSchoolGradesPage(page);
+        grades.applicationId = applicationId;
+        await grades.answerSelfReport(false);
+        await grades.saveAndContinue();
     }
     return applicationId;
 }
