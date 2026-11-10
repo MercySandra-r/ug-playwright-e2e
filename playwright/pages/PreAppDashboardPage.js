@@ -556,6 +556,65 @@ class PreAppDashboardPage extends BasePage {
     }
 
     /**
+     * Fill the pre-app dashboard ("Welcome! You're a few steps away...") and start an
+     * application. Uses locators verified live on 2026-11-10 and handles:
+     *  - the learning-mode modal shown to accounts that skipped the landing-page choice
+     *  - the BriteVerify "could not be verified" dialog (submitted as is)
+     * Answers "No" to SMS so nothing is texted to the test number.
+     * @param {{ firstName?: string, lastName?: string,
+     *           birth?: { month: string, day: string, year: string },
+     *           phone?: string, mode?: 'online'|'in-person' }} [data]
+     * @returns {Promise<string>} the new application's ID
+     */
+    async startApplication(data = {}) {
+        const {
+            firstName = 'Qa',
+            lastName = 'Automation',
+            birth = { month: 'June', day: '15', year: '2000' },
+            phone = '2025551234',
+            mode = 'online',
+        } = data;
+
+        if (!/\/dashboard/.test(this.page.url())) {
+            await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
+        }
+
+        const firstNameBox = this.page.getByRole('textbox', { name: 'First name', exact: true });
+        const modeRadio = this.page.locator(`[role="radio"][value="${mode}"]`);
+        // Whichever appears first: the form itself, or the learning-mode modal over it.
+        await firstNameBox.or(modeRadio).first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        if (await modeRadio.isVisible().catch(() => false)) {
+            await modeRadio.click();
+            const degree = this.page.locator('[role="radio"][value="DG"]');
+            if (await degree.isVisible().catch(() => false)) await degree.click();
+            await this.page.getByRole('button', { name: 'Continue', exact: true }).click();
+        }
+
+        await firstNameBox.waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        await firstNameBox.fill(firstName);
+        await this.page.getByRole('textbox', { name: 'Last name', exact: true }).fill(lastName);
+        for (const [box, value] of /** @type {Array<[string, string]>} */ ([['Month', birth.month], ['Day', birth.day], ['Year', birth.year]])) {
+            await this.page.getByRole('combobox', { name: box }).click();
+            await this.page.getByRole('option', { name: value, exact: true }).click();
+        }
+        await this.page.getByRole('textbox', { name: 'Phone number' }).fill(phone);
+        await this.page.getByRole('radiogroup', { name: 'Is this a mobile number?' })
+            .getByRole('radio', { name: 'Yes', exact: true }).click();
+        const sms = this.page.getByRole('radiogroup', { name: /SMS messaging/ });
+        if (await sms.isVisible().catch(() => false)) {
+            await sms.getByRole('radio', { name: 'No', exact: true }).click();
+        }
+
+        await this.page.getByRole('button', { name: 'Start new application' }).click();
+        await this.handleBriteVerifyPopup('submit');
+        await this.page.waitForURL(/\/ug-app\/\d+\//, { timeout: 45000 });
+        const match = this.page.url().match(/\/ug-app\/(\d+)\//);
+        if (!match) throw new Error(`Application did not start; at ${this.page.url()}`);
+        this.logger.info(`Started application ${match[1]}`);
+        return match[1];
+    }
+
+    /**
      * Click the Start New Application button
      * @returns {Promise<void>}
      */

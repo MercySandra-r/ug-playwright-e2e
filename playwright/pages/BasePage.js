@@ -42,6 +42,11 @@ class BasePage {
     this.actionTimeout = timeoutManager.getTimeout('action') || 10000;
     /** @type {number} */
     this.assertionTimeout = timeoutManager.getTimeout('assertion') || 10000;
+    /**
+     * Application ID for /ug-app/<id>/ routes, when the test already knows it.
+     * @type {string|undefined}
+     */
+    this.applicationId = undefined;
   }
 
   /**
@@ -68,10 +73,12 @@ class BasePage {
   /**
    * Work out the signed-in user's application ID. The application wizard lives at
    * /ug-app/<id>/<step> (old flat routes like /my-information now 404).
-   * Order: current URL -> APPLICATION_ID env -> dashboard "Continue" (resumes the app).
+   * Order: this.applicationId (set by the test) -> current URL -> APPLICATION_ID env
+   * -> dashboard "Continue" (resumes the app).
    * @returns {Promise<string>}
    */
   async getApplicationId() {
+    if (this.applicationId) return this.applicationId;
     const fromUrl = this.page.url().match(/\/ug-app\/(\d+)\//);
     if (fromUrl) return fromUrl[1];
     if (process.env.APPLICATION_ID) return process.env.APPLICATION_ID;
