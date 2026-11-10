@@ -65,7 +65,7 @@ class LoginPage extends BasePage {
      */
     async clickLogin() {
         await this.signInButton().click();
-        await this.page.waitForLoadState('networkidle');
+        await this.settle();
     }
 
     /**
@@ -97,7 +97,7 @@ class LoginPage extends BasePage {
             await this.page.getByRole('link', { name: 'Back to other sign in options' }).click();
         }
         await this.page.locator(this.selectors.loginWithAsuriteButton).click();
-        await this.page.waitForLoadState('networkidle');
+        await this.settle();
     }
 
     /**
@@ -167,7 +167,7 @@ class LoginPage extends BasePage {
         // Success = the OAuth callback returned us to the application.
         try {
             await this.page.waitForURL(/apply-qa\.apps\.asu\.edu\/(?!easso)/, { timeout: 45000 });
-            await this.page.waitForLoadState('networkidle');
+            await this.settle();
             return true;
         } catch (e) {
             return false;
