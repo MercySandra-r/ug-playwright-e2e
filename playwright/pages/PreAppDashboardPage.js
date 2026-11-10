@@ -580,9 +580,36 @@ class PreAppDashboardPage extends BasePage {
         } else {
             throw new Error('No Start Application button found on the page');
         }
-        
+
+        // BriteVerify may question the contact details; submitting as-is is the normal path.
+        await this.handleBriteVerifyPopup('submit');
+
         await this.page.waitForLoadState('networkidle');
         await this.page.waitForTimeout(2000); // Additional wait for form to load
+    }
+
+    /**
+     * Handle the BriteVerify dialog that can appear after "Start new application":
+     * "The following information you provided could not be verified. Please review:"
+     * with "Go back and change" / "Submit". This is expected app behaviour (it checks
+     * contact details such as the phone number), and it doesn't always appear.
+     * @param {'submit'|'change'} [action='submit'] - "Submit" as is, or "Go back and change".
+     * @param {number} [timeoutMs=20000] - How long to wait for the dialog to show up.
+     * @returns {Promise<boolean>} true if the dialog appeared and was answered.
+     */
+    async handleBriteVerifyPopup(action = 'submit', timeoutMs = 20000) {
+        const dialog = this.page.getByRole('alertdialog').filter({ hasText: 'could not be verified' });
+        const shown = await dialog
+            .waitFor({ state: 'visible', timeout: timeoutMs })
+            .then(() => true)
+            .catch(() => false);
+        if (!shown) return false;
+
+        const button = action === 'change' ? 'Go back and change' : 'Submit';
+        this.logger.info(`BriteVerify dialog shown; clicking "${button}"`);
+        await dialog.getByRole('button', { name: button, exact: true }).click();
+        await dialog.waitFor({ state: 'hidden', timeout: this.navigationTimeout }).catch(() => {});
+        return true;
     }
 
     /**
@@ -634,7 +661,8 @@ class PreAppDashboardPage extends BasePage {
      */
     async isApplicationStarted() {
         try {
-            await this.page.waitForURL(/.*application/);
+            // A started application opens the wizard at /ug-app/<applicationId>/<step>.
+            await this.page.waitForURL(/\/ug-app\/\d+\//, { timeout: 45000 });
             return true;
         } catch (error) {
             return false;
