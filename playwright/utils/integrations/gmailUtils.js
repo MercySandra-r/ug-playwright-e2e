@@ -97,7 +97,7 @@ class GmailUtils {
      * @param {string} [opts.fromContains] - Sender filter (default: 'asu.edu').
      * @param {number} [opts.timeoutMs] - Give up after this long (default: 60000).
      * @param {number} [opts.pollIntervalMs] - Gap between polls (default: 3000).
-     * @param {RegExp} [opts.codeRegex] - How to find the code (default: 4-8 digit run).
+     * @param {RegExp} [opts.codeRegex] - How to find the code (default: 6-digit run).
      * @returns {Promise<{ code: string|null, link: string|null, subject: string, messageId: string, body: string }>}
      */
     async waitForVerificationEmail({
@@ -107,7 +107,8 @@ class GmailUtils {
         fromContains = 'asu.edu',
         timeoutMs = 60000,
         pollIntervalMs = 3000,
-        codeRegex = /\b(\d{4,8})\b/,
+        // ASU IdP sends "Your Verification Code" from noreply@asu.edu with a 6-digit code.
+        codeRegex = /\b(\d{6})\b/,
     }) {
         if (!this.gmail) throw new Error('GmailUtils not initialized. Call initialize() first.');
 
@@ -174,7 +175,9 @@ class GmailUtils {
         walk(message.payload);
         const raw = parts['text/plain'] || parts['text/html'] || '';
         // Strip tags so code/link regexes work on HTML-only emails too.
-        return parts['text/plain'] ? raw : raw.replace(/<[^>]+>/g, ' ');
+        if (parts['text/plain']) return raw;
+        // Drop <style>/<script> blocks first so CSS text doesn't pollute the body.
+        return raw.replace(/<(style|script)[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]+>/g, ' ');
     }
 }
 
