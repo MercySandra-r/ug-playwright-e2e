@@ -1,266 +1,151 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const LoginPage = require('../pages/LoginPage');
+const { startApplicationAt, resumeApplication } = require('../utils/applicationJourney');
 const MyHighSchoolGradesPage = require('../pages/MyHighSchoolGradesPage');
 
 /**
- * Test data for high school grades
- */
-const testCourses = [
-    {
-        subject: 'Math',
-        academicYear: '2022-2023',
-        name: 'Algebra II',
-        level: 'Honors',
-        duration: 'Full Year',
-        grade: 'A'
-    },
-    {
-        subject: 'Science',
-        academicYear: '2022-2023',
-        name: 'Chemistry',
-        level: 'AP',
-        duration: 'Full Year',
-        grade: 'B+'
-    },
-    {
-        subject: 'English',
-        academicYear: '2022-2023',
-        name: 'American Literature',
-        level: 'Regular',
-        duration: 'Full Year',
-        grade: 'A-'
-    },
-    {
-        subject: 'History',
-        academicYear: '2022-2023',
-        name: 'US History',
-        level: 'AP',
-        duration: 'Full Year',
-        grade: 'A'
-    },
-    {
-        subject: 'Foreign Language',
-        academicYear: '2022-2023',
-        name: 'Spanish III',
-        level: 'Honors',
-        duration: 'Full Year',
-        grade: 'A-'
-    }
-];
-
-/**
- * Test suite for My High School Grades page functionality
+ * My high school grades (step 4 of the application wizard), against the live page.
+ *
+ * One fresh account per run (beforeAll) taken through steps 1-3 to step 4. Serial:
+ * tests 1-7 start from a fresh load; 8-13 continue one page session (courses added
+ * there are only kept once Continue is clicked). The last test continues to step 5.
+ * Account creation is rate-limited per hour by the IdP; this suite creates one.
+ *
+ * Debugging without creating accounts: set GRADES_TEST_EMAIL and GRADES_TEST_PASSWORD
+ * to an account whose application is on step 4.
  */
 test.describe('My High School Grades Page Tests', () => {
-    let loginPage;
-    let myHighSchoolGradesPage;
-    let testUser;
+    test.describe.configure({ mode: 'serial', timeout: 120000 });
 
-    test.beforeEach(async ({ page }) => {
-        loginPage = new LoginPage(page);
-        myHighSchoolGradesPage = new MyHighSchoolGradesPage(page);
-        
-        // Test user data
-        testUser = {
-            email: process.env.TEST_EMAIL || 'test@example.com',
-            password: process.env.TEST_PASSWORD || 'TestPassword123!',
-            academicInfo: {
-                unweightedGPA: '3.75',
-                classRank: '25',
-                classSize: '500',
-                gpaScale: '4.0',
-                gradingSystem: 'Letter Grades',
-                graduationYear: '2023',
-                graduationMonth: 'May'
-            },
-            courses: testCourses
-        };
+    /** @type {import('@playwright/test').BrowserContext} */
+    let context;
+    /** @type {import('@playwright/test').Page} */
+    let page;
+    /** @type {MyHighSchoolGradesPage} */
+    let gradesPage;
 
-        // Login and navigate to My High School Grades page
-        await loginPage.navigateToLoginPage();
-        await loginPage.login(testUser.email, testUser.password);
-        await myHighSchoolGradesPage.navigateToMyHighSchoolGrades();
+    test.beforeAll(async ({ browser }, testInfo) => {
+        testInfo.setTimeout(420000);
+        context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+        page = await context.newPage();
+        gradesPage = new MyHighSchoolGradesPage(page);
+        gradesPage.applicationId = process.env.GRADES_TEST_EMAIL && process.env.GRADES_TEST_PASSWORD
+            ? await resumeApplication(page, process.env.GRADES_TEST_EMAIL, process.env.GRADES_TEST_PASSWORD)
+            : await startApplicationAt(page, 'my-high-school-grades');
+    });
+
+    test.afterAll(async () => {
+        await context?.close();
+    });
+
+    const freshPage = () => gradesPage.navigateToMyHighSchoolGrades();
+
+    test('Verify error messages for required fields', async () => {
+        await freshPage();
+        await gradesPage.clickContinue();
+        await gradesPage.verifyErrorMessage('Please select an option for grade reporting');
+        await expect(page).toHaveURL(/\/my-high-school-grades/);
     });
 
     test('Verify My High School Grades page loads successfully', async () => {
-        // Verify page title and URL
-        await expect(myHighSchoolGradesPage.page).toHaveURL(/.*my-high-school-grades/);
-        await expect(myHighSchoolGradesPage.page.locator(myHighSchoolGradesPage.selectors.pageTitle))
-            .toContainText('My High School Grades');
-    });
-
-    test('Validate My High School Grades page content', async () => {
-        // Verify the page content is valid
-        const isPageValid = await myHighSchoolGradesPage.validateMyHighSchoolGrade();
-        expect(isPageValid).toBeTruthy();
-    });
-
-    test('Select random self-report type (senior year or all grades)', async () => {
-        // Select a random report type
-        const selectedType = await myHighSchoolGradesPage.selectRandomSelfReportType();
-        
-        // Verify a report type was selected
-        expect(selectedType).toMatch(/selfReport(Senior|All)/);
-        
-        // Verify the appropriate radio button is checked
-        if (selectedType === 'selfReportSenior') {
-            const isChecked = await myHighSchoolGradesPage.page.isChecked(myHighSchoolGradesPage.selectors.selfReportSeniorYearRadio);
-            expect(isChecked).toBeTruthy();
-        } else {
-            const isChecked = await myHighSchoolGradesPage.page.isChecked(myHighSchoolGradesPage.selectors.selfReportAllGradesRadio);
-            expect(isChecked).toBeTruthy();
-        }
+        await freshPage();
+        await gradesPage.validateMyHighSchoolGrade();
     });
 
     test('Select transcript only report type', async () => {
-        // Select transcript only report type
-        await myHighSchoolGradesPage.selectReportType('transcriptOnly');
-        
-        // Verify the transcript only radio button is checked
-        const isChecked = await myHighSchoolGradesPage.page.isChecked(myHighSchoolGradesPage.selectors.transcriptOnlyRadio);
-        expect(isChecked).toBeTruthy();
+        await freshPage();
+        await gradesPage.selectTranscriptOnlyCard();
+        await expect(page.locator(gradesPage.selectors.noSelfReportHint)).toBeVisible();
+        await expect(page.locator(gradesPage.selectors.overallAcademicsHeading)).toHaveCount(0);
     });
 
-    test('Select random graduation status (future or past)', async () => {
-        // Select a random graduation status
-        const selectedStatus = await myHighSchoolGradesPage.selectRandomGraduationStatus();
-        
-        // Verify a status was selected
-        expect(selectedStatus).toMatch(/future|past/);
-        
-        // Verify the selected status is reflected in the dropdown
-        const selectedValue = await myHighSchoolGradesPage.page.$eval(
-            myHighSchoolGradesPage.selectors.graduationStatusDropdown,
-            select => select.value
-        );
-        expect(selectedValue).toBe(selectedStatus);
-    });
-
-    test('Enter and validate academic details', async () => {
-        // Enter academic details
-        await myHighSchoolGradesPage.enterAcademicDetails({
-            unweightedGPA: testUser.academicInfo.unweightedGPA,
-            classRank: testUser.academicInfo.classRank,
-            classSize: testUser.academicInfo.classSize
-        });
-        
-        // Validate the entered details
-        const areDetailsValid = await myHighSchoolGradesPage.validateAcademicDetails({
-            unweightedGPA: testUser.academicInfo.unweightedGPA,
-            classRank: testUser.academicInfo.classRank,
-            classSize: testUser.academicInfo.classSize
-        });
-        
-        expect(areDetailsValid).toBeTruthy();
+    test('Self-reporting shows overall academics', async () => {
+        await freshPage();
+        await gradesPage.answerSelfReport(true);
+        await expect(page.locator(gradesPage.selectors.overallAcademicsHeading)).toBeVisible();
+        await expect(page.locator(gradesPage.selectors.unweightedGpa)).toBeVisible();
+        await expect(page.locator(gradesPage.selectors.gpaScale)).toBeVisible();
+        await expect(page.locator(gradesPage.selectors.gradingSystem)).toBeVisible();
     });
 
     test('Select GPA scale and grading system', async () => {
-        // Select GPA scale
-        await myHighSchoolGradesPage.selectGPAScale(testUser.academicInfo.gpaScale);
-        
-        // Select grading system
-        await myHighSchoolGradesPage.selectGradingSystem(testUser.academicInfo.gradingSystem);
-        
-        // Verify the selected values
-        const selectedGPAScale = await myHighSchoolGradesPage.page.$eval(
-            myHighSchoolGradesPage.selectors.gpaScaleDropdown,
-            select => select.value
-        );
-        
-        const selectedGradingSystem = await myHighSchoolGradesPage.page.$eval(
-            myHighSchoolGradesPage.selectors.gradingSystemDropdown,
-            select => select.value
-        );
-        
-        expect(selectedGPAScale).toBe(testUser.academicInfo.gpaScale);
-        expect(selectedGradingSystem).toBe(testUser.academicInfo.gradingSystem);
+        await freshPage();
+        await gradesPage.answerSelfReport(true);
+        expect(await gradesPage.getDropdownOptions(gradesPage.selectors.gpaScale)).toEqual(['4', '100']);
+        expect(await gradesPage.getDropdownOptions(gradesPage.selectors.gradingSystem)).toEqual(['A-F', '100 point based']);
+
+        await gradesPage.enterAcademicDetails({ unweightedGPA: '3.75', gpaScale: '4', gradingSystem: 'A-F' });
+        await gradesPage.validateAcademicDetails({ unweightedGPA: '3.75' });
+        await expect(page.locator(gradesPage.selectors.gpaScale)).toHaveValue('4');
+        await expect(page.locator(gradesPage.selectors.gradingSystem)).toHaveValue('A-F');
+    });
+
+    test('Validate course subjects and course title options', async () => {
+        await freshPage();
+        await gradesPage.answerSelfReport(true);
+        await gradesPage.enterAcademicDetails({ unweightedGPA: '3.50' });
+        const tabs = (await page.getByRole('tab').allInnerTexts()).map((t) => t.trim());
+        expect(tabs).toEqual(gradesPage.SUBJECTS);
+
+        expect(await gradesPage.getDropdownOptions(gradesPage.selectors.academicYear))
+            .toEqual(['Freshman/9', 'Sophomore/10', 'Junior/11', 'Senior/12']);
+        const titles = await gradesPage.getDropdownOptions(gradesPage.selectors.courseName);
+        expect(titles).toContain('English I / Freshman English');
+    });
+
+    test('Validate grading system (grade fields follow course duration)', async () => {
+        await freshPage();
+        await gradesPage.answerSelfReport(true);
+        await gradesPage.enterAcademicDetails({ unweightedGPA: '3.50' });
+        expect(await gradesPage.gradeFieldCountFor('Semester')).toBe(2);
+        expect(await gradesPage.gradeFieldCountFor('Full Year')).toBeGreaterThanOrEqual(1);
+        const gradeOptions = await (async () => {
+            await gradesPage.choose(gradesPage.selectors.academicYear);
+            await gradesPage.choose(gradesPage.selectors.courseName);
+            await gradesPage.choose(gradesPage.selectors.duration, 'Semester');
+            await gradesPage.choose(gradesPage.selectors.courseLevel, 'High School');
+            return gradesPage.getDropdownOptions('#grades-update-0');
+        })();
+        expect(gradeOptions).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'In Progress', 'Pass']);
     });
 
     test('Add and validate a course', async () => {
-        // Select a report type that allows course entry
-        await myHighSchoolGradesPage.selectReportType('selfReportAll');
-        
-        // Add a course
-        const testCourse = testUser.courses[0];
-        await myHighSchoolGradesPage.addCourse(testCourse);
-        
-        // Validate the course was added
-        const isCourseValid = await myHighSchoolGradesPage.validateCourse({
-            name: testCourse.name,
-            grade: testCourse.grade
-        });
-        
-        expect(isCourseValid).toBeTruthy();
+        await freshPage();
+        await gradesPage.answerSelfReport(true);
+        await gradesPage.enterAcademicDetails({ unweightedGPA: '3.50' });
+        const course = await gradesPage.addCourse({ subject: 'English', academicYear: 'Freshman/9', name: 'English I / Freshman English', grades: ['A', 'B'] });
+        await gradesPage.validateCourse({ name: course.name, grade: 'A, B' });
     });
 
     test('Add multiple courses across different subjects', async () => {
-        // Select a report type that allows course entry
-        await myHighSchoolGradesPage.selectReportType('selfReportAll');
-        
-        // Add multiple courses
-        for (const course of testUser.courses) {
-            await myHighSchoolGradesPage.addCourse(course);
-            
-            // Validate each course was added
-            const isCourseValid = await myHighSchoolGradesPage.validateCourse({
-                name: course.name,
-                grade: course.grade
-            });
-            
-            expect(isCourseValid).toBeTruthy();
-        }
+        const math = await gradesPage.addCourse({ subject: 'Math', academicYear: 'Freshman/9' });
+        const science = await gradesPage.addCourse({ subject: 'Science', academicYear: 'Freshman/9' });
+        expect((await gradesPage.getCourses('Math')).map((c) => c.name)).toContain(math.name);
+        expect((await gradesPage.getCourses('Science')).map((c) => c.name)).toContain(science.name);
+        expect((await gradesPage.getCourses('English')).map((c) => c.name)).toContain('English I / Freshman English');
     });
 
-    test('Verify error messages for required fields', async () => {
-        // Try to save without filling required fields
-        await myHighSchoolGradesPage.scroll();
-        await myHighSchoolGradesPage.save();
-        
-        // Verify error message is displayed
-        const hasError = await myHighSchoolGradesPage.verifyErrorMessage('Please fill in all required fields');
-        expect(hasError).toBeTruthy();
+    test('Edit a course', async () => {
+        await gradesPage.selectSubject('English');
+        await gradesPage.editCourse('English I / Freshman English', { grades: ['B', 'A'] });
+        await gradesPage.validateCourse({ name: 'English I / Freshman English', grade: 'B, A' });
     });
 
-    test('Save the page', async () => {
-        // Fill in required fields
-        await myHighSchoolGradesPage.selectReportType('selfReportAll');
-        await myHighSchoolGradesPage.enterAcademicDetails({
-            unweightedGPA: testUser.academicInfo.unweightedGPA,
-            classRank: testUser.academicInfo.classRank,
-            classSize: testUser.academicInfo.classSize
-        });
-        
-        // Save the page
-        const isSaveSuccessful = await myHighSchoolGradesPage.save();
-        expect(isSaveSuccessful).toBeTruthy();
+    test('Delete a course', async () => {
+        const [science] = await gradesPage.getCourses('Science');
+        await gradesPage.deleteCourse(science.name);
+        expect(await gradesPage.getCourses('Science')).toEqual([]);
+    });
+
+    test('Self-report choice can be changed back to transcripts only', async () => {
+        // Switching to No should hide the self-report form; switch back to keep courses.
+        await gradesPage.answerSelfReport(false);
+        await expect(page.locator(gradesPage.selectors.noSelfReportHint)).toBeVisible();
+        await gradesPage.answerSelfReport(true);
     });
 
     test('Save and continue to next section', async () => {
-        // Fill in required fields
-        await myHighSchoolGradesPage.selectReportType('selfReportAll');
-        await myHighSchoolGradesPage.enterAcademicDetails({
-            unweightedGPA: testUser.academicInfo.unweightedGPA,
-            classRank: testUser.academicInfo.classRank,
-            classSize: testUser.academicInfo.classSize
-        });
-        
-        // Save and continue
-        await myHighSchoolGradesPage.saveAndContinue();
-        
-        // Verify navigation to next section
-        await expect(myHighSchoolGradesPage.page).toHaveURL(/.*next-section/);
-    });
-
-    test('Validate grading system', async () => {
-        // Validate the grading system dropdown is present
-        const isGradingSystemValid = await myHighSchoolGradesPage.validateGradingSystem();
-        expect(isGradingSystemValid).toBeTruthy();
-    });
-
-    test('Validate course title input', async () => {
-        // Validate the course title input is present
-        const isCourseTitleValid = await myHighSchoolGradesPage.validateCourseTitle();
-        expect(isCourseTitleValid).toBeTruthy();
+        await gradesPage.saveAndContinue();
+        await expect(page.getByRole('heading', { name: /Arizona residency/i, level: 1 })).toBeVisible();
     });
 });
