@@ -1,198 +1,134 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const LoginPage = require('../pages/LoginPage');
+const { startApplicationAt, resumeApplication } = require('../utils/applicationJourney');
 const MySchoolsPage = require('../pages/MySchoolsPage');
 
 /**
- * Test data for schools
- */
-const testSchools = [
-    {
-        state: 'Arizona',
-        city: 'Phoenix',
-        name: 'Arizona School for the Arts',
-        saisNumber: '12345678'
-    },
-    {
-        state: 'California',
-        city: 'San Diego',
-        name: 'San Diego High School',
-        saisNumber: '87654321'
-    },
-    {
-        state: 'New York',
-        city: 'New York',
-        name: 'Stuyvesant High School',
-        saisNumber: '56781234'
-    }
-];
-
-/**
- * Test suite for My Schools page functionality
+ * My schools (step 3 of the application wizard), against the live page.
+ *
+ * One fresh account per run (beforeAll) taken through steps 1-2 to step 3. Serial:
+ * tests 1-6 start from a fresh load; 7-12 continue the same page session, because
+ * saved schools only persist once Continue is clicked. The last test continues.
+ * Account creation is rate-limited per hour by the IdP; this suite creates one.
+ *
+ * Debugging without creating accounts: set MYSCHOOLS_TEST_EMAIL and
+ * MYSCHOOLS_TEST_PASSWORD to an account whose application is on step 3.
  */
 test.describe('My Schools Page Tests', () => {
-    let loginPage;
-    let mySchoolsPage;
-    let testUser;
+    test.describe.configure({ mode: 'serial', timeout: 120000 });
 
-    test.beforeEach(async ({ page }) => {
-        loginPage = new LoginPage(page);
-        mySchoolsPage = new MySchoolsPage(page);
-        
-        // Test user data
-        testUser = {
-            email: process.env.TEST_EMAIL || 'test@example.com',
-            password: process.env.TEST_PASSWORD || 'TestPassword123!',
-            school: testSchools[0] // Use the first school as default for tests
-        };
+    const HIGH_SCHOOL = { country: 'United States', state: 'Arizona', city: 'Tempe', name: 'Tempe High School', graduationDate: 'May 2026' };
 
-        // Login and navigate to My Schools page
-        await loginPage.navigateToLoginPage();
-        await loginPage.login(testUser.email, testUser.password);
-        await mySchoolsPage.navigateToMySchools();
+    /** @type {import('@playwright/test').BrowserContext} */
+    let context;
+    /** @type {import('@playwright/test').Page} */
+    let page;
+    /** @type {MySchoolsPage} */
+    let schoolsPage;
+
+    test.beforeAll(async ({ browser }, testInfo) => {
+        testInfo.setTimeout(360000);
+        context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+        page = await context.newPage();
+        schoolsPage = new MySchoolsPage(page);
+        schoolsPage.applicationId = process.env.MYSCHOOLS_TEST_EMAIL && process.env.MYSCHOOLS_TEST_PASSWORD
+            ? await resumeApplication(page, process.env.MYSCHOOLS_TEST_EMAIL, process.env.MYSCHOOLS_TEST_PASSWORD)
+            : await startApplicationAt(page, 'my-schools');
+    });
+
+    test.afterAll(async () => {
+        await context?.close();
+    });
+
+    const freshPage = () => schoolsPage.navigateToMySchools();
+
+    test('Verify error message for required fields', async () => {
+        await freshPage();
+        await schoolsPage.clickContinue();
+        await schoolsPage.verifyErrorMessage('This is a required field.');
+        await expect(page).toHaveURL(/\/my-schools/);
     });
 
     test('Verify My Schools page loads successfully', async () => {
-        // Verify page title and URL
-        await expect(mySchoolsPage.page).toHaveURL(/.*my-schools/);
-        await expect(mySchoolsPage.page.locator(mySchoolsPage.selectors.pageTitle))
-            .toContainText('My Schools');
-    });
-
-    test('Validate My Schools page content', async () => {
-        // Verify the page content is valid
-        const isPageValid = await mySchoolsPage.validateMySchools();
-        expect(isPageValid).toBeTruthy();
+        await freshPage();
+        await schoolsPage.validateMySchools();
+        await expect(page.locator(schoolsPage.selectors.hsCountry)).toBeVisible();
+        await expect(page.locator(schoolsPage.selectors.attendedCollegeGroup)).toBeVisible();
     });
 
     test('Select random high school country', async () => {
-        // Select a random country
-        const selectedCountry = await mySchoolsPage.selectRandomHighSchoolCountry();
-        
-        // Verify a country was selected
-        expect(selectedCountry).toBeTruthy();
-        expect(selectedCountry.length).toBeGreaterThan(0);
-        
-        // Log the selected country for debugging
-        console.log(`Selected country: ${selectedCountry}`);
-    });
-
-    test('Add and validate a graduating school', async () => {
-        // Add a graduating school
-        await mySchoolsPage.addGraduatingSchool(testUser.school);
-        
-        // Verify the school was added
-        const isSchoolValid = await mySchoolsPage.validateGraduatingSchool(testUser.school);
-        expect(isSchoolValid).toBeTruthy();
-    });
-
-    test('Edit a school', async () => {
-        // First add a school to edit
-        await mySchoolsPage.addGraduatingSchool(testUser.school);
-        
-        // Define updates
-        const updates = {
-            name: testSchools[1].name,
-            saisNumber: '99999999'
-        };
-        
-        // Edit the school
-        const editSuccessful = await mySchoolsPage.editSchool(
-            testUser.school.name,
-            updates
-        );
-        
-        expect(editSuccessful).toBeTruthy();
-        
-        // Verify the school was updated
-        const isSchoolValid = await mySchoolsPage.validateGraduatingSchool({
-            ...testUser.school,
-            name: updates.name,
-            saisNumber: updates.saisNumber
-        });
-        
-        expect(isSchoolValid).toBeTruthy();
-    });
-
-    test('Remove a school', async () => {
-        // First add a school to remove
-        await mySchoolsPage.addGraduatingSchool(testUser.school);
-        
-        // Remove the school
-        const removeSuccessful = await mySchoolsPage.removeSchool(testUser.school.name);
-        expect(removeSuccessful).toBeTruthy();
-        
-        // Verify the school was removed
-        const isSchoolStillPresent = await mySchoolsPage.validateGraduatingSchool(testUser.school);
-        expect(isSchoolStillPresent).toBeFalsy();
-    });
-
-    test('Verify error message for required fields', async () => {
-        // Click add school button
-        await mySchoolsPage.page.click(mySchoolsPage.selectors.addSchoolButton);
-        
-        // Try to save without filling required fields
-        await mySchoolsPage.page.click(mySchoolsPage.selectors.saveButton);
-        
-        // Verify error message
-        const hasError = await mySchoolsPage.verifyErrorMessage('Please fill in all required fields');
-        expect(hasError).toBeTruthy();
-    });
-
-    test('Add multiple schools', async () => {
-        // Add multiple schools
-        for (const school of testSchools) {
-            await mySchoolsPage.addGraduatingSchool(school);
-            
-            // Verify each school was added
-            const isSchoolValid = await mySchoolsPage.validateGraduatingSchool(school);
-            expect(isSchoolValid).toBeTruthy();
-        }
-    });
-
-    test('Save and continue to next section', async () => {
-        // Add a school first
-        await mySchoolsPage.addGraduatingSchool(testUser.school);
-        
-        // Save and continue
-        await mySchoolsPage.saveAndContinue();
-        
-        // Verify navigation to next section
-        await expect(mySchoolsPage.page).toHaveURL(/.*next-section/);
+        await freshPage();
+        const country = await schoolsPage.selectRandomHighSchoolCountry();
+        expect(country).toBeTruthy();
+        await expect(page.locator(schoolsPage.selectors.hsCountry)).toHaveValue(country);
     });
 
     test('Verify school search functionality', async () => {
-        // Click add school button
-        await mySchoolsPage.page.click(mySchoolsPage.selectors.addSchoolButton);
-        
-        // Fill in state and city
-        await mySchoolsPage.page.selectOption(mySchoolsPage.selectors.stateDropdown, testUser.school.state);
-        await mySchoolsPage.page.waitForLoadState('networkidle');
-        
-        await mySchoolsPage.page.selectOption(mySchoolsPage.selectors.cityDropdown, testUser.school.city);
-        await mySchoolsPage.page.waitForLoadState('networkidle');
-        
-        // Search for a school
-        await mySchoolsPage.page.fill(mySchoolsPage.selectors.schoolSearchInput, testUser.school.name);
-        
-        // Verify search results are displayed
-        const searchResults = await mySchoolsPage.page.$(mySchoolsPage.selectors.schoolSearchResults);
-        expect(searchResults).not.toBeNull();
-        
-        // Verify the searched school is in the results
-        const schoolResults = await mySchoolsPage.page.$$(mySchoolsPage.selectors.schoolSearchResultItem);
-        expect(schoolResults.length).toBeGreaterThan(0);
-        
-        // Verify at least one result contains the school name
-        let schoolFound = false;
-        for (const result of schoolResults) {
-            const text = await result.textContent();
-            if (text.includes(testUser.school.name)) {
-                schoolFound = true;
-                break;
-            }
-        }
-        
-        expect(schoolFound).toBeTruthy();
+        await freshPage();
+        await schoolsPage.choose(schoolsPage.selectors.hsCountry, 'United States');
+        await schoolsPage.choose(schoolsPage.selectors.hsState, 'Arizona');
+        await schoolsPage.choose(schoolsPage.selectors.hsCity, 'Tempe');
+        const schools = await schoolsPage.getDropdownOptions(schoolsPage.selectors.hsName);
+        expect(schools.length).toBeGreaterThan(1);
+        expect(schools).toContain('Tempe High School');
+    });
+
+    test('A filled school must be saved before continuing', async () => {
+        await freshPage();
+        await schoolsPage.fillHighSchool(HIGH_SCHOOL);
+        await schoolsPage.markNoCollegeAttended();
+        await schoolsPage.acknowledgeTranscripts();
+        await schoolsPage.clickContinue();
+        await expect(page.locator(schoolsPage.selectors.saveSchoolReminder)).toBeVisible();
+        await expect(page).toHaveURL(/\/my-schools/);
+    });
+
+    test('Add and validate a graduating school', async () => {
+        await freshPage();
+        await schoolsPage.addHighSchool(HIGH_SCHOOL);
+        await schoolsPage.validateGraduatingSchool({ name: HIGH_SCHOOL.name });
+        expect(await schoolsPage.getSavedHighSchools()).toEqual([HIGH_SCHOOL.name]);
+    });
+
+    test('Edit a school', async () => {
+        await schoolsPage.editSchool(HIGH_SCHOOL.name, { name: 'Compadre High School' });
+        await schoolsPage.validateGraduatingSchool({ name: 'Compadre High School' });
+        expect(await schoolsPage.getSavedHighSchools()).not.toContain(HIGH_SCHOOL.name);
+    });
+
+    test('Add multiple schools', async () => {
+        await schoolsPage.addHighSchool(HIGH_SCHOOL);
+        const saved = await schoolsPage.getSavedHighSchools();
+        expect(saved).toEqual(expect.arrayContaining(['Compadre High School', HIGH_SCHOOL.name]));
+        expect(saved.length).toBe(2);
+    });
+
+    test('Remove a school', async () => {
+        // Remove the additional (previous) school. Removing the current/most recent one
+        // makes the page ask for a current school again before it will continue.
+        await schoolsPage.removeSchool(HIGH_SCHOOL.name);
+        expect(await schoolsPage.getSavedHighSchools()).toEqual(['Compadre High School']);
+    });
+
+    test('Add and remove a college or university', async () => {
+        const { institution } = await schoolsPage.addCollegeOrUniversity({ state: 'Arizona', city: 'Mesa' });
+        expect(await schoolsPage.getSavedInstitutions()).toContain(institution);
+
+        await schoolsPage.removeSchool(institution);
+        expect(await schoolsPage.getSavedInstitutions()).not.toContain(institution);
+        await schoolsPage.markNoCollegeAttended();
+    });
+
+    test('Transcript requirements dialog', async () => {
+        const text = await schoolsPage.openTranscriptRequirements();
+        expect(text).toContain('High school transcripts only');
+        await schoolsPage.closeDialog();
+    });
+
+    test('Save and continue to next section', async () => {
+        await schoolsPage.markNoCollegeAttended();
+        await schoolsPage.acknowledgeTranscripts();
+        await schoolsPage.saveAndContinue();
+        await expect(page.getByRole('heading', { name: 'My high school grades', level: 1 })).toBeVisible();
     });
 });
