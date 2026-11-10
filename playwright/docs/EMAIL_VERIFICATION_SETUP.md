@@ -15,7 +15,22 @@ email with the Gmail API, complete verification, and land back on the app authen
 | --- | --- |
 | `utils/integrations/gmailUtils.js` | Read-only Gmail client; `waitForVerificationEmail()` polls for the mail and extracts a code **and** any link. |
 | `pages/AsuIdpPage.js` | Page object for `login.asu.edu` sign-up / sign-in / verification. |
-| `utils/authHelper.js` | `signUpVerifiedAccount(page)`, `signInExistingAccount(page, email, pw)`, `uniqueSignupEmail()`. |
+| `utils/authHelper.js` | `signUpVerifiedAccount(page)`, `signInExistingAccount(page, email, pw)`. Both start from the app's **Sign in** button. |
+| `utils/emailSequence.js` | Persistent sign-up address sequence: `base+asuqa0001@gmail.com`, `0002`, ... stored in `state/email-sequence.json`. |
+
+## Sign-up addresses (sequence)
+
+Each sign-up takes the next number from `state/email-sequence.json` (gitignored), so runs
+never reuse an address. Before using one, the helper also checks the Gmail inbox and skips
+any address that has ever received mail. If the IdP still answers "already exists", it moves
+to the next number (up to 3 attempts). Optional env: `GMAIL_SEQUENCE_PREFIX` (default
+`asuqa`), `GMAIL_SEQUENCE_START` (first number when the state file doesn't exist yet).
+
+## "Session invalid, please try again."
+
+The IdP shows this when the sign-up form is opened directly at `login.asu.edu/signup`
+without the app starting the OAuth hand-off. Always enter through the app
+(`AsuIdpPage.startFromApp()`), which `authHelper` does.
 | `tests/TC_28_EmailVerifiedSignup.spec.js` | Reference test; skipped unless `GMAIL_TEST_ADDRESS` is set. |
 
 ## One-time setup
@@ -53,15 +68,16 @@ For the per-page suites that just need *a* logged-in session, prefer a persisten
 pre-verified account via `signInExistingAccount(page, process.env.TEST_EMAIL, process.env.TEST_PASSWORD)`,
 and consider saving `storageState` once so every spec starts authenticated.
 
-## Things to confirm on the first real run (and adjust if needed)
+## Confirmed behaviour (first live run, 2026-11-10)
 
-- **The verification UI.** `AsuIdpPage.submitVerificationCode()` assumes an OTP-style
-  code field; `openVerificationLink()` handles a click-link email. The sign-up/sign-in
-  forms were confirmed live, but the verification screen was **not** — check the first
-  real email and screen and tighten the selectors/regex (`gmailUtils` `codeRegex`).
-- **Does ASU non-prod deliver to external Gmail?** Many non-prod stacks only mail
-  allow-listed domains. If nothing arrives, the inbox/domain must be allow-listed by the
-  app team — or use an ASU-provided QA verification seam instead.
+- ASU QA **does** deliver to external Gmail. The mail comes from `noreply@asu.edu` with
+  subject **"Your Verification Code"** and a **6-digit code** (no link). `authHelper`
+  filters on that sender and subject, and `gmailUtils` matches exactly 6 digits.
+- `submitVerificationCode()` entered the code and the OAuth callback returned to the app
+  authenticated. TC_28 passed headed in about 32s.
+
+## Things to watch
+
 - **Cloudflare bot detection.** `login.asu.edu/signup` loads a Cloudflare challenge
   layer. Headless Playwright may be challenged. If sign-up stalls there, run headed, or
   ask the app team to allow-list the test runner's IP in non-prod.

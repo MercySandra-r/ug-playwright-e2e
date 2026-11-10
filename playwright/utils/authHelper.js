@@ -1,61 +1,95 @@
 // @ts-check
 const AsuIdpPage = require('../pages/AsuIdpPage');
 const GmailUtils = require('./integrations/gmailUtils');
+const { nextSignupEmail } = require('./emailSequence');
 const { logger } = require('./testLogger');
 
 /**
- * Build a unique, deliverable sign-up address from a single real Gmail inbox using
- * plus-tag addressing (`base+tag@gmail.com` all lands in `base@gmail.com`).
- *
- * Set GMAIL_TEST_ADDRESS to the real inbox, e.g. "asu.qa.automation@gmail.com".
- * @param {string} [tag] - Unique tag (default: timestamp).
- * @returns {string}
+ * Has this inbox ever received mail for `email`? If so the address was already
+ * used for a sign-up (all plus-tags land in the same inbox), so skip it.
+ * @param {GmailUtils} gmail
+ * @param {string} email
+ * @returns {Promise<boolean>}
  */
-function uniqueSignupEmail(tag = String(Date.now())) {
-    const base = process.env.GMAIL_TEST_ADDRESS;
-    if (!base || !base.includes('@')) {
-        throw new Error('GMAIL_TEST_ADDRESS must be set to a real Gmail inbox (e.g. you@gmail.com)');
+async function addressAlreadyUsed(gmail, email) {
+    const res = await gmail.gmail.users.messages.list({ userId: 'me', q: `to:${email}`, maxResults: 1 });
+    return (res.data.messages || []).length > 0;
+}
+
+/**
+ * Reserve the next sequential address that has never received mail.
+ * @param {GmailUtils} gmail
+ * @param {number} [maxSkips]
+ * @returns {Promise<string>}
+ */
+async function reserveFreshEmail(gmail, maxSkips = 20) {
+    for (let i = 0; i < maxSkips; i++) {
+        const { email } = nextSignupEmail();
+        if (!(await addressAlreadyUsed(gmail, email))) return email;
+        logger.info(`Skipping ${email}: inbox already has mail for it`);
     }
-    const [local, domain] = base.split('@');
-    // Strip any existing +tag on the base so tags don't stack.
-    return `${local.split('+')[0]}+${tag}@${domain}`;
+    throw new Error(`No unused sign-up address after ${maxSkips} tries; bump GMAIL_SEQUENCE_START`);
 }
 
 /**
  * Create a brand-new, email-verified account through the ASU IdP, reading the
  * verification email via the Gmail API, and return to the app authenticated.
  *
+ * Addresses come from a persistent sequence (base+asuqa0001@gmail.com, 0002, ...).
+ * If the IdP says the account already exists, the next number is tried.
+ *
  * @param {import('@playwright/test').Page} page
  * @param {Object} [opts]
- * @param {string} [opts.email] - Override the generated sign-up address.
- * @param {string} [opts.password] - Override the password (>=10 chars, mixed case + number).
+ * @param {string} [opts.email] - Use this exact address (no sequence, no retry).
+ * @param {string} [opts.password] - >=10 chars, mixed case + number.
  * @param {GmailUtils} [opts.gmail] - Reuse an initialized GmailUtils instance.
+ * @param {number} [opts.maxAttempts] - Sign-up attempts on "already exists" (default 3).
  * @returns {Promise<{ email: string, password: string }>}
  */
 async function signUpVerifiedAccount(page, opts = {}) {
-    const email = opts.email || uniqueSignupEmail();
     const password = opts.password || 'AsuQaTest1234!';
+    const maxAttempts = opts.email ? 1 : opts.maxAttempts || 3;
     const idp = new AsuIdpPage(page);
     const gmail = opts.gmail || new GmailUtils();
     if (!opts.gmail) await gmail.initialize();
 
-    const since = new Date();
-    await idp.gotoSignup();
-    await idp.signUp(email, password);
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const email = opts.email || (await reserveFreshEmail(gmail));
+        const since = new Date();
 
-    const { code, link } = await gmail.waitForVerificationEmail({ toAddress: email, since });
-    logger.info(`Verification email received (code=${code ? 'yes' : 'no'}, link=${link ? 'yes' : 'no'})`);
+        await idp.startFromApp();
+        await idp.openSignupFromIdp();
+        await idp.signUp(email, password);
 
-    if (code) {
-        await idp.submitVerificationCode(code);
-    } else if (link) {
-        await idp.openVerificationLink(link);
-    } else {
-        throw new Error('Verification email had neither a code nor a link; inspect gmailUtils regexes.');
+        const formError = await idp.getFormError();
+        if (formError) {
+            if (/already|exists|registered|in use/i.test(formError) && attempt < maxAttempts) {
+                logger.warn(`${email} rejected ("${formError}"); trying next sequence number`);
+                continue;
+            }
+            throw new Error(`IdP rejected sign-up for ${email}: "${formError}"`);
+        }
+
+        const { code, link } = await gmail.waitForVerificationEmail({
+            toAddress: email,
+            since,
+            fromContains: 'noreply@asu.edu',
+            subjectContains: '"Verification Code"',
+        });
+        logger.info(`Verification email received (code=${code ? 'yes' : 'no'}, link=${link ? 'yes' : 'no'})`);
+
+        if (code) {
+            await idp.submitVerificationCode(code);
+        } else if (link) {
+            await idp.openVerificationLink(link);
+        } else {
+            throw new Error('Verification email had neither a code nor a link; inspect gmailUtils regexes.');
+        }
+
+        await idp.waitForAppRedirect();
+        return { email, password };
     }
-
-    await idp.waitForAppRedirect();
-    return { email, password };
+    throw new Error(`Sign-up failed after ${maxAttempts} attempts`);
 }
 
 /**
@@ -66,9 +100,12 @@ async function signUpVerifiedAccount(page, opts = {}) {
  */
 async function signInExistingAccount(page, email, password) {
     const idp = new AsuIdpPage(page);
-    await idp.gotoLogin();
+    await idp.startFromApp();
+    await idp.openLoginFromIdp();
     await idp.signIn(email, password);
+    const formError = await idp.getFormError(5000);
+    if (formError) throw new Error(`IdP rejected sign-in for ${email}: "${formError}"`);
     await idp.waitForAppRedirect();
 }
 
-module.exports = { uniqueSignupEmail, signUpVerifiedAccount, signInExistingAccount };
+module.exports = { signUpVerifiedAccount, signInExistingAccount, reserveFreshEmail };

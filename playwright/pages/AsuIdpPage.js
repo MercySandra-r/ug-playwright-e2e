@@ -32,7 +32,59 @@ class AsuIdpPage extends BasePage {
             '&scope=openid+email+fbi_user_id';
     }
 
-    /** Go straight to the IdP sign-up page (bypasses clicking through the app). */
+    /**
+     * Reach the IdP the way a real user does: app landing page -> "Sign in"
+     * (app starts the OAuth request) -> login.asu.edu. Opening /signup directly
+     * skips that hand-off and the IdP rejects the submit with
+     * "Session invalid, please try again."
+     */
+    async startFromApp() {
+        await this.page.goto('/', { timeout: this.navigationTimeout });
+        const signIn = this.page
+            .getByRole('link', { name: /^sign in$/i })
+            .or(this.page.getByRole('button', { name: /^sign in$/i }))
+            .first();
+        await signIn.click();
+        await this.page.waitForURL(/login\.asu\.edu/, { timeout: this.navigationTimeout });
+        await expect(this.page.getByRole('link', { name: 'Sign up with email' })).toBeVisible({
+            timeout: this.navigationTimeout,
+        });
+    }
+
+    /** From the IdP landing page, open "Sign up with email". */
+    async openSignupFromIdp() {
+        await this.page.getByRole('link', { name: 'Sign up with email' }).click();
+        await expect(this.page.getByRole('textbox', { name: 'Confirm password' })).toBeVisible({
+            timeout: this.navigationTimeout,
+        });
+    }
+
+    /** From the IdP landing page, open "Sign In with Email". */
+    async openLoginFromIdp() {
+        await this.page.getByRole('link', { name: 'Sign In with Email' }).click();
+        await expect(this.page.getByRole('textbox', { name: 'Email' })).toBeVisible({
+            timeout: this.navigationTimeout,
+        });
+    }
+
+    /**
+     * If the IdP form shows an inline error after submit, return its text.
+     * Returns null when no error appears within `timeoutMs`.
+     * @param {number} [timeoutMs]
+     * @returns {Promise<string|null>}
+     */
+    async getFormError(timeoutMs = 8000) {
+        const error = this.page
+            .getByText(/session invalid|already (exists|registered|in use)|account exists|try again|invalid/i)
+            .first();
+        const shown = await error
+            .waitFor({ state: 'visible', timeout: timeoutMs })
+            .then(() => true)
+            .catch(() => false);
+        return shown ? (await error.innerText()).trim() : null;
+    }
+
+    /** Go straight to the IdP sign-up page. Prefer startFromApp(); see its note. */
     async gotoSignup() {
         await this.page.goto(`${this.idpOrigin}/signup?${this.oauthParams}`);
         await expect(this.page.getByRole('textbox', { name: 'Email' })).toBeVisible({
