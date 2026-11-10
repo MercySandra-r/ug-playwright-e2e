@@ -3,354 +3,517 @@ const { expect } = require('@playwright/test');
 const BasePage = require('./BasePage');
 
 /**
- * Page Object for My Information related actions
+ * Page Object for step 1 of the application wizard: "My information"
+ * (/ug-app/<applicationId>/my-information).
+ *
+ * Rebuilt against the live page on 2026-11-10. Name, birthday, email and phone are no
+ * longer on this step (they're collected on the pre-app dashboard and edited in
+ * Profile). The step has these sections:
+ *   Former or alternate name(s)  - optional, inline "Add a former name" form
+ *   Legal sex                    - required radio group
+ *   Primary language at home     - required dropdown
+ *   Home address                 - required: country dropdown, then line 1, city, state, ZIP
+ *   Ethnic/racial background     - optional Hispanic/Latino radios + race multi-select
+ *   U.S. citizenship             - required; "citizen" adds country of birth + SSN,
+ *                                  "not a citizen" adds visa type
+ *   Parent or legal guardian     - optional inline form with its own Save
+ *   Previous ASU affiliation     - required, at least one checkbox
+ *   U.S. Uniformed Services      - required dropdown
+ *   Education benefits           - required Yes/No; Yes adds a benefit-provider dropdown
+ *
+ * Dropdowns are custom comboboxes: clicking opens a list with a "Search..." box, and
+ * options are role=option. Stable ids (group_*) are used where the app provides them.
+ *
+ * Social Security Number: required when "I am a U.S. citizen" is chosen. This page
+ * object deliberately never fills it; see selectCitizenshipStatus().
  */
 class MyInformationPage extends BasePage {
     /**
      * @param {import('@playwright/test').Page} page - The Playwright page object
      */
     constructor(page) {
-        super(page, 'MyInformationPage');
-        
-        // Define page selectors using role-based locators for better reliability
+        super(page);
+
         this.selectors = {
-            // Page header and navigation
-            pageTitle: 'h1',
-            
-            // Personal Information Section
-            firstNameInput: 'input[name="firstName"]',
-            middleNameInput: 'input[name="middleName"]',
-            lastNameInput: 'input[name="lastName"]',
-            suffixSelect: 'select[name="suffix"]',
-            
-            // Former Names Section
-            addFormerNameBtn: 'button:has-text("Add Former Name")',
-            formerNameInput: 'input[name="formerName"]',
-            saveFormerNameBtn: 'button:has-text("Save")',
-            cancelFormerNameBtn: 'button:has-text("Cancel")',
-            editFormerNameBtn: (name) => `button[aria-label="Edit ${name}"]`,
-            deleteFormerNameBtn: (name) => `button[aria-label="Delete ${name}"]`,
-            formerNameItem: (name) => `div.former-name-item:has-text("${name}")`,
-            
-            // Legal Sex Section
-            legalSexSelect: 'select[name="legalSex"]',
-            
-            // Primary Language Section
-            primaryLanguageSelect: 'select[name="primaryLanguage"]',
-            
-            // Contact Information Section
-            emailInput: 'input[name="email"]',
-            phoneNumberInput: 'input[name="phoneNumber"]',
-            phoneTypeSelect: 'select[name="phoneType"]',
-            
-            // Address Section
-            addressLine1Input: 'input[name="addressLine1"]',
-            addressLine2Input: 'input[name="addressLine2"]',
-            cityInput: 'input[name="city"]',
-            stateSelect: 'select[name="state"]',
-            zipCodeInput: 'input[name="zipCode"]',
-            countrySelect: 'select[name="country"]',
-            
-            // Ethnicity and Background Section
-            ethnicitySelect: 'select[name="ethnicity"]',
-            raceCheckbox: (race) => `input[name="${race}"]`,
-            
-            // Citizenship Section
-            citizenshipStatusSelect: 'select[name="citizenshipStatus"]',
-            visaTypeSelect: 'select[name="visaType"]',
-            
-            // Military Service Section
-            militaryAffiliationSelect: 'select[name="militaryAffiliation"]',
-            branchOfServiceSelect: 'select[name="branchOfService"]',
-            
-            // Form Actions
-            saveBtn: 'button:has-text("Save")',
-            saveAndContinueBtn: 'button:has-text("Save & Continue")',
-            cancelBtn: 'button:has-text("Cancel")',
-            
-            // Error Messages
-            fieldError: (fieldName) => `[data-testid="${fieldName}-error"]`,
-            formError: '.form-error-message',
-            
-            // Success Message
-            successMessage: '.success-message'
+            heading: 'role=heading[name="My information"][level=1]',
+
+            // Former names (inline form)
+            addFormerNameBtn: 'role=button[name="Add a former name"]',
+            saveFormerNameBtn: 'role=button[name="save name"]',
+            cancelFormerNameBtn: 'role=button[name="Cancel editing former name"]',
+
+            // Legal sex
+            legalSexGroup: '[data-cy="my-info-legal-sex-group"]',
+
+            // Dropdowns (custom comboboxes)
+            primaryLanguage: '#group_primary_language_select',
+            homeCountry: '#group_home_country',
+            state: '#group_state_code',
+            race: '#group_race',
+            birthCountry: '#group_birth_country',
+            citizenshipCountry: 'role=combobox[name=/Country or territory of citizenship/]',
+            uniformedServices: '#group_us_uniformed_services',
+
+            // Address text fields
+            addressLine1: '#group_address_line_1',
+            addressLine2: '#group_address_line_2',
+            city: '#group_city',
+            zipCode: '#group_zip_code',
+
+            // Parent or legal guardian (inline form)
+            guardianFirstName: '#guardian_first_input',
+            guardianLastName: '#guardian_last_input',
+
+            // Previous ASU affiliation checkboxes (by input name)
+            affiliation: {
+                undergradDegreeSeeking: 'input[name="affiliationASUCOMMDGS"]',
+                nondegreeOrGraduate: 'input[name="affiliationASUCOMMNDG"]',
+                globalLaunch: 'input[name="affiliationASUCOMGLLN"]',
+                transferPathway: 'input[name="affiliationASUCOMGFA"]',
+                employee: 'input[name="affiliationASUCOMEMPL"]',
+                summerProgram: 'input[name="affiliationASUCOMSUMM"]',
+                other: 'input[name="affiliationASUCOMOTH"]',
+                neverAffiliated: 'input[name="affiliationASUCOMNVR"]',
+            },
+            asuAffiliateId: '#group_asu_affiliate_id',
+
+            // Footer: the form's submit button ("Continue" / "Save and Continue")
+            continueButton: 'button[type="submit"][form="page-form"]',
+            helpButton: 'role=button[name=/^(Need )?Help$/]',
+
+            // Validation
+            requiredFieldError: 'text=This is a required field.',
         };
+
+        /** Uniformed-services answer that means "no affiliation". */
+        this.NO_UNIFORMED_SERVICES = 'None of these options apply to me';
     }
-    
+
+    // ------------------------------------------------------------------ navigation
+
     /**
-     * Navigate to the My Information page
+     * Open step 1 of the signed-in user's application.
      * @returns {Promise<void>}
      */
     async navigateToMyInformation() {
         await this.gotoApplicationStep('my-information');
-        await this.page.waitForLoadState('networkidle');
         await this.verifyPageLoaded();
     }
-    
+
     /**
-     * Verify the My Information page is loaded
      * @returns {Promise<void>}
      */
     async verifyPageLoaded() {
-        // More flexible URL check
-        const currentUrl = this.page.url();
-        const isMyInfoPage = currentUrl.includes('my-information') || 
-                           currentUrl.includes('information') || 
-                           currentUrl.includes('profile');
-        
-        if (!isMyInfoPage) {
-            throw new Error(`Expected My Information page, but got: ${currentUrl}`);
-        }
-        
-        // Try multiple heading patterns
-        try {
-            await expect(this.page.getByRole('heading', { name: /my information/i })).toBeVisible();
-        } catch {
-            try {
-                await expect(this.page.getByRole('heading', { name: /information/i })).toBeVisible();
-            } catch {
-                // Check for any form elements that indicate this is the right page
-                await expect(this.page.getByRole('textbox', { name: /first name/i })).toBeVisible();
-            }
-        }
+        await expect(this.page).toHaveURL(/\/ug-app\/\d+\/my-information/, { timeout: this.navigationTimeout });
+        await expect(this.page.locator(this.selectors.heading)).toBeVisible({ timeout: this.navigationTimeout });
     }
-    
+
+    // ------------------------------------------------------------------ helpers
+
     /**
-     * Fill in personal information using robust locators
+     * Pick an option from one of the page's custom dropdowns. Types into the list's
+     * "Search..." box when present (long lists like language and country).
+     * @param {string} comboboxSelector
+     * @param {string} optionText - exact option label
+     * @returns {Promise<void>}
      */
-    async fillPersonalInformation({ firstName, middleName, lastName, suffix }) {
-        if (firstName) {
-            await this.page.getByRole('textbox', { name: /first name/i }).fill(firstName);
+    async chooseFromDropdown(comboboxSelector, optionText) {
+        const combobox = this.page.locator(comboboxSelector);
+        await combobox.scrollIntoViewIfNeeded();
+        await combobox.click();
+        const search = this.page.getByPlaceholder('Search...');
+        if (await search.isVisible().catch(() => false)) {
+            await search.fill(optionText);
         }
-        
-        if (middleName) {
-            await this.page.getByRole('textbox', { name: /middle name/i }).fill(middleName);
+        await this.page.getByRole('option', { name: optionText, exact: true }).first().click();
+    }
+
+    /**
+     * Pick the first option of a dropdown (used when the test doesn't care which).
+     * @param {string} comboboxSelector
+     * @returns {Promise<string>} the chosen option's label
+     */
+    async chooseFirstDropdownOption(comboboxSelector) {
+        const combobox = this.page.locator(comboboxSelector);
+        await combobox.scrollIntoViewIfNeeded();
+        await combobox.click();
+        const first = this.page.getByRole('option').first();
+        const label = (await first.innerText()).trim();
+        await first.click();
+        return label;
+    }
+
+    /**
+     * Click Yes or No in a named radio group.
+     * @param {string} groupName
+     * @param {boolean} yes
+     */
+    async answerYesNo(groupName, yes) {
+        await this.page.getByRole('radiogroup', { name: groupName })
+            .getByRole('radio', { name: yes ? 'Yes' : 'No', exact: true }).click();
+    }
+
+    /**
+     * Normalise 'Yes'/'No'/true/false test data to a boolean.
+     * @param {string|boolean|undefined} value
+     * @returns {boolean|undefined}
+     */
+    static toBool(value) {
+        if (value === undefined || value === null) return undefined;
+        if (typeof value === 'boolean') return value;
+        return /^(y|yes|true)$/i.test(String(value).trim());
+    }
+
+    // ------------------------------------------------------------------ sections
+
+    /**
+     * Add a former or alternate name.
+     * @param {{ firstName: string, lastName: string } | string} name - object, or "First Last"
+     * @returns {Promise<void>}
+     */
+    async addFormerName(name) {
+        const { firstName, lastName } = typeof name === 'string'
+            ? { firstName: name.split(' ')[0], lastName: name.split(' ').slice(1).join(' ') || name }
+            : name;
+        await this.page.locator(this.selectors.addFormerNameBtn).click();
+        const form = this.page.locator(this.selectors.saveFormerNameBtn).locator('xpath=ancestor::*[.//input][1]');
+        await form.getByRole('textbox', { name: 'First name' }).fill(firstName);
+        await form.getByRole('textbox', { name: 'Last name' }).fill(lastName);
+        await this.page.locator(this.selectors.saveFormerNameBtn).click();
+    }
+
+    /**
+     * Row for a saved former name in the "Former or Alternate Names" table.
+     * @param {string} fullName - "First Last" as entered
+     * @returns {import('@playwright/test').Locator}
+     */
+    formerNameRow(fullName) {
+        // Each value cell's accessible name is its column label ("Former name"), so
+        // match on the cell's text instead.
+        const escaped = fullName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return this.page.getByRole('cell', { name: 'Former name', exact: true })
+            .filter({ hasText: new RegExp(`^\\s*${escaped}\\s*$`) });
+    }
+
+    /**
+     * Waits briefly for the saved name to appear in the table.
+     * @param {string} fullName - "First Last" as entered
+     * @param {number} [timeoutMs]
+     * @returns {Promise<boolean>}
+     */
+    async isFormerNameDisplayed(fullName, timeoutMs = this.assertionTimeout) {
+        return this.formerNameRow(fullName)
+            .waitFor({ state: 'visible', timeout: timeoutMs })
+            .then(() => true).catch(() => false);
+    }
+
+    /**
+     * Edit a saved former name via its row's "Edit" link.
+     * @param {string} currentFullName
+     * @param {{ firstName: string, lastName: string }} newName
+     * @returns {Promise<void>}
+     */
+    async editFormerName(currentFullName, { firstName, lastName }) {
+        await this.page.getByRole('link', { name: `Edit former name for ${currentFullName}` }).click();
+        const form = this.page.locator(this.selectors.saveFormerNameBtn).locator('xpath=ancestor::*[.//input][1]');
+        await form.getByRole('textbox', { name: 'First name' }).fill(firstName);
+        await form.getByRole('textbox', { name: 'Last name' }).fill(lastName);
+        await this.page.locator(this.selectors.saveFormerNameBtn).click();
+    }
+
+    /**
+     * Delete a saved former name via its row's "Delete" link, confirming if asked.
+     * @param {string} fullName
+     * @returns {Promise<void>}
+     */
+    async deleteFormerName(fullName) {
+        await this.page.getByRole('link', { name: `Delete former name for ${fullName}` }).click();
+        const confirm = this.page.getByRole('dialog').getByRole('button', { name: /^(delete|remove|yes|confirm)/i });
+        if (await confirm.first().waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false)) {
+            await confirm.first().click();
         }
-        
-        if (lastName) {
-            await this.page.getByRole('textbox', { name: /last name/i }).fill(lastName);
-        }
-        
-        if (suffix) {
-            await this.page.getByRole('combobox', { name: /suffix/i }).selectOption({ value: suffix });
-        }
+        await this.formerNameRow(fullName).waitFor({ state: 'detached', timeout: this.assertionTimeout });
     }
-    
+
     /**
-     * Add a former name
-     */
-    async addFormerName(formerName) {
-        await this.page.getByRole('button', { name: /add former name/i }).click();
-        
-        // Show the hidden former name input and simulate adding functionality
-        await this.page.evaluate((name) => {
-            const formerNameInput = document.querySelector('input[name="formerName"]');
-            if (formerNameInput) {
-                formerNameInput.style.display = 'block';
-                formerNameInput.value = name;
-            }
-            
-            // Add the name to the display area
-            const formerNamesDiv = document.getElementById('formerNames');
-            if (formerNamesDiv) {
-                const nameDiv = document.createElement('div');
-                nameDiv.textContent = name;
-                nameDiv.setAttribute('data-name', name);
-                formerNamesDiv.appendChild(nameDiv);
-            }
-        }, formerName);
-        
-        await this.page.waitForLoadState('networkidle');
-    }
-    
-    /**
-     * Edit an existing former name
-     */
-    async editFormerName(oldName, newName) {
-        // Simulate editing by updating the display
-        await this.page.evaluate(({ oldN, newN }) => {
-            const formerNamesDiv = document.getElementById('formerNames');
-            if (formerNamesDiv) {
-                const nameDiv = formerNamesDiv.querySelector(`[data-name="${oldN}"]`);
-                if (nameDiv) {
-                    nameDiv.textContent = newN;
-                    nameDiv.setAttribute('data-name', newN);
-                }
-            }
-        }, { oldN: oldName, newN: newName });
-        
-        await this.page.waitForLoadState('networkidle');
-    }
-    
-    /**
-     * Delete a former name
-     */
-    async deleteFormerName(name) {
-        // Simulate deleting by removing from display
-        await this.page.evaluate((n) => {
-            const formerNamesDiv = document.getElementById('formerNames');
-            if (formerNamesDiv) {
-                const nameDiv = formerNamesDiv.querySelector(`[data-name="${n}"]`);
-                if (nameDiv) {
-                    nameDiv.remove();
-                }
-            }
-        }, name);
-        
-        await this.page.waitForLoadState('networkidle');
-    }
-    
-    /**
-     * Verify a former name is displayed
-     */
-    async isFormerNameDisplayed(name) {
-        return await this.page.getByText(name).isVisible();
-    }
-    
-    /**
-     * Select legal sex
+     * @param {'Male'|'Female'|'X or another legal sex'|string} sex
      */
     async selectLegalSex(sex) {
-        await this.page.getByRole('combobox', { name: /legal sex/i }).selectOption({ value: sex });
+        const label = /^x/i.test(sex) ? 'X or another legal sex' : sex.charAt(0).toUpperCase() + sex.slice(1).toLowerCase();
+        await this.page.locator(this.selectors.legalSexGroup).getByRole('radio', { name: label, exact: true }).click();
     }
-    
+
     /**
-     * Select primary language
+     * @param {string} language - e.g. "English"
      */
     async selectPrimaryLanguage(language) {
-        await this.page.getByRole('combobox', { name: /primary language/i }).selectOption({ value: language });
+        await this.chooseFromDropdown(this.selectors.primaryLanguage, language);
     }
-    
+
     /**
-     * Fill in contact information
+     * Fill the home address. Accepts both {line1, zipCode} and the flow specs'
+     * {street, zip} spellings.
+     * @param {{ country?: string, line1?: string, street?: string, line2?: string,
+     *           city: string, state: string, zipCode?: string, zip?: string }} address
+     * @returns {Promise<void>}
      */
-    async fillContactInformation({ email, phoneNumber, phoneType }) {
-        if (email) {
-            await this.page.getByRole('textbox', { name: /email/i }).fill(email);
-        }
-        
-        if (phoneNumber) {
-            await this.page.getByRole('textbox', { name: /phone/i }).fill(phoneNumber);
-        }
-        
-        if (phoneType) {
-            await this.page.getByRole('combobox', { name: /phone type/i }).selectOption({ label: phoneType });
-        }
+    async fillAddressInformation(address) {
+        const country = address.country || 'United States';
+        await this.chooseFromDropdown(this.selectors.homeCountry, country);
+        await this.page.locator(this.selectors.addressLine1).fill(address.line1 || address.street || '');
+        if (address.line2) await this.page.locator(this.selectors.addressLine2).fill(address.line2);
+        await this.page.locator(this.selectors.city).fill(address.city);
+        await this.chooseFromDropdown(this.selectors.state, address.state);
+        await this.page.locator(this.selectors.zipCode).fill(address.zipCode || address.zip || '');
     }
-    
+
     /**
-     * Fill in address information
+     * Optional ethnicity questions.
+     * @param {{ hispanicLatino?: string|boolean, races?: string[] }} data
+     *   races use the dropdown's labels, e.g. "Asian", "White".
      */
-    async fillAddressInformation({ line1, line2, city, state, zipCode, country }) {
-        if (line1) await this.page.getByRole('textbox', { name: /address line 1/i }).fill(line1);
-        if (line2) await this.page.getByRole('textbox', { name: /address line 2/i }).fill(line2);
-        if (city) await this.page.getByRole('textbox', { name: /city/i }).fill(city);
-        if (state) await this.page.getByRole('combobox', { name: /state/i }).selectOption({ value: state });
-        if (zipCode) await this.page.getByRole('textbox', { name: /zip/i }).fill(zipCode);
-        if (country) await this.page.getByRole('combobox', { name: /country/i }).selectOption({ value: country });
-    }
-    
-    /**
-     * Select ethnicity and race
-     */
-    async selectEthnicityAndRace({ ethnicity, races = [] }) {
-        if (ethnicity) {
-            await this.page.getByRole('combobox', { name: /ethnicity/i }).selectOption({ value: ethnicity });
-        }
-        
-        // Uncheck all race checkboxes first
-        const raceCheckboxes = await this.page.getByRole('checkbox').all();
-        for (const checkbox of raceCheckboxes) {
-            if (await checkbox.isChecked()) {
-                await checkbox.uncheck();
+    async selectEthnicityAndRace({ hispanicLatino, races = [] }) {
+        const hispanic = MyInformationPage.toBool(hispanicLatino);
+        if (hispanic !== undefined) await this.answerYesNo('Are you Hispanic/Latino? (Optional)', hispanic);
+        if (races.length) {
+            await this.page.locator(this.selectors.race).click();
+            for (const race of races) {
+                await this.page.getByRole('option', { name: race, exact: true }).click();
             }
-        }
-        
-        // Check the specified races
-        for (const race of races) {
-            await this.page.getByRole('checkbox', { name: new RegExp(race, 'i') }).check();
+            await this.page.keyboard.press('Escape');
         }
     }
-    
+
     /**
-     * Select citizenship status
+     * Answer U.S. citizenship.
+     *
+     * Citizen: also sets country of birth. The app then REQUIRES a Social Security
+     * Number, which this page object never fills: automation must not type SSNs into
+     * this site. A citizen run can only complete the step if the tester enters a
+     * designated test SSN themselves.
+     *
+     * Not a citizen: sets the visa type (first option if none given). The visa then
+     * reveals two required dropdowns, country of citizenship and country of birth, plus
+     * an optional "Social Security Number (if applicable)" that is left empty.
+     *
+     * @param {{ isUsCitizen: boolean|string, countryOfBirth?: string,
+     *           countryOfCitizenship?: string, visaType?: string }} data
+     * @returns {Promise<{ visaType?: string }>}
      */
-    async selectCitizenshipStatus({ status, visaType }) {
-        await this.page.getByRole('combobox', { name: /citizenship/i }).selectOption({ value: status });
-        
-        if (visaType) {
-            await this.page.getByRole('combobox', { name: /visa/i }).selectOption({ value: visaType });
+    async selectCitizenshipStatus({ isUsCitizen, countryOfBirth, countryOfCitizenship = 'Canada', visaType }) {
+        const citizen = MyInformationPage.toBool(isUsCitizen);
+        if (citizen) {
+            await this.page.getByRole('radio', { name: 'I am a U.S. citizen', exact: true }).click();
+            await this.chooseFromDropdown(this.selectors.birthCountry, countryOfBirth || 'United States');
+            this.logger.warn('U.S. citizen selected: the required SSN is left empty by design');
+            return {};
+        }
+        await this.page.getByRole('radio', { name: 'I am not a U.S. citizen', exact: true }).click();
+        const visa = this.page.getByRole('combobox', { name: 'What type of visa will you be holding?' });
+        await visa.waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        await visa.click();
+        const option = visaType
+            ? this.page.getByRole('option', { name: visaType, exact: true })
+            : this.page.getByRole('option').first();
+        const chosen = (await option.innerText()).trim();
+        await option.click();
+
+        // Fields revealed by the visa choice.
+        const citizenshipCountry = this.page.getByRole('combobox', { name: /Country or territory of citizenship/ });
+        if (await citizenshipCountry.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false)) {
+            await this.chooseFromDropdown(this.selectors.citizenshipCountry, countryOfCitizenship);
+        }
+        if (await this.page.locator(this.selectors.birthCountry).isVisible().catch(() => false)) {
+            await this.chooseFromDropdown(this.selectors.birthCountry, countryOfBirth || countryOfCitizenship);
+        }
+        return { visaType: chosen };
+    }
+
+    /**
+     * Optional parent or legal guardian, saved with the section's own Save button.
+     * Once "Is this person living?" is answered the section also requires Relation,
+     * Highest level of schooling completed, and "Did this guardian attend ASU?"
+     * (email and phone stay optional). Dropdowns default to their first option.
+     * @param {{ firstName: string, lastName: string, isLiving?: boolean|string,
+     *           relation?: string, schooling?: string, attendedAsu?: boolean|string }} parent
+     * @returns {Promise<{ relation: string, schooling: string }>} the dropdown values used
+     */
+    async addParentInformation({ firstName, lastName, isLiving = true, relation, schooling, attendedAsu = false }) {
+        await this.page.locator(this.selectors.guardianFirstName).fill(firstName);
+        await this.page.locator(this.selectors.guardianLastName).fill(lastName);
+        await this.answerYesNo('Is this person living?', MyInformationPage.toBool(isLiving) !== false);
+
+        const pick = async (/** @type {RegExp} */ name, /** @type {string|undefined} */ value) => {
+            const box = this.page.getByRole('combobox', { name });
+            await box.waitFor({ state: 'visible', timeout: this.assertionTimeout });
+            await box.click();
+            const option = value
+                ? this.page.getByRole('option', { name: value, exact: true })
+                : this.page.getByRole('option').first();
+            const chosen = (await option.innerText()).trim();
+            await option.click();
+            return chosen;
+        };
+        const usedRelation = await pick(/^Relation/, relation);
+        const usedSchooling = await pick(/^Highest level of schooling completed/, schooling);
+        await this.page.getByRole('radiogroup', { name: /Did this guardian attend ASU\?/ })
+            .getByRole('radio', { name: MyInformationPage.toBool(attendedAsu) ? 'Yes' : 'No', exact: true }).click();
+
+        const section = this.page.locator(this.selectors.guardianFirstName).locator('xpath=ancestor::*[.//button[normalize-space()="Save"]][1]');
+        await section.getByRole('button', { name: 'Save', exact: true }).click();
+        return { relation: usedRelation, schooling: usedSchooling };
+    }
+
+    /**
+     * Previous ASU affiliation. Defaults to "never affiliated".
+     * @param {{ affiliations?: Array<keyof MyInformationPage['selectors']['affiliation']>, affiliateId?: string }} [data]
+     */
+    async addAsuAffiliateInfo({ affiliations = ['neverAffiliated'], affiliateId } = {}) {
+        for (const key of affiliations) {
+            // The native input is visually hidden behind a styled box; click its label.
+            const box = this.page.locator(this.selectors.affiliation[key]);
+            if (await box.isChecked()) continue;
+            const id = await box.getAttribute('id');
+            await this.page.locator(`label[for="${id}"]`).click();
+            await expect(box).toBeChecked({ timeout: this.assertionTimeout });
+        }
+        if (affiliateId) await this.page.locator(this.selectors.asuAffiliateId).fill(affiliateId);
+    }
+
+    /**
+     * Affiliation to U.S. Uniformed Services (required).
+     * @param {string} [option] - defaults to "None of these options apply to me"
+     */
+    async selectMilitaryAffiliation(option = this.NO_UNIFORMED_SERVICES) {
+        await this.chooseFromDropdown(this.selectors.uniformedServices, option);
+    }
+
+    /**
+     * Education benefits from a partnered employer/organisation (required Yes/No).
+     * @param {{ usesBenefits: boolean, provider?: string }} data - provider: exact label,
+     *   or the first listed provider when omitted.
+     * @returns {Promise<string|undefined>} provider chosen, if any
+     */
+    async applyPartnerBenefits({ usesBenefits, provider }) {
+        await this.answerYesNo('Education benefits', usesBenefits);
+        if (!usesBenefits) return undefined;
+        const providerBox = this.page.getByRole('combobox', { name: /Select your benefit provider/ });
+        await providerBox.waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        await providerBox.click();
+        const option = provider
+            ? this.page.getByRole('option', { name: provider, exact: true })
+            : this.page.getByRole('option').first();
+        const chosen = (await option.innerText()).trim();
+        await option.click();
+        return chosen;
+    }
+
+    /**
+     * Answer education benefits at random (No, or Yes with the first provider).
+     * @returns {Promise<string|undefined>}
+     */
+    async applyRandomPartnerBenefits() {
+        return this.applyPartnerBenefits({ usesBenefits: Math.random() < 0.5 });
+    }
+
+    /**
+     * Fill the step from flow-spec test data. Keys match the TC_17–TC_27 testData:
+     * legalSex, primaryLanguage, address, hispanicLatino, races, usCitizenship,
+     * countryOfBirth, visaType, militaryStatus, partnerBenefits.hasPartnerBenefits.
+     * Sections whose key is absent are left alone.
+     * @param {Record<string, any>} data
+     * @returns {Promise<void>}
+     */
+    async fillPersonalInformation(data) {
+        if (data.legalSex) await this.selectLegalSex(data.legalSex);
+        if (data.primaryLanguage) await this.selectPrimaryLanguage(data.primaryLanguage);
+        if (data.address) await this.fillAddressInformation(data.address);
+        if (data.hispanicLatino !== undefined || data.races) {
+            await this.selectEthnicityAndRace({ hispanicLatino: data.hispanicLatino, races: data.races || [] });
+        }
+        if (data.usCitizenship !== undefined) {
+            await this.selectCitizenshipStatus({
+                isUsCitizen: data.usCitizenship,
+                countryOfBirth: data.countryOfBirth,
+                visaType: data.visaType,
+            });
+        }
+        if (data.militaryStatus !== undefined) {
+            const none = !data.militaryStatus || /^none$/i.test(String(data.militaryStatus));
+            await this.selectMilitaryAffiliation(none ? this.NO_UNIFORMED_SERVICES : data.militaryStatus);
+        }
+        if (data.partnerBenefits && data.partnerBenefits.hasPartnerBenefits !== undefined) {
+            await this.applyPartnerBenefits({ usesBenefits: !!data.partnerBenefits.hasPartnerBenefits, provider: data.partnerBenefits.provider });
         }
     }
-    
+
     /**
-     * Select military affiliation
+     * Fill every required field with valid defaults (non-citizen path, so no SSN is
+     * needed). Pass overrides to change any section.
+     * @param {Record<string, any>} [overrides]
+     * @returns {Promise<void>}
      */
-    async selectMilitaryAffiliation({ affiliation, branch }) {
-        await this.page.getByRole('combobox', { name: /military/i }).selectOption({ value: affiliation });
-        
-        if (branch) {
-            await this.page.getByRole('combobox', { name: /branch/i }).selectOption({ value: branch });
-        }
+    async completeRequiredFields(overrides = {}) {
+        const data = {
+            legalSex: 'Female',
+            primaryLanguage: 'English',
+            address: { country: 'United States', line1: '1151 S Forest Ave', city: 'Tempe', state: 'Arizona', zip: '85281' },
+            usCitizenship: 'No',
+            militaryStatus: 'None',
+            partnerBenefits: { hasPartnerBenefits: false },
+            ...overrides,
+        };
+        await this.fillPersonalInformation(data);
+        await this.addAsuAffiliateInfo(overrides.asuAffiliate || {});
     }
-    
+
+    // ------------------------------------------------------------------ footer
+
     /**
-     * Save the form
+     * Click Continue ("Save and Continue") and wait for step 2, My program.
+     * @returns {Promise<void>}
      */
-    async saveForm(action = 'save') {
-        if (action === 'continue') {
-            await this.page.getByRole('button', { name: /save.*continue/i }).click();
-        } else {
-            await this.page.getByRole('button', { name: /^save$/i }).click();
-        }
-        
-        // Simulate successful save by showing success message
-        await this.page.evaluate(() => {
-            const successDiv = document.getElementById('successMessage');
-            if (successDiv) {
-                successDiv.style.display = 'block';
-                successDiv.textContent = 'Successfully saved';
-            }
-        });
-        
-        await this.page.waitForLoadState('networkidle');
+    async saveAndContinue() {
+        await this.page.locator(this.selectors.continueButton).click();
+        await this.page.waitForURL(/\/ug-app\/\d+\/my-program/, { timeout: this.navigationTimeout });
     }
-    
+
     /**
-     * Verify field error message
+     * Click Continue without expecting to leave (e.g. to trigger validation).
+     * @returns {Promise<void>}
      */
-    async verifyFieldError(fieldName, expectedMessage) {
-        const errorLocator = this.page.locator(this.selectors.fieldError(fieldName));
-        const isVisible = await errorLocator.isVisible();
-        
-        if (!isVisible) return false;
-        
-        const actualMessage = await errorLocator.textContent();
-        return actualMessage && actualMessage.includes(expectedMessage);
+    async clickContinue() {
+        await this.page.locator(this.selectors.continueButton).click();
     }
-    
+
     /**
-     * Verify form was saved successfully
+     * @returns {Promise<number>} how many "This is a required field." messages are shown
      */
-    async isSaveSuccessful() {
-        try {
-            // Try multiple success indicators
-            const successLocators = [
-                this.page.getByRole('alert').filter({ hasText: /success/i }),
-                this.page.getByText(/successfully saved/i),
-                this.page.getByText(/saved/i)
-            ];
-            
-            for (const locator of successLocators) {
-                try {
-                    await locator.waitFor({ timeout: 2000 });
-                    return true;
-                } catch {}
-            }
-            return false;
-        } catch (error) {
-            return false;
-        }
+    async getRequiredFieldErrorCount() {
+        return this.page.locator(this.selectors.requiredFieldError).count();
+    }
+
+    /**
+     * Continue on an incomplete form: the step must stay put and flag required fields.
+     * @returns {Promise<void>}
+     */
+    async verifyRequiredFieldValidation() {
+        await this.clickContinue();
+        await expect(this.page.locator(this.selectors.requiredFieldError).first()).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page).toHaveURL(/\/my-information/);
+    }
+
+    /**
+     * The floating Help button opens help content.
+     * @returns {Promise<void>}
+     */
+    async validateFloatingHelp() {
+        const help = this.page.locator(this.selectors.helpButton).first();
+        await expect(help).toBeVisible();
+        await help.click();
+        await expect(this.page.getByRole('dialog').or(this.page.getByRole('complementary')).first())
+            .toBeVisible({ timeout: this.assertionTimeout });
+        await this.page.keyboard.press('Escape');
     }
 }
 
