@@ -1,524 +1,240 @@
 // @ts-check
 const { expect } = require('@playwright/test');
 const BasePage = require('./BasePage');
-// @ts-ignore - xlsx is a dynamic module that doesn't have type definitions
-const XLSX = require('xlsx');
-const path = require('path');
+
+/** Summary sections, in page order. */
+const SECTIONS = ['Profile', 'My information', 'My program', 'My schools', 'My high school grades', 'Arizona residency'];
 
 /**
- * Page Object for Preview functionality
+ * Page Object for "Preview Submitted Application" (/ug-app/<applicationId>/preview).
+ *
+ * Rebuilt against the live page on 2026-11-10 (submitted application 5020364). It only
+ * exists once an application is submitted (before that the URL redirects to the
+ * dashboard). Read-only page:
+ *  - "Back" and "Return to previous page" links (both go to Next steps)
+ *  - "Application ID: <id>", "Submitted on <date>", "Download as PDF"
+ *  - Six collapsible summary sections (same label/value layout as Review, no Edit)
+ *  - Application affidavit: "Read affidavit" expands the text inline; the certify
+ *    checkbox is shown ticked and disabled
+ * downloadPdf is deliberately not automated; tests only check the button.
  */
 class PreviewPage extends BasePage {
     /**
      * @param {import('@playwright/test').Page} page - The Playwright page object
      */
     constructor(page) {
-        super(page, 'PreviewPage');
-        
-        // Define page selectors
+        super(page);
+
         this.selectors = {
-            // Page title and navigation
-            pageTitle: 'h1',
-            previewContent: '.preview-content',
-            
-            // Download PDF button
-            downloadPdfButton: 'button:has-text("Download PDF")',
-            
-            // Back button
-            backButton: 'button:has-text("Back")',
-            
-            // Section headers
-            sectionHeaders: 'h2.section-header',
-            
-            // Profile Section
-            profileSection: '#profile-section',
-            profileDetails: '#profile-section .detail-item',
-            
-            // My Information Section
-            myInfoSection: '#my-information-section',
-            myInfoDetails: '#my-information-section .detail-item',
-            
-            // My Program Section
-            myProgramSection: '#my-program-section',
-            myProgramDetails: '#my-program-section .detail-item',
-            
-            // My Schools Section
-            mySchoolsSection: '#my-schools-section',
-            mySchoolsDetails: '#my-schools-section .detail-item',
-            
-            // My High School Grades Section
-            highSchoolGradesSection: '#high-school-grades-section',
-            highSchoolGradesDetails: '#high-school-grades-section .detail-item',
-            
-            // Arizona Residency Section
-            arizonaResidencySection: '#arizona-residency-section',
-            arizonaResidencyDetails: '#arizona-residency-section .detail-item',
-            
-            // Application Affidavit
-            applicationAffidavitSection: '#application-affidavit',
-            readAffidavitLink: 'a:has-text("Read the affidavit")',
-            affidavitCheckbox: '#affidavit-checkbox',
-            
-            // Prohibition and Report Links
-            prohibitionLink: 'a:has-text("Prohibition Against Discrimination, Harassment and Retaliation")',
-            reportLink: 'a:has-text("reportit")',
-            
-            // Return to Previous Page
-            returnToPreviousButton: 'button:has-text("Return to Previous Page")',
-            
-            // User menu
-            profileIcon: '.profile-icon',
-            signOutButton: 'button:has-text("Sign Out")',
-            
-            // Login form
-            emailInput: 'input[type="email"]',
-            passwordInput: 'input[type="password"]',
-            loginButton: 'button:has-text("Log In")',
-            
-            // Submitted application status
-            submittedStatus: '.submitted-status',
-            submissionDate: '.submission-date',
-            
-            // Error messages
-            errorMessage: '.error-message',
-            validationError: '.validation-error'
+            heading: 'role=heading[name="Preview Submitted Application"][level=1]',
+            applicationIdHeading: 'role=heading[name=/^Application ID:/]',
+            downloadPdfButton: 'role=button[name="Download as PDF"]',
+            backLink: 'role=link[name="Back"]',
+            returnLink: 'role=link[name="Return to previous page"]',
+            affidavitHeading: 'role=heading[name="Application affidavit"]',
+            readAffidavitButton: 'role=button[name="Read affidavit"]',
+            certifyCheckbox: 'input[type="checkbox"]',
         };
+        this.SECTIONS = SECTIONS;
     }
-    
+
+    // ------------------------------------------------------------------ navigation
+
     /**
-     * Navigate to the Preview page
+     * Open the preview of the signed-in user's submitted application. Uses
+     * this.applicationId, else the "Your applications" card (via the post-submission
+     * dashboard page object). Falls back to "Review what you submitted" on Next steps if
+     * the direct link redirects.
      * @returns {Promise<void>}
      */
     async navigateToPreviewPage() {
-        await this.gotoApplicationStep('preview');
-        await this.page.waitForLoadState('networkidle');
+        const Dashboard = require('./PostAppSubmissionDashboardPage');
+        const dashboard = new Dashboard(this.page);
+        dashboard.applicationId = this.applicationId;
+        const id = await dashboard.getSubmittedApplicationId();
+        this.applicationId = id;
+        await this.page.goto(`/ug-app/${id}/preview`, { timeout: this.navigationTimeout });
+        await this.settle();
+        if (!/\/preview/.test(this.page.url())) {
+            this.logger.warn(`Direct link to preview landed on ${this.page.url()}; going via Next steps`);
+            await dashboard.navigateToDashboard();
+            await dashboard.clickPreviewLink();
+        }
         await this.verifyPageLoaded();
     }
-    
+
     /**
-     * Verify the Preview page is loaded
-     * @returns {Promise<boolean>} Whether the page is loaded
+     * @returns {Promise<void>}
      */
     async verifyPageLoaded() {
-        try {
-            await this.page.waitForSelector(this.selectors.pageTitle, { state: 'visible' });
-            await this.page.waitForSelector(this.selectors.previewContent, { state: 'visible' });
-            return true;
-        } catch (error) {
-            console.error('Error loading Preview page:', error);
-            return false;
-        }
+        await expect(this.page).toHaveURL(/\/ug-app\/\d+\/preview/, { timeout: this.navigationTimeout });
+        await expect(this.page.locator(this.selectors.heading)).toBeVisible({ timeout: this.navigationTimeout });
+        await expect(this.page.locator(this.selectors.applicationIdHeading)).toBeVisible({ timeout: this.navigationTimeout });
     }
-    
+
     /**
-     * Validate the Preview page content
-     * @returns {Promise<boolean>} Whether the page content is valid
+     * Header, PDF button, six sections, affidavit (certified, disabled) and links.
+     * @returns {Promise<void>}
      */
     async validatePreview() {
-        try {
-            // Check if all sections are present
-            const sections = [
-                this.selectors.profileSection,
-                this.selectors.myInfoSection,
-                this.selectors.myProgramSection,
-                this.selectors.mySchoolsSection,
-                this.selectors.highSchoolGradesSection,
-                this.selectors.arizonaResidencySection,
-                this.selectors.applicationAffidavitSection
-            ];
-            
-            for (const section of sections) {
-                await this.page.waitForSelector(section, { state: 'visible' });
-            }
-            
-            return true;
-        } catch (error) {
-            console.error('Error validating preview page:', error);
-            return false;
+        await expect(this.page.locator(this.selectors.downloadPdfButton)).toBeVisible();
+        for (const name of SECTIONS) {
+            await expect(this.sectionButton(name)).toBeVisible();
         }
+        await expect(this.page.locator(this.selectors.affidavitHeading)).toBeVisible();
+        await expect(this.page.locator(this.selectors.backLink)).toBeVisible();
+        await expect(this.page.locator(this.selectors.returnLink)).toBeVisible();
     }
-    
+
     /**
-     * Verify the Download PDF button is enabled
-     * @returns {Promise<boolean>} Whether the Download PDF button is enabled
+     * @returns {Promise<{ applicationId: string, submittedOn: string }>}
      */
-    async verifyDownloadPdfButton() {
-        try {
-            const isEnabled = await this.page.locator(this.selectors.downloadPdfButton).isEnabled();
-            console.log(`Download PDF button is ${isEnabled ? 'enabled' : 'disabled'}`);
-            return isEnabled;
-        } catch (error) {
-            console.error('Error verifying Download PDF button:', error);
-            return false;
+    async getApplicationHeader() {
+        const idText = await this.page.locator(this.selectors.applicationIdHeading).innerText();
+        const submitted = await this.page.locator('p:visible', { hasText: /Submitted on/ }).first().innerText();
+        return {
+            applicationId: (idText.match(/(\d+)/) || [])[1] || '',
+            submittedOn: submitted.replace(/^\s*Submitted on\s*/, '').trim(),
+        };
+    }
+
+    // ------------------------------------------------------------------ sections
+
+    /**
+     * @param {string} name
+     * @returns {import('@playwright/test').Locator}
+     */
+    sectionButton(name) {
+        return this.page.getByRole('button', { name, exact: true });
+    }
+
+    /**
+     * Expand a section and read its text lines in order (labels and values alternate,
+     * though labels can repeat; see getSectionValue()).
+     * @param {string} name - one of SECTIONS
+     * @returns {Promise<string[]>}
+     */
+    async getSectionLines(name) {
+        const btn = this.sectionButton(name);
+        if ((await btn.getAttribute('aria-expanded')) !== 'true') await btn.click();
+        await expect(btn).toHaveAttribute('aria-expanded', 'true', { timeout: this.assertionTimeout });
+        const panelId = await btn.getAttribute('aria-controls');
+        return this.page.evaluate((id) => {
+            const panel = id && document.getElementById(id);
+            if (!panel) return [];
+            return [...panel.querySelectorAll('p')]
+                .map((p) => (p.textContent || '').replace(/\s+/g, ' ').trim().replace(/^"(.*)"$/, '$1'))
+                .filter(Boolean);
+        }, panelId);
+    }
+
+    /**
+     * The value after the nth occurrence of a label in a section.
+     * @param {string} name
+     * @param {string} label
+     * @param {number} [nth]
+     * @returns {Promise<string|undefined>}
+     */
+    async getSectionValue(name, label, nth = 0) {
+        const lines = await this.getSectionLines(name);
+        let seen = -1;
+        for (let i = 0; i < lines.length - 1; i++) {
+            if (lines[i] === label && ++seen === nth) return lines[i + 1];
         }
+        return undefined;
     }
-    
+
+    /** @returns {Promise<string[]>} */
+    async getProfileSection() { return this.getSectionLines('Profile'); }
+
+    /** @returns {Promise<string[]>} */
+    async getMyInfoSection() { return this.getSectionLines('My information'); }
+
+    /** @returns {Promise<string[]>} */
+    async getMyProgramSection() { return this.getSectionLines('My program'); }
+
+    /** @returns {Promise<string[]>} */
+    async getMySchoolsSection() { return this.getSectionLines('My schools'); }
+
+    /** @returns {Promise<string[]>} */
+    async getHighSchoolGradesSection() { return this.getSectionLines('My high school grades'); }
+
+    /** @returns {Promise<string[]>} */
+    async getArizonaResidencySection() { return this.getSectionLines('Arizona residency'); }
+
     /**
-     * Click the Back button
-     * @returns {Promise<boolean>} Whether the back navigation was successful
+     * Program as shown: "Program" for one choice, "First choice" with a backup.
+     * @returns {Promise<string|undefined>}
      */
-    async clickBackButton() {
-        try {
-            await this.page.click(this.selectors.backButton);
-            await this.page.waitForLoadState('networkidle');
-            
-            // Verify we're not on the preview page anymore
-            const currentUrl = this.page.url();
-            return !currentUrl.includes('preview');
-        } catch (error) {
-            console.error('Error clicking back button:', error);
-            return false;
-        }
+    async getProgram() {
+        return (await this.getSectionValue('My program', 'First choice')) ?? (await this.getSectionValue('My program', 'Program'));
     }
-    
+
+    // ------------------------------------------------------------------ affidavit
+
     /**
-     * Get section details as key-value pairs
-     * @param {string} sectionSelector - The selector for the section
-     * @param {string} itemSelector - The selector for the detail items
-     * @returns {Promise<Array<{key: string, value: string}>>} Array of key-value pairs
-     */
-    async getSectionDetails(sectionSelector, itemSelector) {
-        const details = [];
-        const section = this.page.locator(sectionSelector);
-        const items = section.locator(itemSelector);
-        const count = await items.count();
-        
-        for (let i = 0; i < count; i++) {
-            const item = items.nth(i);
-            const text = await item.textContent();
-            
-            // Skip if text is null or empty
-            if (!text) continue;
-            
-            // Safely split and process the text
-            const parts = text.split(':');
-            if (parts.length < 2) continue; // Skip if no colon found
-            
-            const key = parts[0]?.trim() || '';
-            const value = parts.slice(1).join(':').trim();
-            
-            if (key && value) {
-                details.push({ key, value });
-            }
-        }
-        
-        return details;
-    }
-    
-    /**
-     * Get profile section details
-     * @returns {Promise<Array<{key: string, value: string}>>} Array of profile details
-     */
-    async getProfileSection() {
-        return this.getSectionDetails(
-            this.selectors.profileSection,
-            this.selectors.profileDetails
-        );
-    }
-    
-    /**
-     * Get my information section details
-     * @returns {Promise<Array<{key: string, value: string}>>} Array of my information details
-     */
-    async getMyInfoSection() {
-        return this.getSectionDetails(
-            this.selectors.myInfoSection,
-            this.selectors.myInfoDetails
-        );
-    }
-    
-    /**
-     * Get my program section details
-     * @returns {Promise<Array<{key: string, value: string}>>} Array of my program details
-     */
-    async getMyProgramSection() {
-        return this.getSectionDetails(
-            this.selectors.myProgramSection,
-            this.selectors.myProgramDetails
-        );
-    }
-    
-    /**
-     * Get my schools section details
-     * @returns {Promise<Array<{key: string, value: string}>>} Array of my schools details
-     */
-    async getMySchoolsSection() {
-        return this.getSectionDetails(
-            this.selectors.mySchoolsSection,
-            this.selectors.mySchoolsDetails
-        );
-    }
-    
-    /**
-     * Get high school grades section details
-     * @returns {Promise<Array<{key: string, value: string}>>} Array of high school grades details
-     */
-    async getHighSchoolGradesSection() {
-        return this.getSectionDetails(
-            this.selectors.highSchoolGradesSection,
-            this.selectors.highSchoolGradesDetails
-        );
-    }
-    
-    /**
-     * Get Arizona residency section details
-     * @returns {Promise<Array<{key: string, value: string}>>} Array of Arizona residency details
-     */
-    async getArizonaResidencySection() {
-        return this.getSectionDetails(
-            this.selectors.arizonaResidencySection,
-            this.selectors.arizonaResidencyDetails
-        );
-    }
-    
-    /**
-     * Verify application affidavit section
-     * @returns {Promise<boolean>} Whether the affidavit section is valid
+     * Affidavit heading and the certification, ticked and disabled.
+     * @returns {Promise<void>}
      */
     async verifyApplicationAffidavit() {
-        try {
-            await this.page.waitForSelector(this.selectors.applicationAffidavitSection, { state: 'visible' });
-            
-            // Check if the read affidavit link is present
-            const hasReadAffidavitLink = await this.page.locator(this.selectors.readAffidavitLink).isVisible();
-            
-            // Check if the checkbox is present
-            const hasCheckbox = await this.page.locator(this.selectors.affidavitCheckbox).isVisible();
-            
-            return hasReadAffidavitLink && hasCheckbox;
-        } catch (error) {
-            console.error('Error verifying application affidavit:', error);
-            return false;
-        }
+        await expect(this.page.locator(this.selectors.affidavitHeading)).toBeVisible();
+        await this.verifyAffidavitCheckboxDisabled();
     }
-    
+
     /**
-     * Click on the Read Affidavit link and verify it works
-     * @returns {Promise<boolean>} Whether the link works as expected
+     * "Read affidavit" expands the affidavit text inline.
+     * @returns {Promise<void>}
      */
     async clickReadAffidavitLink() {
-        try {
-            const [newPage] = await Promise.all([
-                this.page.waitForEvent('popup'),
-                this.page.click(this.selectors.readAffidavitLink)
-            ]);
-            
-            await newPage.waitForLoadState('load');
-            const url = newPage.url();
-            await newPage.close();
-            
-            // Verify the URL contains expected text
-            const isUrlValid = url.includes('affidavit') || url.includes('terms');
-            expect(isUrlValid).toBeTruthy();
-            
-            return isUrlValid;
-        } catch (error) {
-            console.error('Error with Read Affidavit link:', error);
-            return false;
-        }
+        await this.page.locator(this.selectors.readAffidavitButton).click();
+        await expect(this.page.getByText('Academic Integrity').first()).toBeVisible({ timeout: this.assertionTimeout });
     }
-    
+
     /**
-     * Verify the affidavit checkbox is disabled
-     * @returns {Promise<boolean>} Whether the checkbox is disabled
+     * The submitted certification is shown ticked and can't be changed.
+     * @returns {Promise<void>}
      */
     async verifyAffidavitCheckboxDisabled() {
-        try {
-            const isDisabled = !(await this.page.locator(this.selectors.affidavitCheckbox).isEnabled());
-            console.log(`Affidavit checkbox is ${isDisabled ? 'disabled' : 'enabled'}`);
-            return isDisabled;
-        } catch (error) {
-            console.error('Error verifying affidavit checkbox:', error);
-            return false;
-        }
+        const box = this.page.locator(this.selectors.certifyCheckbox).first();
+        await expect(box).toBeChecked();
+        await expect(box).toBeDisabled();
     }
-    
+
+    // ------------------------------------------------------------------ actions
+
     /**
-     * Click on the Return to Previous Page button
-     * @returns {Promise<boolean>} Whether the navigation was successful
+     * The PDF button is shown and enabled. (The download itself isn't automated.)
+     * @returns {Promise<void>}
+     */
+    async verifyDownloadPdfButton() {
+        await expect(this.page.locator(this.selectors.downloadPdfButton)).toBeEnabled();
+    }
+
+    /**
+     * "Back" returns to Next steps.
+     * @returns {Promise<void>}
+     */
+    async clickBackButton() {
+        await this.page.locator(this.selectors.backLink).click();
+        await this.page.waitForURL(/\/ug-app\/\d+\/dashboard/, { timeout: this.navigationTimeout });
+    }
+
+    /**
+     * "Return to previous page" returns to Next steps.
+     * @returns {Promise<void>}
      */
     async clickReturnToPreviousPage() {
-        try {
-            await this.page.click(this.selectors.returnToPreviousButton);
-            await this.page.waitForLoadState('networkidle');
-            
-            // Verify we're not on the preview page anymore
-            const currentUrl = this.page.url();
-            return !currentUrl.includes('preview');
-        } catch (error) {
-            console.error('Error clicking Return to Previous Page button:', error);
-            return false;
-        }
+        await this.page.locator(this.selectors.returnLink).click();
+        await this.page.waitForURL(/\/ug-app\/\d+\/dashboard/, { timeout: this.navigationTimeout });
     }
-    
+
     /**
-     * Sign out from the application
-     * @returns {Promise<boolean>} Whether the sign out was successful
+     * Flow specs called this when Preview came before submission. It now only exists
+     * after submission, so this fails clearly; submit from Review (ReviewPage).
+     * @returns {Promise<never>}
      */
-    async signOut() {
-        try {
-            await this.page.click(this.selectors.profileIcon);
-            await this.page.click(this.selectors.signOutButton);
-            await this.page.waitForLoadState('networkidle');
-            
-            // Verify we're on the login page or home page
-            const currentUrl = this.page.url();
-            return currentUrl.includes('login') || currentUrl.endsWith('/');
-        } catch (error) {
-            console.error('Error signing out:', error);
-            return false;
-        }
-    }
-    
-    /**
-     * Log in to the application
-     * @param {string} email - The email to log in with
-     * @param {string} password - The password to log in with
-     * @returns {Promise<boolean>} Whether the login was successful
-     */
-    /**
-     * Log in to the application
-     * @param {string} email - User email
-     * @param {string} password - User password
-     * @returns {Promise<boolean>} True if login is successful, false otherwise
-     */
-    async login(email, password) {
-        try {
-            await this.page.fill(this.selectors.emailInput, email);
-            await this.page.fill(this.selectors.passwordInput, password);
-            await this.page.click(this.selectors.loginButton);
-            await this.page.waitForLoadState('networkidle');
-            
-            // Verify we're logged in by checking for the profile icon
-            const isLoggedIn = await this.page.locator(this.selectors.profileIcon).isVisible();
-            return isLoggedIn;
-        } catch (error) {
-            console.error('Error logging in:', error);
-            return false;
-        }
-    }
-    
-    /**
-     * Compare data from the preview page with expected data from an Excel file
-     * @param {string} filePath - Path to the Excel file
-     * @param {string} sheetName - Name of the sheet containing expected data
-     * @param {string} section - The section to compare (profile, myInfo, myProgram, etc.)
-     * @returns {Promise<{matches: Array<{key: string, expected: string, actual: string}>, mismatches: Array<{key: string, expected: string, actual: string}>}>} Comparison results
-     */
-    async compareWithExcel(filePath, sheetName, section) {
-        // Get the actual data from the page
-        let actualData;
-        
-        switch (section.toLowerCase()) {
-            case 'profile':
-                actualData = await this.getProfileSection();
-                break;
-            case 'myinfo':
-                actualData = await this.getMyInfoSection();
-                break;
-            case 'myprogram':
-                actualData = await this.getMyProgramSection();
-                break;
-            case 'myschools':
-                actualData = await this.getMySchoolsSection();
-                break;
-            case 'highschoolgrades':
-                actualData = await this.getHighSchoolGradesSection();
-                break;
-            case 'arizonaresidency':
-                actualData = await this.getArizonaResidencySection();
-                break;
-            default:
-                throw new Error(`Unsupported section: ${section}`);
-        }
-        
-        // Read expected data from Excel
-        const workbook = XLSX.readFile(filePath);
-        const worksheet = workbook.Sheets[sheetName];
-        const expectedData = XLSX.utils.sheet_to_json(worksheet, { header: ['key', 'value'] });
-        
-        // Convert actual data to a map for easier comparison
-        const actualMap = new Map();
-        for (const item of actualData) {
-            actualMap.set(item.key, item.value);
-        }
-        
-        // Compare the data
-        const matches = [];
-        const mismatches = [];
-        
-        for (const expectedItem of expectedData) {
-            const key = expectedItem.key;
-            const expectedValue = expectedItem.value;
-            const actualValue = actualMap.get(key);
-            
-            if (actualValue === expectedValue) {
-                matches.push({ key, expected: expectedValue, actual: actualValue });
-            } else {
-                mismatches.push({ key, expected: expectedValue, actual: actualValue });
-            }
-        }
-        
-        return { matches, mismatches };
-    }
-    
-    /**
-     * Compare data between review and preview pages using Excel files
-     * @param {string} reviewFilePath - Path to the Excel file with review data
-     * @param {string} previewFilePath - Path to the Excel file with preview data
-     * @param {string} reviewSheet - Name of the sheet with review data
-     * @param {string} previewSheet - Name of the sheet with preview data
-     * @returns {Promise<{matches: Array<{key: string, review: string, preview: string}>, mismatches: Array<{key: string, review: string, preview: string}>}>} Comparison results
-     */
-    async compareReviewAndPreview(reviewFilePath, previewFilePath, reviewSheet = 'ReviewPageData', previewSheet = 'PreviewPageData') {
-        try {
-            // Read review data
-            const reviewWorkbook = XLSX.readFile(reviewFilePath);
-            const reviewWorksheet = reviewWorkbook.Sheets[reviewSheet];
-            const reviewData = XLSX.utils.sheet_to_json(reviewWorksheet, { header: ['key', 'value'] });
-            
-            // Read preview data
-            const previewWorkbook = XLSX.readFile(previewFilePath);
-            const previewWorksheet = previewWorkbook.Sheets[previewSheet];
-            const previewData = XLSX.utils.sheet_to_json(previewWorksheet, { header: ['key', 'value'] });
-            
-            // Convert to maps for easier comparison
-            const reviewMap = new Map();
-            const previewMap = new Map();
-            
-            for (const item of reviewData) {
-                if (item.key) {
-                    reviewMap.set(item.key, item.value || '');
-                }
-            }
-            
-            for (const item of previewData) {
-                if (item.key) {
-                    previewMap.set(item.key, item.value || '');
-                }
-            }
-            
-            // Compare the data
-            const allKeys = new Set([...reviewMap.keys(), ...previewMap.keys()]);
-            const matches = [];
-            const mismatches = [];
-            
-            for (const key of allKeys) {
-                const reviewValue = reviewMap.get(key) || '';
-                const previewValue = previewMap.get(key) || '';
-                
-                if (reviewValue === previewValue) {
-                    matches.push({ key, review: reviewValue, preview: previewValue });
-                } else {
-                    mismatches.push({ key, review: reviewValue, preview: previewValue });
-                }
-            }
-            
-            return { matches, mismatches };
-        } catch (error) {
-            console.error('Error comparing review and preview data:', error);
-            throw error;
-        }
+    async submitApplication() {
+        throw new Error('PreviewPage.submitApplication: Preview is post-submission now; submit from Review (ReviewPage.submitApplication)');
     }
 }
 
