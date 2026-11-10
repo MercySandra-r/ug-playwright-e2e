@@ -18,12 +18,13 @@ class LoginPage extends BasePage {
             emailInput: 'input[name="email"]', // Legacy selector - use getByRole in methods
             passwordInput: 'input[name="password"]', // Legacy selector - use getByRole in methods
             loginButton: 'button:has-text("Log In")', // Legacy selector - use getByRole in methods
-            loginWithAsuriteButton: 'button:has-text("Log In with ASURITE")',
-            
-            // Error Messages
+            // IdP landing option; a <button> whose name comes from its text.
+            loginWithAsuriteButton: 'button:has-text("Sign In with ASURITE ID")',
+
+            // Error Messages (IdP wording, verified live 2026-11-10)
             emailNotFoundError: 'text=Email not found',
-            invalidEmailFormatError: 'text=Invalid email format', // Legacy selector - use getByText in methods
-            incorrectCredentialsError: 'text=Incorrect email or password',
+            invalidEmailFormatError: 'text=Please enter a valid email address',
+            incorrectCredentialsError: 'text=Incorrect username or password',
             
             // Page Elements
             pageTitle: 'h1',
@@ -63,16 +64,39 @@ class LoginPage extends BasePage {
      * @returns {Promise<void>}
      */
     async clickLogin() {
-        await this.page.getByRole('button', { name: 'Sign in', exact: true }).click();
+        await this.signInButton().click();
         await this.page.waitForLoadState('networkidle');
     }
 
     /**
-     * Click the "Log In with ASURITE" button
+     * The IdP email form's submit button (disabled until the form is valid).
+     * @returns {import('@playwright/test').Locator}
+     */
+    signInButton() {
+        return this.page.getByRole('button', { name: 'Sign in', exact: true });
+    }
+
+    /**
+     * Focus and leave the empty Email and Password fields so the IdP shows its
+     * "is required" messages (the disabled Sign in button can't be clicked).
+     * @returns {Promise<void>}
+     */
+    async touchEmptyFields() {
+        await this.page.getByRole('textbox', { name: 'Email', exact: true }).click();
+        await this.page.getByRole('textbox', { name: 'Password', exact: true }).click();
+        await this.page.getByRole('textbox', { name: 'Email', exact: true }).click();
+    }
+
+    /**
+     * Click "Sign In with ASURITE ID". It lives on the IdP landing page, so step back
+     * from the email form first if needed.
      * @returns {Promise<void>}
      */
     async clickLoginWithAsurite() {
-        await this.page.click(this.selectors.loginWithAsuriteButton);
+        if (/email-password-login/.test(this.page.url())) {
+            await this.page.getByRole('link', { name: 'Back to other sign in options' }).click();
+        }
+        await this.page.locator(this.selectors.loginWithAsuriteButton).click();
         await this.page.waitForLoadState('networkidle');
     }
 
@@ -109,7 +133,9 @@ class LoginPage extends BasePage {
      * @returns {Promise<boolean>}
      */
     async isInvalidEmailFormatErrorVisible() {
-        return await this.page.getByText('Invalid email.').isVisible();
+        return this.page.locator(this.selectors.invalidEmailFormatError).first()
+            .waitFor({ state: 'visible', timeout: this.assertionTimeout })
+            .then(() => true).catch(() => false);
     }
 
     /**
@@ -117,7 +143,10 @@ class LoginPage extends BasePage {
      * @returns {Promise<boolean>}
      */
     async isIncorrectCredentialsErrorVisible() {
-        return await this.page.isVisible(this.selectors.incorrectCredentialsError);
+        // The IdP answers after a server round-trip, so wait rather than check once.
+        return this.page.locator(this.selectors.incorrectCredentialsError).first()
+            .waitFor({ state: 'visible', timeout: 20000 })
+            .then(() => true).catch(() => false);
     }
 
     /**

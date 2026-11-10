@@ -74,6 +74,13 @@ async function signUpVerifiedAccount(page, opts = {}) {
                 logger.warn(`${email} rejected ("${formError}"); trying next sequence number`);
                 continue;
             }
+            if (/too many|limit|exceeded/i.test(formError)) {
+                // The IdP caps account creation per hour; retrying now only burns attempts.
+                throw new Error(
+                    `IdP sign-up rate limit hit for ${email}: "${formError}". ` +
+                    'Wait about an hour before creating more accounts.'
+                );
+            }
             throw new Error(`IdP rejected sign-up for ${email}: "${formError}"`);
         }
 
