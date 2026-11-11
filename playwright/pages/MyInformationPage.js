@@ -288,25 +288,31 @@ class MyInformationPage extends BasePage {
      * Answer U.S. citizenship.
      *
      * Citizen: also sets country of birth. The app then REQUIRES a Social Security
-     * Number, which this page object never fills: automation must not type SSNs into
-     * this site. A citizen run can only complete the step if the tester enters a
-     * designated test SSN themselves.
+     * Number (SSN + confirm). The SSN is filled ONLY from the TEST_SSN environment
+     * variable (or an explicit `ssn`), which the tester sets themselves for test data,
+     * e.g. TEST_SSN=111111111 for the duplicate-application check. It is never
+     * hard-coded; with no value the boxes are left empty and the step can't complete.
      *
      * Not a citizen: sets the visa type (first option if none given). The visa then
      * reveals two required dropdowns, country of citizenship and country of birth, plus
      * an optional "Social Security Number (if applicable)" that is left empty.
      *
      * @param {{ isUsCitizen: boolean|string, countryOfBirth?: string,
-     *           countryOfCitizenship?: string, visaType?: string }} data
-     * @returns {Promise<{ visaType?: string }>}
+     *           countryOfCitizenship?: string, visaType?: string, ssn?: string }} data
+     * @returns {Promise<{ visaType?: string, ssnFilled?: boolean }>}
      */
-    async selectCitizenshipStatus({ isUsCitizen, countryOfBirth, countryOfCitizenship = 'Canada', visaType }) {
+    async selectCitizenshipStatus({ isUsCitizen, countryOfBirth, countryOfCitizenship = 'Canada', visaType, ssn = process.env.TEST_SSN }) {
         const citizen = MyInformationPage.toBool(isUsCitizen);
         if (citizen) {
             await this.page.getByRole('radio', { name: 'I am a U.S. citizen', exact: true }).click();
             await this.chooseFromDropdown(this.selectors.birthCountry, countryOfBirth || 'United States');
-            this.logger.warn('U.S. citizen selected: the required SSN is left empty by design');
-            return {};
+            const digits = (ssn || '').replace(/\D/g, '');
+            if (!digits) {
+                this.logger.warn('U.S. citizen selected: no TEST_SSN set, so the required SSN is left empty');
+                return { ssnFilled: false };
+            }
+            await this.fillSocialSecurityNumber(digits);
+            return { ssnFilled: true };
         }
         await this.page.getByRole('radio', { name: 'I am not a U.S. citizen', exact: true }).click();
         const visa = this.page.getByRole('combobox', { name: 'What type of visa will you be holding?' });
@@ -327,6 +333,27 @@ class MyInformationPage extends BasePage {
             await this.chooseFromDropdown(this.selectors.birthCountry, countryOfBirth || countryOfCitizenship);
         }
         return { visaType: chosen };
+    }
+
+    /**
+     * Type a tester-provided test SSN into both boxes (SSN and confirm). Both inputs
+     * share the id social_security_number. Values come from TEST_SSN; see
+     * selectCitizenshipStatus(). The boxes format as XXX-XX-XXXX, so digits are typed.
+     * @param {string} digits - 9 digits, e.g. "111111111"
+     * @returns {Promise<void>}
+     */
+    async fillSocialSecurityNumber(digits) {
+        if (!/^\d{9}$/.test(digits)) throw new Error('TEST_SSN must be 9 digits');
+        const boxes = this.page.locator('input#social_security_number');
+        await boxes.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        for (let i = 0; i < await boxes.count(); i++) {
+            const box = boxes.nth(i);
+            await box.click();
+            await box.press('Control+A');
+            await box.press('Backspace');
+            await box.pressSequentially(digits, { delay: 40 });
+        }
+        await boxes.last().blur();
     }
 
     /**
