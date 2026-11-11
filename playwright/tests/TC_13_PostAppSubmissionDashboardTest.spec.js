@@ -10,6 +10,9 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
  * SUBMITTED_TEST_EMAIL / SUBMITTED_TEST_PASSWORD. This suite never submits anything
  * itself (submission is irreversible; see TC_12 and REVIEW_ALLOW_SUBMIT). The page is
  * informational, so every test is read-only; external links are checked, not visited.
+ *
+ * POM: every element comes from PostAppSubmissionDashboardPage (its selectors, locator
+ * methods and read-back methods); this spec has no locators of its own.
  */
 test.describe('Post-Application Submission Dashboard Tests', () => {
     test.describe.configure({ mode: 'serial', timeout: 120000 });
@@ -104,7 +107,7 @@ test.describe('Post-Application Submission Dashboard Tests', () => {
     });
 
     test('Submitted application can no longer be edited', async () => {
-        await page.goto(`/ug-app/${dashboard.applicationId}/my-information`);
+        await dashboard.gotoApplicationStep('my-information');
         await dashboard.verifyPageLoaded(); // redirected back to Next steps
     });
 
@@ -112,8 +115,7 @@ test.describe('Post-Application Submission Dashboard Tests', () => {
         await page.setViewportSize({ width: 375, height: 812 });
         try {
             await freshPage();
-            await expect(page.locator(dashboard.selectors.summaryHeading)).toBeVisible();
-            await expect(page.locator(dashboard.selectors.helpRegion)).toBeVisible();
+            await dashboard.verifySummaryAndHelpVisible();
         } finally {
             await page.setViewportSize({ width: 1280, height: 720 });
         }
@@ -121,10 +123,6 @@ test.describe('Post-Application Submission Dashboard Tests', () => {
 
     test('Verify basic accessibility of the dashboard page', async () => {
         await freshPage();
-        await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
-        const unnamed = await page.getByRole('link').evaluateAll((links) =>
-            links.filter((a) => (a instanceof HTMLElement) && a.offsetParent !== null
-                && !(a.getAttribute('aria-label') || a.textContent || '').trim()).length);
-        expect(unnamed).toBe(0);
+        expect(await dashboard.getAccessibilitySummary()).toEqual({ h1Count: 1, unnamedControls: 0 });
     });
 });

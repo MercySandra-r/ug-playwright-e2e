@@ -228,6 +228,20 @@ class BasePage {
   }
 
   /**
+   * Basic accessibility facts: how many h1 headings, and how many visible controls
+   * (matched by `controlsSelector`) have no accessible text.
+   * @param {string} [controlsSelector] - e.g. 'role=link' or 'main a, main button'
+   * @returns {Promise<{ h1Count: number, unnamedControls: number }>}
+   */
+  async getBasicAccessibility(controlsSelector = 'a, button') {
+    const h1Count = await this.page.locator('role=heading[level=1]').count();
+    const unnamedControls = await this.page.locator(controlsSelector).evaluateAll((els) =>
+      els.filter((e) => (e instanceof HTMLElement) && e.offsetParent !== null
+        && !(e.getAttribute('aria-label') || e.textContent || '').trim()).length);
+    return { h1Count, unnamedControls };
+  }
+
+  /**
    * Get the current URL
    * @returns {string} Current URL
    */

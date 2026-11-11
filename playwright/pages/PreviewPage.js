@@ -17,6 +17,10 @@ const SECTIONS = ['Profile', 'My information', 'My program', 'My schools', 'My h
  *  - Application affidavit: "Read affidavit" expands the text inline; the certify
  *    checkbox is shown ticked and disabled
  * downloadPdf is deliberately not automated; tests only check the button.
+ *
+ * POM rule for this page: every element is declared here. Fixed elements are named in
+ * `this.selectors`; a section's disclosure button comes from sectionButton(). Specs use
+ * these names and the read-back methods, never their own locators.
  */
 class PreviewPage extends BasePage {
     /**
@@ -34,6 +38,10 @@ class PreviewPage extends BasePage {
             affidavitHeading: 'role=heading[name="Application affidavit"]',
             readAffidavitButton: 'role=button[name="Read affidavit"]',
             certifyCheckbox: 'input[type="checkbox"]',
+            affidavitText: 'text=Academic Integrity',
+            submittedOnLine: 'p:visible:has-text("Submitted on")',
+            // Controls checked for accessible names.
+            mainControls: 'main a, main button',
         };
         this.SECTIONS = SECTIONS;
     }
@@ -91,7 +99,7 @@ class PreviewPage extends BasePage {
      */
     async getApplicationHeader() {
         const idText = await this.page.locator(this.selectors.applicationIdHeading).innerText();
-        const submitted = await this.page.locator('p:visible', { hasText: /Submitted on/ }).first().innerText();
+        const submitted = await this.page.locator(this.selectors.submittedOnLine).first().innerText();
         return {
             applicationId: (idText.match(/(\d+)/) || [])[1] || '',
             submittedOn: submitted.replace(/^\s*Submitted on\s*/, '').trim(),
@@ -187,7 +195,7 @@ class PreviewPage extends BasePage {
      */
     async clickReadAffidavitLink() {
         await this.page.locator(this.selectors.readAffidavitButton).click();
-        await expect(this.page.getByText('Academic Integrity').first()).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page.locator(this.selectors.affidavitText).first()).toBeVisible({ timeout: this.assertionTimeout });
     }
 
     /**
@@ -226,6 +234,23 @@ class PreviewPage extends BasePage {
     async clickReturnToPreviousPage() {
         await this.page.locator(this.selectors.returnLink).click();
         await this.page.waitForURL(/\/ug-app\/\d+\/dashboard/, { timeout: this.navigationTimeout });
+    }
+
+    /**
+     * The PDF button and the first section are shown (used for the phone-size check).
+     * @returns {Promise<void>}
+     */
+    async verifyKeyContentVisible() {
+        await expect(this.page.locator(this.selectors.downloadPdfButton)).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.sectionButton(SECTIONS[0])).toBeVisible({ timeout: this.assertionTimeout });
+    }
+
+    /**
+     * Basic accessibility of the preview: one h1, no visible link/button without a name.
+     * @returns {Promise<{ h1Count: number, unnamedControls: number }>}
+     */
+    async getAccessibilitySummary() {
+        return this.getBasicAccessibility(this.selectors.mainControls);
     }
 
     /**

@@ -11,6 +11,9 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
  * SUBMITTED_TEST_PASSWORD (an account with a submitted application, created through the
  * journey defaults). Read-only: the PDF is not downloaded, nothing is submitted.
  * The old Excel comparison tests are replaced by a live comparison with Next steps.
+ *
+ * POM: every element comes from PreviewPage / PostAppSubmissionDashboardPage (their
+ * selectors, locator methods and read-back methods); this spec has no locators of its own.
  */
 test.describe('Preview Page Tests', () => {
     test.describe.configure({ mode: 'serial', timeout: 120000 });
@@ -63,7 +66,7 @@ test.describe('Preview Page Tests', () => {
     test('Verify Back button functionality', async () => {
         await freshPage();
         await previewPage.clickBackButton();
-        await expect(page.getByRole('heading', { name: 'Next steps', level: 1 })).toBeVisible();
+        await new PostAppSubmissionDashboardPage(page).verifyPageLoaded();
     });
 
     test('Verify Profile section details', async () => {
@@ -127,15 +130,14 @@ test.describe('Preview Page Tests', () => {
     test('Verify Return to Previous Page functionality', async () => {
         await freshPage();
         await previewPage.clickReturnToPreviousPage();
-        await expect(page.getByRole('heading', { name: 'Next steps', level: 1 })).toBeVisible();
+        await new PostAppSubmissionDashboardPage(page).verifyPageLoaded();
     });
 
     test('Verify responsive design on a phone viewport', async () => {
         await page.setViewportSize({ width: 375, height: 812 });
         try {
             await freshPage();
-            await expect(page.locator(previewPage.selectors.downloadPdfButton)).toBeVisible();
-            await expect(previewPage.sectionButton('Profile')).toBeVisible();
+            await previewPage.verifyKeyContentVisible();
         } finally {
             await page.setViewportSize({ width: 1280, height: 720 });
         }
@@ -143,10 +145,6 @@ test.describe('Preview Page Tests', () => {
 
     test('Verify basic accessibility of the preview page', async () => {
         await freshPage();
-        await expect(page.getByRole('heading', { level: 1 })).toHaveCount(1);
-        const unnamed = await page.locator('main a, main button').evaluateAll((els) =>
-            els.filter((e) => (e instanceof HTMLElement) && e.offsetParent !== null
-                && !(e.getAttribute('aria-label') || e.textContent || '').trim()).length);
-        expect(unnamed).toBe(0);
+        expect(await previewPage.getAccessibilitySummary()).toEqual({ h1Count: 1, unnamedControls: 0 });
     });
 });
