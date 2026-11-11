@@ -3,6 +3,7 @@ const AsuIdpPage = require('../pages/AsuIdpPage');
 const GmailUtils = require('./integrations/gmailUtils');
 const { nextSignupEmail } = require('./emailSequence');
 const { logger } = require('./testLogger');
+const { recordAccount, noteSignedIn } = require('./accountLog');
 
 /**
  * Has this inbox ever received mail for `email`? If so the address was already
@@ -101,6 +102,8 @@ async function signUpVerifiedAccount(page, opts = {}) {
         }
 
         await idp.waitForAppRedirect();
+        // Add it to artifacts/accounts/accounts.xlsx (never the password).
+        await recordAccount(page, email);
         return { email, password };
     }
     throw new Error(`Sign-up failed after ${maxAttempts} attempts`);
@@ -120,6 +123,7 @@ async function signInExistingAccount(page, email, password) {
     const formError = await idp.getFormError(5000);
     if (formError) throw new Error(`IdP rejected sign-in for ${email}: "${formError}"`);
     await idp.waitForAppRedirect();
+    noteSignedIn(page, email);
 }
 
 module.exports = { signUpVerifiedAccount, signInExistingAccount, reserveFreshEmail };

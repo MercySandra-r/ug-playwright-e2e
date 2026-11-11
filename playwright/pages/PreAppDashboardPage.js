@@ -499,6 +499,7 @@ class PreAppDashboardPage extends BasePage {
         const match = this.page.url().match(/\/ug-app\/(\d+)\//);
         if (!match) throw new Error(`Application did not start; at ${this.page.url()}`);
         this.logger.info(`Started application ${match[1]}`);
+        await require('../utils/accountLog').recordApplication(this.page, match[1]);
         return match[1];
     }
 
