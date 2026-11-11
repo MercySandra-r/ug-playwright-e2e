@@ -301,6 +301,25 @@ class ReviewPage extends BasePage {
     // ------------------------------------------------------------------ submission (irreversible)
 
     /**
+     * Click "Submit application" BEFORE certifying and capture the validation it shows.
+     * Safety: refuses unless the certification checkbox is unticked, so the click can't
+     * submit; throws if the page leaves Review anyway.
+     * @returns {Promise<Array<{ field: string, message: string }>>}
+     */
+    async captureSubmitValidations() {
+        const box = this.page.locator(this.selectors.certifyCheckbox);
+        await expect(box).toBeVisible({ timeout: this.assertionTimeout });
+        if (await box.isChecked()) {
+            throw new Error('captureSubmitValidations: the certification is ticked, so Submit would submit; not clicking');
+        }
+        return this.captureFieldValidations({
+            stepName: 'Review (Submit application)',
+            button: this.page.locator(this.selectors.submitButton),
+            allowSubmitPage: true,
+        });
+    }
+
+    /**
      * IRREVERSIBLE: click "Submit application". Certifies the affidavit and chooses
      * "Pay later" first unless told not to. Callers must gate this explicitly.
      * @param {{ certify?: boolean, paymentOption?: 'now'|'later'|null }} [options]

@@ -51,6 +51,14 @@ test.describe('Review Page Tests', () => {
         await reviewPage.validateReview();
     });
 
+    test('Submit application before certifying shows field validations', async () => {
+        await freshPage();
+        // Refuses to click unless the certification is unticked, so nothing is submitted.
+        const errors = await reviewPage.captureSubmitValidations();
+        expect(errors.length, 'Submit with nothing certified should flag at least one field').toBeGreaterThan(0);
+        await expect(page).toHaveURL(/\/review/);
+    });
+
     test('Verify Profile section details', async () => {
         await freshPage();
         expect(await reviewPage.getSectionValue('Profile', 'Legal name')).toBe('Qa Automation');
@@ -127,16 +135,6 @@ test.describe('Review Page Tests', () => {
         await reviewPage.selectPaymentMethod('Pay later');
         await expect(page.locator(reviewPage.selectors.payLater)).toHaveAttribute('aria-checked', 'true');
         await expect(page.locator(reviewPage.selectors.payNow)).toHaveAttribute('aria-checked', 'false');
-    });
-
-    test('Verify error message when submitting without certifying', async () => {
-        test.skip(!allowSubmit, 'Clicks Submit application; set REVIEW_ALLOW_SUBMIT=1 to run');
-        await freshPage();
-        await reviewPage.certifyAffidavit(false);
-        await reviewPage.selectPaymentMethod('later');
-        await page.locator(reviewPage.selectors.submitButton).click();
-        await expect(page.getByText(/required|certify|must/i).first()).toBeVisible();
-        await expect(page).toHaveURL(/\/review/);
     });
 
     test('Submit application (Pay later)', async () => {

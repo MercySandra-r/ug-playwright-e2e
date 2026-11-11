@@ -124,6 +124,110 @@ class BasePage {
   }
 
   /**
+   * On a form that hasn't been filled in yet, click its submit button (by default the
+   * wizard footer's "Continue" / "Save and Continue") and capture the field-level
+   * validation messages it shows. The page must stay put; if it moves on, nothing was
+   * required and this throws.
+   *
+   * Refuses to run on Review and Preview, where the footer button submits the application,
+   * unless `allowSubmitPage` is set by a caller that has made sure it can't submit
+   * (ReviewPage.captureSubmitValidations checks the certification is unticked).
+   * Inside a test, the list and a full-page screenshot are attached to the report.
+   *
+   * @param {{ stepName?: string, button?: Locator, allowSubmitPage?: boolean, reload?: boolean }} [options]
+   *   stepName: name used in the log and report attachments; button: the submit button to click;
+   *   reload: reload the page afterwards so filling starts from a clean form (default: on wizard
+   *   steps, i.e. when no custom button is given)
+   * @returns {Promise<Array<{ field: string, message: string }>>}
+   */
+  async captureFieldValidations({ stepName, button, allowSubmitPage = false, reload = !button } = {}) {
+    const url = this.page.url();
+    const name = stepName || (url.match(/\/ug-app\/\d+\/([\w-]+)/)?.[1] ?? 'step');
+    if (!allowSubmitPage && /\/ug-app\/\d+\/(review|preview)\b/.test(url)) {
+      throw new Error(`captureFieldValidations: not allowed on ${url} (the footer button submits the application)`);
+    }
+    const errorSelector = '.invalid-feedback:visible, .radio-card-error:visible, [role="alert"]:visible, .alert-danger:visible';
+
+    await (button || this.page.locator('button[type="submit"][form="page-form"]')).click();
+    await this.page.locator(errorSelector).first().waitFor({ state: 'visible', timeout: this.assertionTimeout })
+      .catch(() => {});
+    await this.page.waitForTimeout(500); // let every field render its message
+    if (this.page.url() !== url) {
+      throw new Error(`captureFieldValidations: ${name} moved on to ${this.page.url()} instead of showing validation`);
+    }
+
+    const errors = await this.page.evaluate(() => {
+      /** @param {string|null|undefined} s */
+      const clean = (s) => (s || '').replace(/\s+/g, ' ').trim();
+      /** @param {Element} el */
+      const visible = (el) => el instanceof HTMLElement && el.getClientRects().length > 0;
+      /**
+       * First line of an element's rendered text: a label's heading without its help text.
+       * @param {Element|null|undefined} node
+       */
+      const firstLine = (node) => {
+        if (!node) return '';
+        const text = node instanceof HTMLElement ? node.innerText : node.textContent || '';
+        return clean(text.split('\n').find((line) => line.trim()) || '');
+      };
+      const labelSelector = 'label.form-label .label-text, label.form-label, legend, label.m-checkbox';
+      /** @param {Element} el @param {string} message */
+      const fieldOf = (el, message) => {
+        for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
+          if (p.matches('[role="radiogroup"]')) {
+            const ids = (p.getAttribute('aria-labelledby') || '').split(/\s+/).filter(Boolean);
+            const text = ids.length ? firstLine(document.getElementById(ids[0])) : clean(p.getAttribute('aria-label'));
+            const field = text.replace(message, '').trim();
+            if (field) return field;
+          }
+          // The closest label above the message inside this container.
+          const before = [...p.querySelectorAll(labelSelector)]
+            .filter((l) => !l.contains(el) && (l.compareDocumentPosition(el) & Node.DOCUMENT_POSITION_FOLLOWING));
+          const label = before[before.length - 1];
+          if (label) {
+            const field = firstLine(label).replace(message, '').trim();
+            if (field) return field;
+          }
+        }
+        return '(unlabelled field)';
+      };
+      const seen = new Set();
+      const out = [];
+      // Field errors, plus page-level banners such as My program's "Please select a first choice program."
+      for (const el of document.querySelectorAll('.invalid-feedback, .radio-card-error, [role="alert"], .alert-danger')) {
+        if (!visible(el)) continue;
+        const banner = !el.matches('.invalid-feedback, .radio-card-error');
+        if (banner && el.querySelector('.invalid-feedback, .radio-card-error')) continue;
+        const message = clean(el instanceof HTMLElement ? el.innerText : el.textContent);
+        if (!message) continue;
+        const field = banner ? '(page message)' : fieldOf(el, message);
+        const key = `${field}|${message}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push({ field: field.length > 120 ? `${field.slice(0, 117)}...` : field, message });
+      }
+      return out;
+    });
+
+    this.logger.info(`${name}: ${errors.length} field validation message(s) on an empty submit`);
+    errors.forEach((e) => this.logger.info(`  ${e.field}: ${e.message}`));
+    try {
+      const info = require('@playwright/test').test.info();
+      await info.attach(`${name} - field validations.json`, { body: JSON.stringify(errors, null, 2), contentType: 'application/json' });
+      await info.attach(`${name} - field validations.png`, { body: await this.page.screenshot({ fullPage: true }), contentType: 'image/png' });
+    } catch {
+      // not running inside a test
+    }
+    if (reload) {
+      // Start the fill from a clean form: nothing was saved, and the empty submit can leave
+      // fields (e.g. My information's home address) in a state that doesn't save properly.
+      await this.page.reload({ timeout: this.navigationTimeout });
+      await this.page.locator('button[type="submit"][form="page-form"]').waitFor({ state: 'visible', timeout: this.navigationTimeout });
+    }
+    return errors;
+  }
+
+  /**
    * Get the current URL
    * @returns {string} Current URL
    */
