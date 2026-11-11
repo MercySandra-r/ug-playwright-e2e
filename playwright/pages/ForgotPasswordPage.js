@@ -178,9 +178,10 @@ class ForgotPasswordPage extends BasePage {
      * @returns {Promise<void>}
      */
     async resetPasswordViaEmail(email, newPassword) {
-        const GmailUtils = require('../utils/integrations/gmailUtils');
-        const gmail = new GmailUtils();
-        await gmail.initialize();
+        const { inboxForEmail, gmailFor } = require('../utils/inboxes');
+        const inbox = inboxForEmail(email);
+        if (!inbox) throw new Error(`${email} is not on an inbox configured in .env (GMAIL_TEST_ADDRESS, _2, ...)`);
+        const gmail = await gmailFor(inbox);
         // Emails already there (an earlier reset) must not be mistaken for the new one.
         const excludeIds = await gmail.messageIdsTo(email);
         const since = new Date();

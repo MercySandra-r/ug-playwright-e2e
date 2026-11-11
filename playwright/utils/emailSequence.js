@@ -70,10 +70,12 @@ function nextSequenceNumber() {
 
 /**
  * Build the next sequential sign-up address, e.g. ugnaaqaautomation1+asuqa0007@gmail.com.
+ * @param {string} [inboxAddress] - the inbox to tag (default GMAIL_TEST_ADDRESS). The number
+ *   sequence is shared by all inboxes.
  * @returns {{ email: string, sequence: number }}
  */
-function nextSignupEmail() {
-    const base = process.env.GMAIL_TEST_ADDRESS;
+function nextSignupEmail(inboxAddress) {
+    const base = inboxAddress || process.env.GMAIL_TEST_ADDRESS;
     if (!base || !base.includes('@')) {
         throw new Error('GMAIL_TEST_ADDRESS must be set to a real Gmail inbox (e.g. you@gmail.com)');
     }
