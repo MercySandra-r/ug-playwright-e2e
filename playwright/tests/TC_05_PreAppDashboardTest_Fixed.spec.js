@@ -1,5 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
+const { screenshotPath } = require('../utils/artifactPaths');
 const { faker } = require('@faker-js/faker');
 const LoginPage = require('../pages/LoginPage');
 const PreAppDashboardPage = require('../pages/PreAppDashboardPage');
@@ -75,7 +76,7 @@ test.describe('Pre-Application Dashboard Tests', () => {
         
         if (!setupSuccess) {
             // Take a screenshot for debugging
-            await page.screenshot({ path: `debug-beforeEach-failed-${Date.now()}.png`, fullPage: true });
+            await page.screenshot({ path: screenshotPath(`debug-beforeEach-failed-${Date.now()}.png`), fullPage: true });
             throw new Error('Failed to set up user account in beforeEach');
         }
         
@@ -427,7 +428,7 @@ test.describe('Pre-Application Dashboard Tests', () => {
         }
 
         // Take a screenshot of the filled form
-        await dashboardPage.page.screenshot({ path: `personal-info-form-filled-${Date.now()}.png`, fullPage: true });
+        await dashboardPage.page.screenshot({ path: screenshotPath(`personal-info-form-filled-${Date.now()}.png`), fullPage: true });
         console.log('✓ Screenshot taken of filled form');
 
         // Wait a moment for the button to become enabled
@@ -449,7 +450,7 @@ test.describe('Pre-Application Dashboard Tests', () => {
                 console.log('⚠️ "Start new application" button is still disabled');
                 
                 // Take screenshot for debugging
-                await dashboardPage.page.screenshot({ path: `button-disabled-${Date.now()}.png`, fullPage: true });
+                await dashboardPage.page.screenshot({ path: screenshotPath(`button-disabled-${Date.now()}.png`), fullPage: true });
             }
         } catch (error) {
             console.log(`⚠️ Could not click "Start new application" button: ${error.message}`);
@@ -550,7 +551,7 @@ test.describe('Pre-Application Dashboard Tests', () => {
             
             // Take screenshot for debugging
             await dashboardPage.page.screenshot({ 
-                path: `age-validation-failed-${Date.now()}.png`, 
+                path: screenshotPath(`age-validation-failed-${Date.now()}.png`), 
                 fullPage: true 
             });
             

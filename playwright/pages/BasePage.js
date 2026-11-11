@@ -487,7 +487,7 @@ class BasePage {
    * @returns {Promise<string>} Path to the screenshot
    */
   async takeScreenshot(name) {
-    const screenshotPath = `screenshots/${this.pageName}_${name}_${Date.now()}.png`;
+    const screenshotPath = require('../utils/artifactPaths').screenshotPath(`${this.pageName}_${name}_${Date.now()}.png`);
     this.logger.debug(`Taking screenshot: ${screenshotPath}`);
     await this.page.screenshot({ path: screenshotPath });
     return screenshotPath;

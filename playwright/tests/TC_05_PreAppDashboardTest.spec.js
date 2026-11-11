@@ -1,5 +1,6 @@
 ﻿// @ts-check
 const { test, expect } = require('@playwright/test');
+const { screenshotPath } = require('../utils/artifactPaths');
 const { faker } = require('@faker-js/faker');
 const LoginPage = require('../pages/LoginPage');
 const PreAppDashboardPage = require('../pages/PreAppDashboardPage');
@@ -75,7 +76,7 @@ test.describe('Pre-Application Dashboard Tests', () => {
         
         if (!setupSuccess) {
             // Take a screenshot for debugging
-            await page.screenshot({ path: `debug-beforeEach-failed-${Date.now()}.png`, fullPage: true });
+            await page.screenshot({ path: screenshotPath(`debug-beforeEach-failed-${Date.now()}.png`), fullPage: true });
             throw new Error('Failed to set up user account in beforeEach');
         }
         
@@ -322,7 +323,7 @@ test.describe('Pre-Application Dashboard Tests', () => {
         }
 
         // Take a screenshot of the filled form
-        await dashboardPage.page.screenshot({ path: `personal-info-form-filled-${Date.now()}.png`, fullPage: true });
+        await dashboardPage.page.screenshot({ path: screenshotPath(`personal-info-form-filled-${Date.now()}.png`), fullPage: true });
         console.log('âœ“ Screenshot taken of filled form');
 
         // "Start new application" is clicked once, after the validation steps below.
