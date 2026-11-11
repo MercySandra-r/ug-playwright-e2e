@@ -6,6 +6,13 @@ const { logger } = require('../testLogger');
 const { authenticate } = require('@google-cloud/local-auth');
 
 /**
+ * Message of a caught value (catch variables are `unknown`).
+ * @param {unknown} e
+ * @returns {string}
+ */
+const messageOf = (e) => (e instanceof Error ? e.message : String(e));
+
+/**
  * GoogleDriveUtils - A utility class for interacting with Google Drive
  */
 class GoogleDriveUtils {
@@ -24,7 +31,9 @@ class GoogleDriveUtils {
         this.credentialsPath = credentialsPath;
         this.tokenPath = tokenPath;
         this.scopes = scopes;
+        /** @type {any} OAuth2 client (shape differs between local-auth and fromJSON) */
         this.auth = null;
+        /** @type {import('googleapis').drive_v3.Drive | null} */
         this.drive = null;
     }
 
@@ -48,7 +57,7 @@ class GoogleDriveUtils {
             
             logger.info('Google Drive client initialized');
         } catch (error) {
-            logger.error(`Error initializing Google Drive: ${error.message}`);
+            logger.error(`Error initializing Google Drive: ${messageOf(error)}`);
             throw error;
         }
     }
@@ -103,7 +112,7 @@ class GoogleDriveUtils {
                     scope: this.scopes,
                 });
                 
-                logger.info('Authorize this app by visiting this URL:', authUrl);
+                logger.info(`Authorize this app by visiting this URL: ${authUrl}`);
                 throw new Error('Please authorize the application by visiting the URL above and save the token to token.json');
             }
         }
@@ -130,9 +139,9 @@ class GoogleDriveUtils {
      * Upload a file to Google Drive
      * @param {string} filePath - Path to the file to upload
      * @param {Object} [options] - Upload options
-     * @param {string} [options.folderId] - ID of the folder to upload to
-     * @param {string} [options.mimeType] - MIME type of the file
-     * @param {Object} [options.properties] - Additional file properties
+     * @param {string|null} [options.folderId] - ID of the folder to upload to
+     * @param {string|null} [options.mimeType] - MIME type of the file
+     * @param {Record<string, any>} [options.properties] - Additional file properties
      * @returns {Promise<Object>} Uploaded file metadata
      */
     async uploadFile(filePath, { 
@@ -148,6 +157,7 @@ class GoogleDriveUtils {
             const fileName = path.basename(filePath);
             const fileContent = await fs.readFile(filePath);
             
+            /** @type {{ name: string, parents?: string[], [key: string]: any }} */
             const fileMetadata = {
                 name: fileName,
                 ...properties
@@ -171,7 +181,7 @@ class GoogleDriveUtils {
             logger.info(`File uploaded: ${response.data.name} (${response.data.id})`);
             return response.data;
         } catch (error) {
-            logger.error(`Error uploading file to Google Drive: ${error.message}`);
+            logger.error(`Error uploading file to Google Drive: ${messageOf(error)}`);
             throw error;
         }
     }
@@ -179,7 +189,7 @@ class GoogleDriveUtils {
     /**
      * Create a folder in Google Drive
      * @param {string} folderName - Name of the folder to create
-     * @param {string} [parentFolderId] - ID of the parent folder
+     * @param {string|null} [parentFolderId] - ID of the parent folder
      * @returns {Promise<Object>} Created folder metadata
      */
     async createFolder(folderName, parentFolderId = null) {
@@ -188,6 +198,7 @@ class GoogleDriveUtils {
         }
 
         try {
+            /** @type {{ name: string, mimeType: string, parents?: string[] }} */
             const fileMetadata = {
                 name: folderName,
                 mimeType: 'application/vnd.google-apps.folder',
@@ -205,7 +216,7 @@ class GoogleDriveUtils {
             logger.info(`Folder created: ${response.data.name} (${response.data.id})`);
             return response.data;
         } catch (error) {
-            logger.error(`Error creating folder in Google Drive: ${error.message}`);
+            logger.error(`Error creating folder in Google Drive: ${messageOf(error)}`);
             throw error;
         }
     }
@@ -213,10 +224,10 @@ class GoogleDriveUtils {
     /**
      * List files in Google Drive
      * @param {Object} [query] - Query parameters
-     * @param {string} [query.folderId] - ID of the folder to list contents of
-     * @param {string} [query.mimeType] - Filter by MIME type
+     * @param {string|null} [query.folderId] - ID of the folder to list contents of
+     * @param {string|null} [query.mimeType] - Filter by MIME type
      * @param {number} [query.pageSize=100] - Number of items per page
-     * @returns {Promise<Array>} List of files
+     * @returns {Promise<Array<import('googleapis').drive_v3.Schema$File>>} List of files
      */
     async listFiles({ 
         folderId = null, 
@@ -247,7 +258,7 @@ class GoogleDriveUtils {
             
             return response.data.files || [];
         } catch (error) {
-            logger.error(`Error listing files in Google Drive: ${error.message}`);
+            logger.error(`Error listing files in Google Drive: ${messageOf(error)}`);
             throw error;
         }
     }
@@ -261,6 +272,7 @@ class GoogleDriveUtils {
     getMimeType(filePath) {
         const ext = path.extname(filePath).toLowerCase();
         
+        /** @type {Record<string, string>} */
         const mimeTypes = {
             '.txt': 'text/plain',
             '.csv': 'text/csv',

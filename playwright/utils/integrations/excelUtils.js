@@ -4,6 +4,13 @@ const path = require('path');
 const { logger } = require('../testLogger');
 
 /**
+ * Message of a caught value (catch variables are `unknown`).
+ * @param {unknown} e
+ * @returns {string}
+ */
+const messageOf = (e) => (e instanceof Error ? e.message : String(e));
+
+/**
  * ExcelUtils - A utility class for handling Excel file operations
  */
 class ExcelUtils {
@@ -14,7 +21,8 @@ class ExcelUtils {
     constructor(filePath = 'testdata.xlsx') {
         this.filePath = path.resolve(process.cwd(), filePath);
         this.workbook = new ExcelJS.Workbook();
-        this.worksheet = null;
+        /** @type {import('exceljs').Worksheet | undefined} */
+        this.worksheet = undefined;
     }
 
     /**
@@ -30,7 +38,7 @@ class ExcelUtils {
             this.worksheet = this.workbook.getWorksheet(sheetName) || 
                             this.workbook.addWorksheet(sheetName);
         } catch (error) {
-            logger.error(`Error initializing Excel file: ${error.message}`);
+            logger.error(`Error initializing Excel file: ${messageOf(error)}`);
             throw error;
         }
     }
@@ -54,7 +62,7 @@ class ExcelUtils {
      * @param {Object} [options] - Options for reading data
      * @param {string} [options.sheetName] - Specific sheet name to read from
      * @param {boolean} [options.headers=true] - Whether the first row contains headers
-     * @returns {Promise<Array<Object>>} Array of row objects
+     * @returns {Promise<Array<Record<string, any>>>} Array of row objects
      */
     async readData({ sheetName, headers = true } = {}) {
         try {
@@ -65,21 +73,29 @@ class ExcelUtils {
                 }
             }
 
+            const worksheet = this.worksheet;
+            if (!worksheet) {
+                throw new Error('No worksheet initialized');
+            }
+
+            /** @type {Array<Record<string, any>>} */
             const data = [];
+            /** @type {string[]} */
             const headerRow = [];
             let startRow = 1; // 1-based index
 
             // Get headers if they exist
-            if (headers && this.worksheet.rowCount > 0) {
-                this.worksheet.getRow(1).eachCell((cell, colNumber) => {
-                    headerRow[colNumber] = cell.value || `Column${colNumber}`;
+            if (headers && worksheet.rowCount > 0) {
+                worksheet.getRow(1).eachCell((cell, colNumber) => {
+                    headerRow[colNumber] = cell.value ? String(cell.value) : `Column${colNumber}`;
                 });
                 startRow = 2;
             }
 
             // Process data rows
-            for (let i = startRow; i <= this.worksheet.rowCount; i++) {
-                const row = this.worksheet.getRow(i);
+            for (let i = startRow; i <= worksheet.rowCount; i++) {
+                const row = worksheet.getRow(i);
+                /** @type {Record<string, any>} */
                 const rowData = {};
                 
                 row.eachCell((cell, colNumber) => {
@@ -94,14 +110,14 @@ class ExcelUtils {
 
             return data;
         } catch (error) {
-            logger.error(`Error reading Excel data: ${error.message}`);
+            logger.error(`Error reading Excel data: ${messageOf(error)}`);
             throw error;
         }
     }
 
     /**
      * Write data to Excel file
-     * @param {Array<Object>} data - Data to write (array of objects)
+     * @param {Array<Record<string, any>>} data - Data to write (array of objects)
      * @param {Object} [options] - Options for writing data
      * @param {string} [options.sheetName] - Sheet name to write to
      * @param {boolean} [options.overwrite=false] - Whether to overwrite existing sheet
@@ -137,7 +153,7 @@ class ExcelUtils {
             // Auto-fit columns
             worksheet.columns.forEach(column => {
                 let maxLength = 0;
-                column.eachCell({ includeEmpty: true }, cell => {
+                column.eachCell?.({ includeEmpty: true }, cell => {
                     const columnLength = cell.value ? cell.value.toString().length : 0;
                     if (columnLength > maxLength) {
                         maxLength = columnLength;
@@ -149,7 +165,7 @@ class ExcelUtils {
             // Save workbook
             await this.workbook.xlsx.writeFile(this.filePath);
         } catch (error) {
-            logger.error(`Error writing Excel data: ${error.message}`);
+            logger.error(`Error writing Excel data: ${messageOf(error)}`);
             throw error;
         }
     }
@@ -173,7 +189,7 @@ class ExcelUtils {
                 
             return this.worksheet.getCell(row, colNumber).value;
         } catch (error) {
-            logger.error(`Error getting cell value: ${error.message}`);
+            logger.error(`Error getting cell value: ${messageOf(error)}`);
             throw error;
         }
     }
@@ -201,7 +217,7 @@ class ExcelUtils {
 
             await this.workbook.xlsx.writeFile(this.filePath);
         } catch (error) {
-            logger.error(`Error setting cell value: ${error.message}`);
+            logger.error(`Error setting cell value: ${messageOf(error)}`);
             throw error;
         }
     }

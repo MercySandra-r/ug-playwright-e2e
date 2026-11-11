@@ -21,12 +21,12 @@ npx playwright test tests/TC_04_LogInTest.spec.js --project=chromium   # single 
 npx playwright test -g "test title substring" --project=chromium       # single test by title
 npx playwright test --headed / --debug / --ui
 npx playwright show-report reports/html-report
-npx tsc --noEmit -p . | grep -v "^reports/"   # type-check (checkJs); see note below
+npx tsc --noEmit -p .                      # type-check (checkJs, strict); must stay at 0 errors
 ```
 
 - `package.json` has shortcuts for the same commands: `npm run test:chrome`, `test:headed`, `test:debug`, `test:ui`, `report`.
 - Quote spec paths when running one file: some filenames contain spaces (for example TC_20).
-- Type-check: `tsconfig.json` includes `**/*.js` and excludes only `node_modules` and spec/test files. It doesn't exclude `reports/`, so the bundled trace-viewer JS under `reports/html-report/` adds thousands of bogus errors. Filter that out. About 100 real errors remain in `pages/` and `utils/integrations/`, so a clean run isn't the baseline. Don't add new errors.
+- Type-check: `tsconfig.json` (the only config; there is no `jsconfig.json`) checks pages, utils and the maintained specs, and excludes `node_modules`, the generated `reports/`, `test-results/` and `artifacts/`, and the flow specs TC_17–TC_27 (they call page-object methods that no longer exist and need rebuilding). The run is clean (0 errors); keep it that way.
 - Without `--project`, `npx playwright test` runs every configured project (chromium, firefox, webkit, msedge, mobile-chrome, mobile-safari, chrome-beta). Tests are normally run on chromium only.
 - `npm run lint` calls `eslint .`, but the repo has no ESLint config, so it won't run as-is.
 - Config: `playwright.config.js` sets a 60s test timeout, a 10s expect timeout, 1 retry locally (2 retries and 1 worker on CI), `fullyParallel`, `baseURL` from `BASE_URL` (falls back to the QA site), global setup and teardown in `utils/`, HTML and JSON reporters under `reports/`, and artifacts in `test-results/`.
@@ -57,7 +57,7 @@ Patterns the specs share:
 
 **Utilities** (`utils/`): test data comes from `testDataLoader` (JSON/CSV/Excel from `fixtures/testData/`, which is currently empty), `testDataGenerator` and `dataProvider`. Other helpers handle retries, iframes, file upload, drag-and-drop, and visual comparison (pixelmatch/pngjs). `utils/integrations/` holds Excel, Slack and Google Drive clients; its README documents them.
 
-**Type checking.** `tsconfig.json` sets `checkJs` and `strict`, and adds custom declarations from `types/` and `@types/`. Recent commits fix type errors, so keep JSDoc annotations valid when editing `pages/` and `utils/`.
+**Type checking.** `tsconfig.json` sets `checkJs` and `strict`, and adds custom declarations from `types/` and `@types/`. Keep JSDoc annotations valid when editing `pages/`, `utils/` and the specs.
 
 ## AI test-agent setup
 

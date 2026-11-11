@@ -10,6 +10,7 @@ const LoginPage = require('../pages/LoginPage');
  * POM: every element comes from LoginPage; this spec has no locators of its own.
  */
 test.describe('Login Tests', () => {
+    /** @type {LoginPage} */
     let loginPage;
     const testEmail = process.env.TEST_EMAIL || 'myah.koepp@test.asu.edu';
     const invalidEmail = 'invalid-email';
