@@ -1,6 +1,5 @@
 // @ts-check
 const { test: baseTest } = require('@playwright/test');
-const path = require('path');
 const { logger } = require('./testLogger');
 
 /**
@@ -10,7 +9,7 @@ const { logger } = require('./testLogger');
  * @returns {Promise<string>} Path to the saved screenshot
  */
 async function captureScreenshot(page, name) {
-  const screenshotPath = path.join(__dirname, `../screenshots/${name}.png`);
+  const screenshotPath = require('./artifactPaths').screenshotPath(`${name}.png`);
   await page.screenshot({ path: screenshotPath, fullPage: true });
   return screenshotPath;
 }

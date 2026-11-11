@@ -53,7 +53,7 @@ Patterns the specs share:
 - The flow specs use relative `page.goto('/dashboard')`, which resolves against `baseURL`. TC_04, TC_05 and TC_06 hardcode `https://apply-qa.apps.asu.edu/...` instead. `LandingPage.js` also matches on the QA host when it detects the post-signup redirect. Changing `BASE_URL` won't redirect any of these.
 - `TC_05_PreAppDashboardTest.spec.js` and `TC_05_PreAppDashboardTest_Fixed.spec.js` both exist and both run.
 - Locators are mostly role-based (`getByRole(..., { name })`), with fallback chains in try/catch blocks because the application UI is unstable.
-- Debug screenshots are saved with relative paths such as `debug-setup-failed-<ts>.png`, so they land in `playwright/` (the working directory). Hundreds of them are committed there; they are clutter, not fixtures.
+- Debug files go under `playwright/artifacts/` (git-ignored, see `utils/artifactPaths.js`). Specs and page objects save screenshots with `screenshotPath(name)` into `artifacts/screenshots/`, never into `playwright/` itself. One-off runs that keep their own output use `--output=artifacts/runs/<name>`, because Playwright clears `test-results/` at the start of each run. Old loose screenshots are in `artifacts/screenshots/old/`. `reports/` and `test-results/` are generated and not tracked.
 
 **Utilities** (`utils/`): test data comes from `testDataLoader` (JSON/CSV/Excel from `fixtures/testData/`, which is currently empty), `testDataGenerator` and `dataProvider`. Other helpers handle retries, iframes, file upload, drag-and-drop, and visual comparison (pixelmatch/pngjs). `utils/integrations/` holds Excel, Slack and Google Drive clients; its README documents them.
 
