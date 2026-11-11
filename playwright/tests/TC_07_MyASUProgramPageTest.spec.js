@@ -5,6 +5,7 @@ const LoginPage = require('../pages/LoginPage');
 const PreAppDashboardPage = require('../pages/PreAppDashboardPage');
 const MyInformationPage = require('../pages/MyInformationPage');
 const MyASUProgramPage = require('../pages/MyASUProgramPage');
+const MySchoolsPage = require('../pages/MySchoolsPage');
 
 /**
  * My ASU program (step 2 of the application wizard), against the live page.
@@ -17,6 +18,9 @@ const MyASUProgramPage = require('../pages/MyASUProgramPage');
  * Debugging without creating accounts: set MYPROGRAM_TEST_EMAIL and
  * MYPROGRAM_TEST_PASSWORD to an account whose application is on step 2 with no
  * program chosen yet; beforeAll then signs in and resumes it.
+ *
+ * POM: every element comes from MyASUProgramPage (its selectors, locator methods and
+ * read-back methods); this spec has no locators of its own.
  */
 test.describe('My ASU Program Page Tests', () => {
     test.describe.configure({ mode: 'serial', timeout: 120000 });
@@ -65,18 +69,12 @@ test.describe('My ASU Program Page Tests', () => {
         await freshPage();
         await programPage.clickContinue();
         await programPage.verifyErrorMessage('Please select a first choice program.');
-        await expect(page).toHaveURL(/\/my-program/);
     });
 
     test('Verify My ASU Program page loads successfully', async () => {
         await freshPage();
-        await expect(page.locator(programPage.selectors.heading)).toBeVisible();
         await programPage.verifySelectedDegreeType('Bachelor');
-        await expect(page.locator(programPage.selectors.searchInput)).toBeVisible();
-        await expect(page.locator(programPage.selectors.interestArea)).toBeVisible();
-        await expect(page.locator(programPage.selectors.college)).toBeVisible();
-        await expect(page.locator(programPage.selectors.academicCalendarLink)).toBeVisible();
-        await expect(page.locator(programPage.selectors.continueButton)).toBeVisible();
+        await programPage.verifyDegreeSearchVisible();
     });
 
     test('Get and verify program list', async () => {
@@ -132,8 +130,7 @@ test.describe('My ASU Program Page Tests', () => {
     test('Switch between degree and nondegree', async () => {
         await freshPage();
         await programPage.selectDegreeIntent('Non-Degree');
-        await expect(page.locator(programPage.selectors.visitingGroup)).toBeVisible();
-        await expect(page.locator(programPage.selectors.chooseProgramButton)).toHaveCount(0);
+        await programPage.verifyNondegreeFormVisible();
 
         await programPage.selectDegreeIntent('Bachelor');
         await programPage.verifySelectedDegreeType('Bachelor');
@@ -151,7 +148,7 @@ test.describe('My ASU Program Page Tests', () => {
 
         const selected = await programPage.getSelectedPrograms();
         expect(selected.first?.program).toBe(FIRST_CHOICE);
-        await expect(page.locator(programPage.selectors.chooseBackupHeading)).toBeVisible();
+        expect(await programPage.isBackupRequested()).toBe(true);
     });
 
     test('Verify program selection as second choice', async () => {
@@ -173,11 +170,11 @@ test.describe('My ASU Program Page Tests', () => {
 
     test('Select optional interests', async () => {
         await programPage.selectInterests(['Pre-law interest']);
-        await expect(page.getByRole('checkbox', { name: 'Pre-law interest', exact: true })).toBeChecked();
+        expect(await programPage.isInterestSelected('Pre-law interest')).toBe(true);
     });
 
     test('Save and continue to next section', async () => {
         await programPage.saveAndContinue();
-        await expect(page.getByRole('heading', { name: 'My schools', level: 1 })).toBeVisible();
+        await new MySchoolsPage(page).verifyPageLoaded();
     });
 });

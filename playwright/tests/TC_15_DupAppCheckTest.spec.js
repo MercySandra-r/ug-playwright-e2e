@@ -1,5 +1,5 @@
 // @ts-check
-const { test, expect } = require('@playwright/test');
+const { test } = require('@playwright/test');
 const { signUpVerifiedAccount } = require('../utils/authHelper');
 const PreAppDashboardPage = require('../pages/PreAppDashboardPage');
 const MyInformationPage = require('../pages/MyInformationPage');
@@ -56,13 +56,6 @@ test.describe('Duplicate Application Check (new account, same SSN)', () => {
 
         // Expected (verified manually 2026-11-10): blocked on My program, with this message
         // under the selection plus "Update term" / "Change program" buttons.
-        await expect(page).toHaveURL(/\/my-program/);
-        const error = page.locator(programPage.selectors.duplicateStartDateError);
-        await expect(error).toBeVisible();
-        await expect(error).toHaveText(
-            "You have already submitted an application for your chosen start date. Multiple applications can't be "
-            + "submitted for the same start date. You'll need to select a new start date to continue this application.");
-        await expect(page.locator(programPage.selectors.updateTermButton)).toBeVisible();
-        await expect(page.getByRole('button', { name: 'Change program' })).toBeVisible();
+        await programPage.verifyDuplicateStartDateBlocked();
     });
 });

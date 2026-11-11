@@ -34,6 +34,11 @@ const INTENT = {
  *
  * Choices are NOT saved when the dialog's "Save choice" is clicked: they live in the page
  * until Continue. Reloading or navigating away before Continue drops them.
+ *
+ * POM rule for this page: every element is declared here. Fixed elements are named in
+ * `this.selectors`; elements that depend on data (a program card, an option or radio by
+ * label, an interest checkbox) come from the locator methods below. Specs use these
+ * names and the read-back methods, never their own locators.
  */
 class MyASUProgramPage extends BasePage {
     /**
@@ -45,27 +50,48 @@ class MyASUProgramPage extends BasePage {
         this.selectors = {
             heading: 'role=heading[name="My ASU program"][level=1]',
             degreeIntent: '#group-degree-type-select',
+            option: 'role=option',
+            radio: 'role=radio',
 
             // Search and filters (degree path)
             searchInput: '#search_input',
             interestArea: '#interest_area_select',
             college: '#college_select',
             locationFilterButton: 'role=button[name=/^Location/]',
+            applyFiltersButton: 'role=button[name="Apply filters"s]',
             associateOnly: '#associate-degree-programs',
+            associateOnlyLabel: 'label[for="associate-degree-programs"]',
             clearAllFilters: 'role=button[name=/^Clear all filters/]',
 
             // Program cards
+            programCardHeading: 'role=heading[level=3]',
+            programCardFromHeading: 'xpath=ancestor::*[.//button[normalize-space()="Choose this program"]][1]',
             chooseProgramButton: '[data-cy="my-programs-choose-program-button"]',
+            chooseThisProgram: 'role=button[name="Choose this program"]',
+            viewDetailsLink: 'text="View details"',
+
+            // Dialogs: program details / calendar (dialog), choose-program (alertdialog)
+            dialog: 'role=dialog',
+            programDialog: 'role=alertdialog',
+            dialogBackButton: 'role=button[name="Back"s]',
+            dialogCloseButton: 'role=button[name="Close"s]',
+            dialogNextButton: 'role=button[name="Next"s]',
+            saveChoiceButton: 'role=button[name="Save choice"s]',
+            locationToggle: 'role=button[name="Toggle dropdown"s]',
+            backupRequiredHeading: 'role=heading[name="Backup program required"]',
 
             // Saved selections
             firstSelectionHeading: 'role=heading[name="First program selection"]',
             backupSelectionHeading: 'role=heading[name="Backup program selection"]',
             chooseBackupHeading: 'role=heading[name="Choose a backup program"]',
             changeProgramButton: 'role=button[name="Change program"]',
+            selectionLine1: 'xpath=following::*[self::h3 or self::p][1]',
+            selectionLine2: 'xpath=following::*[self::h3 or self::p][2]',
 
             // Nondegree path
             visitingGroup: 'role=radiogroup[name="Are you visiting ASU from another college or university?"]',
             nondegreeLocation: 'role=combobox[name="What ASU location would you like to attend?"]',
+            nondegreeStartTermGroup: 'role=radiogroup[name=/^When would you like to start\\?/]',
 
             // Misc
             academicCalendarLink: 'role=link[name="Academic Calendar"]',
@@ -76,6 +102,74 @@ class MyASUProgramPage extends BasePage {
             duplicateStartDateError: 'text=You have already submitted an application for your chosen start date.',
             updateTermButton: 'role=button[name="Update term"]',
         };
+    }
+
+    // ------------------------------------------------------------------ locators that depend on data
+
+    /**
+     * An open list's option by exact label.
+     * @param {string} label
+     * @returns {import('@playwright/test').Locator}
+     */
+    option(label) {
+        return this.page.getByRole('option', { name: label, exact: true });
+    }
+
+    /**
+     * A radio by exact label inside a scope (dialog, form or radio group).
+     * @param {import('@playwright/test').Locator} scope
+     * @param {string} label
+     * @returns {import('@playwright/test').Locator}
+     */
+    radioIn(scope, label) {
+        return scope.getByRole('radio', { name: label, exact: true });
+    }
+
+    /**
+     * Card heading for a program. An exact name ("Computer Science, BS") matches exactly;
+     * a short name ("Computer Science") matches the first card that starts with it.
+     * @param {string} program
+     * @returns {import('@playwright/test').Locator}
+     */
+    programHeading(program) {
+        const cards = this.page.locator(this.selectors.programCardHeading);
+        return program.includes(',')
+            ? cards.filter({ hasText: new RegExp(`^\\s*${MyASUProgramPage.escape(program)}\\s*$`) }).first()
+            : cards.filter({ hasText: new RegExp(`^\\s*${MyASUProgramPage.escape(program)}\\b`) }).first();
+    }
+
+    /**
+     * The card element (ancestor holding both the heading and its buttons).
+     * @param {string} program
+     * @returns {import('@playwright/test').Locator}
+     */
+    programCard(program) {
+        return this.programHeading(program).locator(this.selectors.programCardFromHeading);
+    }
+
+    /**
+     * An optional interest checkbox, e.g. "Pre-law interest".
+     * @param {string} name
+     * @returns {import('@playwright/test').Locator}
+     */
+    interestCheckbox(name) {
+        return this.page.getByRole('checkbox', { name, exact: true });
+    }
+
+    /**
+     * The Academic Calendar dialog.
+     * @returns {import('@playwright/test').Locator}
+     */
+    academicCalendarDialog() {
+        return this.page.locator(this.selectors.dialog).filter({ hasText: 'Academic Calendar' });
+    }
+
+    /**
+     * @param {string} s
+     * @returns {string}
+     */
+    static escape(s) {
+        return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     }
 
     // ------------------------------------------------------------------ navigation
@@ -95,6 +189,26 @@ class MyASUProgramPage extends BasePage {
     async verifyPageLoaded() {
         await expect(this.page).toHaveURL(/\/ug-app\/\d+\/my-program/, { timeout: this.navigationTimeout });
         await expect(this.page.locator(this.selectors.heading)).toBeVisible({ timeout: this.navigationTimeout });
+    }
+
+    /**
+     * The degree-path controls are shown: search, filters, calendar link and Continue.
+     * @returns {Promise<void>}
+     */
+    async verifyDegreeSearchVisible() {
+        const s = this.selectors;
+        for (const selector of [s.heading, s.searchInput, s.interestArea, s.college, s.academicCalendarLink, s.continueButton]) {
+            await expect(this.page.locator(selector).first(), selector).toBeVisible({ timeout: this.assertionTimeout });
+        }
+    }
+
+    /**
+     * The nondegree form is shown instead of program cards.
+     * @returns {Promise<void>}
+     */
+    async verifyNondegreeFormVisible() {
+        await expect(this.page.locator(this.selectors.visitingGroup)).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page.locator(this.selectors.chooseProgramButton)).toHaveCount(0);
     }
 
     // ------------------------------------------------------------------ degree intent
@@ -118,7 +232,7 @@ class MyASUProgramPage extends BasePage {
         const box = this.page.locator(this.selectors.degreeIntent);
         if ((await box.innerText()).trim() === label) return;
         await box.click();
-        await this.page.getByRole('option', { name: label, exact: true }).click();
+        await this.option(label).click();
         await expect(box).toHaveText(label, { timeout: this.assertionTimeout });
     }
 
@@ -208,23 +322,23 @@ class MyASUProgramPage extends BasePage {
             if (!value) continue;
             const toggle = this.page.locator(selector);
             await toggle.click();
-            await this.page.getByRole('option', { name: value, exact: true }).click();
+            await this.option(value).click();
             await this.closeOpenList(toggle);
         }
         if (locations && locations.length) {
             await this.page.locator(this.selectors.locationFilterButton).first().click();
-            const dialog = this.page.getByRole('dialog');
+            const dialog = this.page.locator(this.selectors.dialog);
             await dialog.waitFor({ state: 'visible', timeout: this.assertionTimeout });
             for (const name of locations) {
                 await dialog.getByText(name, { exact: true }).first().click();
             }
-            await dialog.getByRole('button', { name: 'Apply filters', exact: true }).click();
+            await dialog.locator(this.selectors.applyFiltersButton).click();
             await dialog.waitFor({ state: 'hidden', timeout: this.assertionTimeout });
         }
         if (associateOnly !== undefined) {
             const box = this.page.locator(this.selectors.associateOnly);
             if ((await box.isChecked()) !== associateOnly) {
-                await this.page.locator(`label[for="associate-degree-programs"]`).click();
+                await this.page.locator(this.selectors.associateOnlyLabel).click();
             }
         }
         await this.page.waitForLoadState('networkidle');
@@ -237,7 +351,7 @@ class MyASUProgramPage extends BasePage {
      * @returns {Promise<void>}
      */
     async closeOpenList(toggle) {
-        const options = this.page.getByRole('option');
+        const options = this.page.locator(this.selectors.option);
         const isOpen = () => options.first().isVisible().catch(() => false);
         await this.page.keyboard.press('Escape');
         if (await isOpen()) await this.page.locator(this.selectors.heading).click();
@@ -260,38 +374,7 @@ class MyASUProgramPage extends BasePage {
         await this.page.waitForLoadState('networkidle');
     }
 
-    // ------------------------------------------------------------------ cards
-
-    /**
-     * Card heading for a program. An exact name ("Computer Science, BS") matches exactly;
-     * a short name ("Computer Science") matches the first card that starts with it.
-     * @param {string} program
-     * @returns {import('@playwright/test').Locator}
-     */
-    programHeading(program) {
-        const cards = this.page.getByRole('heading', { level: 3 });
-        return program.includes(',')
-            ? cards.filter({ hasText: new RegExp(`^\\s*${MyASUProgramPage.escape(program)}\\s*$`) }).first()
-            : cards.filter({ hasText: new RegExp(`^\\s*${MyASUProgramPage.escape(program)}\\b`) }).first();
-    }
-
-    /**
-     * @param {string} s
-     * @returns {string}
-     */
-    static escape(s) {
-        return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
-
-    /**
-     * The card element (ancestor holding both the heading and its buttons).
-     * @param {string} program
-     * @returns {import('@playwright/test').Locator}
-     */
-    programCard(program) {
-        return this.programHeading(program)
-            .locator('xpath=ancestor::*[.//button[normalize-space()="Choose this program"]][1]');
-    }
+    // ------------------------------------------------------------------ cards and dialogs
 
     /**
      * Open a program's "View details" dialog and return its text.
@@ -300,18 +383,19 @@ class MyASUProgramPage extends BasePage {
      */
     async openProgramDetails(program) {
         // Rendered as a link on cards (and on saved selections), so match by text.
-        await this.programCard(program).getByText('View details', { exact: true }).click();
-        const dialog = this.page.getByRole('dialog');
+        await this.programCard(program).locator(this.selectors.viewDetailsLink).click();
+        const dialog = this.page.locator(this.selectors.dialog);
         await dialog.waitFor({ state: 'visible', timeout: this.assertionTimeout });
         return (await dialog.innerText()).replace(/\s+/g, ' ').trim();
     }
 
     /**
+     * Close the open details or calendar dialog with its Back button.
      * @returns {Promise<void>}
      */
     async closeDialog() {
-        const dialog = this.page.getByRole('dialog').or(this.page.getByRole('alertdialog')).first();
-        await dialog.getByRole('button', { name: 'Back', exact: true }).click();
+        const dialog = this.page.locator(this.selectors.dialog).or(this.page.locator(this.selectors.programDialog)).first();
+        await dialog.locator(this.selectors.dialogBackButton).click();
         await dialog.waitFor({ state: 'hidden', timeout: this.assertionTimeout });
     }
 
@@ -328,11 +412,12 @@ class MyASUProgramPage extends BasePage {
         if (!(await this.programHeading(program).isVisible().catch(() => false))) {
             await this.searchProgram(program.replace(/,.*$/, ''));
         }
-        await this.programCard(program).getByRole('button', { name: 'Choose this program' }).click();
-        const dialog = this.page.getByRole('alertdialog');
+        await this.programCard(program).locator(this.selectors.chooseThisProgram).click();
+        const dialog = this.page.locator(this.selectors.programDialog);
         await dialog.waitFor({ state: 'visible', timeout: this.navigationTimeout });
-        await dialog.getByRole('radio').first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
-        const raw = await dialog.getByRole('radio').evaluateAll((els) => els.map((e) => ({
+        const radios = dialog.locator(this.selectors.radio);
+        await radios.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        const raw = await radios.evaluateAll((els) => els.map((e) => ({
             label: (e.getAttribute('aria-label') || e.textContent || '').trim(),
             disabled: e.getAttribute('aria-disabled') === 'true' || e.hasAttribute('disabled'),
         })));
@@ -342,7 +427,7 @@ class MyASUProgramPage extends BasePage {
             if (!/\d{4}/.test(t.label)) continue;
             byLabel.set(t.label, (byLabel.get(t.label) || false) || t.disabled);
         }
-        await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+        await dialog.locator(this.selectors.dialogCloseButton).click();
         await dialog.waitFor({ state: 'hidden', timeout: this.assertionTimeout });
         return [...byLabel].map(([label, disabled]) => ({ label, disabled }));
     }
@@ -355,7 +440,7 @@ class MyASUProgramPage extends BasePage {
      * @returns {Promise<string>} the label chosen
      */
     async chooseStartTerm(scope, desired) {
-        const radios = scope.getByRole('radio');
+        const radios = scope.locator(this.selectors.radio);
         await radios.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
         const labels = [...new Set((await radios.evaluateAll((els) =>
             els.map((e) => (e.getAttribute('aria-label') || e.textContent || '').trim()))).filter((l) => /\d{4}/.test(l)))];
@@ -370,7 +455,7 @@ class MyASUProgramPage extends BasePage {
             pick = labels[0];
             if (desired) this.logger.warn(`Start term "${desired}" not offered; using "${pick}"`);
         }
-        await scope.getByRole('radio', { name: pick, exact: true }).first().click();
+        await this.radioIn(scope, pick).first().click();
         return pick;
     }
 
@@ -388,20 +473,20 @@ class MyASUProgramPage extends BasePage {
         }
         await heading.waitFor({ state: 'visible', timeout: this.navigationTimeout });
         const name = (await heading.innerText()).trim();
-        await this.programCard(program).getByRole('button', { name: 'Choose this program' }).click();
+        await this.programCard(program).locator(this.selectors.chooseThisProgram).click();
 
-        const dialog = this.page.getByRole('alertdialog');
+        const dialog = this.page.locator(this.selectors.programDialog);
         await dialog.waitFor({ state: 'visible', timeout: this.navigationTimeout });
         if (location) {
-            await dialog.getByRole('button', { name: 'Toggle dropdown', exact: true }).click();
-            await this.page.getByRole('option', { name: location, exact: true }).click();
+            await dialog.locator(this.selectors.locationToggle).click();
+            await this.option(location).click();
         }
         const term = await this.chooseStartTerm(dialog, startTerm);
-        await dialog.getByRole('button', { name: 'Next', exact: true }).click();
+        await dialog.locator(this.selectors.dialogNextButton).click();
 
-        const save = dialog.getByRole('button', { name: 'Save choice', exact: true });
+        const save = dialog.locator(this.selectors.saveChoiceButton);
         await save.waitFor({ state: 'visible', timeout: this.assertionTimeout });
-        const backupRequired = await dialog.getByRole('heading', { name: 'Backup program required' }).isVisible();
+        const backupRequired = await dialog.locator(this.selectors.backupRequiredHeading).isVisible();
         const summary = (await dialog.innerText()).replace(/\s+/g, ' ');
         const usedLocation = location || (summary.match(/Step 2 of 2 .*?, \w+ (.+?) \d{4} (spring|summer|fall)/i) || [])[1] || '';
         await save.click();
@@ -421,6 +506,13 @@ class MyASUProgramPage extends BasePage {
         await this.page.locator(this.selectors.chooseBackupHeading).waitFor({ state: 'visible', timeout: this.navigationTimeout });
         const target = program || (await this.getProgramList())[0];
         return this.chooseProgram({ program: target, startTerm, location });
+    }
+
+    /**
+     * @returns {Promise<boolean>} whether the page is asking for a backup program
+     */
+    async isBackupRequested() {
+        return this.page.locator(this.selectors.chooseBackupHeading).isVisible();
     }
 
     /**
@@ -481,15 +573,13 @@ class MyASUProgramPage extends BasePage {
      * @returns {Promise<{ visiting: boolean, location: string, startTerm: string }>}
      */
     async selectNondegreeOptions({ visiting = false, location, startTerm } = {}) {
-        await this.page.locator(this.selectors.visitingGroup)
-            .getByRole('radio', { name: visiting ? 'Yes' : 'No', exact: true }).click();
+        await this.radioIn(this.page.locator(this.selectors.visitingGroup), visiting ? 'Yes' : 'No').click();
         const locationBox = this.page.locator(this.selectors.nondegreeLocation);
         if (location) {
             await locationBox.click();
-            await this.page.getByRole('option', { name: location, exact: true }).click();
+            await this.option(location).click();
         }
-        const termGroup = this.page.getByRole('radiogroup', { name: /^When would you like to start\?/ });
-        const term = await this.chooseStartTerm(termGroup, startTerm);
+        const term = await this.chooseStartTerm(this.page.locator(this.selectors.nondegreeStartTermGroup), startTerm);
         return { visiting, location: await locationBox.inputValue().catch(() => location || ''), startTerm: term };
     }
 
@@ -507,13 +597,13 @@ class MyASUProgramPage extends BasePage {
     async getSelectedPrograms() {
         /** @type {Record<string, any>} */
         const out = {};
-        for (const [key, title] of [['first', 'First program selection'], ['backup', 'Backup program selection']]) {
-            const h = this.page.getByRole('heading', { name: title, exact: true });
+        for (const [key, selector] of [['first', this.selectors.firstSelectionHeading], ['backup', this.selectors.backupSelectionHeading]]) {
+            const h = this.page.locator(selector).first();
             if (!(await h.isVisible().catch(() => false))) continue;
-            const nameEl = h.locator('xpath=following::*[self::h3 or self::p][1]');
+            const nameEl = h.locator(this.selectors.selectionLine1);
             const program = (await nameEl.innerText()).trim();
-            const next1 = (await nameEl.locator('xpath=following::*[self::h3 or self::p][1]').innerText().catch(() => '')).trim();
-            const next2 = (await nameEl.locator('xpath=following::*[self::h3 or self::p][2]').innerText().catch(() => '')).trim();
+            const next1 = (await nameEl.locator(this.selectors.selectionLine1).innerText().catch(() => '')).trim();
+            const next2 = (await nameEl.locator(this.selectors.selectionLine2).innerText().catch(() => '')).trim();
             const hasTerm = /\d{4} (spring|summer|fall)/i.test(next1);
             out[key] = { program, term: hasTerm ? next1 : '', location: hasTerm ? next2 : '' };
         }
@@ -538,14 +628,20 @@ class MyASUProgramPage extends BasePage {
      */
     async selectInterests(interests) {
         for (const name of interests) {
-            const box = this.page.getByRole('checkbox', { name, exact: true });
-            if ((await box.getAttribute('aria-checked')) !== 'true' && !(await box.isChecked().catch(() => false))) {
-                await box.click();
-            }
+            if (!(await this.isInterestSelected(name))) await this.interestCheckbox(name).click();
         }
     }
 
-    // ------------------------------------------------------------------ calendar, footer
+    /**
+     * @param {string} name - e.g. "Pre-law interest"
+     * @returns {Promise<boolean>}
+     */
+    async isInterestSelected(name) {
+        const box = this.interestCheckbox(name);
+        return (await box.getAttribute('aria-checked')) === 'true' || (await box.isChecked().catch(() => false));
+    }
+
+    // ------------------------------------------------------------------ calendar, messages, footer
 
     /**
      * Open the Academic Calendar dialog and return its text.
@@ -553,7 +649,7 @@ class MyASUProgramPage extends BasePage {
      */
     async openAcademicCalendar() {
         await this.page.locator(this.selectors.academicCalendarLink).click();
-        const dialog = this.page.getByRole('dialog').filter({ hasText: 'Academic Calendar' });
+        const dialog = this.academicCalendarDialog();
         await dialog.waitFor({ state: 'visible', timeout: this.assertionTimeout });
         return (await dialog.innerText()).replace(/\s+/g, ' ').trim();
     }
@@ -567,11 +663,29 @@ class MyASUProgramPage extends BasePage {
     }
 
     /**
+     * A message is shown and the page stays on My program.
      * @param {string} [expectedMessage]
      * @returns {Promise<void>}
      */
     async verifyErrorMessage(expectedMessage = 'Please select a first choice program.') {
         await expect(this.page.getByText(expectedMessage).first()).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page).toHaveURL(/\/my-program/);
+    }
+
+    /**
+     * Saving a program and term this person already applied for is blocked: the
+     * duplicate message shows with "Update term" and "Change program", and the page
+     * stays on My program.
+     * @returns {Promise<void>}
+     */
+    async verifyDuplicateStartDateBlocked() {
+        await expect(this.page).toHaveURL(/\/my-program/);
+        await expect(this.page.locator(this.selectors.duplicateStartDateError)).toHaveText(
+            "You have already submitted an application for your chosen start date. Multiple applications can't be "
+            + "submitted for the same start date. You'll need to select a new start date to continue this application.",
+            { timeout: this.assertionTimeout });
+        await expect(this.page.locator(this.selectors.updateTermButton)).toBeVisible();
+        await expect(this.page.locator(this.selectors.changeProgramButton).first()).toBeVisible();
     }
 
     /**
