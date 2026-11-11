@@ -18,6 +18,9 @@ const BasePage = require('./BasePage');
  * NOTE: the verification-screen selectors below are best-effort. The sign-up and
  * sign-in forms were confirmed live; the post-sign-up verification UI (code field
  * vs. emailed link) must be confirmed against the first real run and adjusted here.
+ *
+ * POM rule for this page: every element is declared in `this.selectors`; callers use
+ * the methods below, never their own locators.
  */
 class AsuIdpPage extends BasePage {
     /**
@@ -30,6 +33,31 @@ class AsuIdpPage extends BasePage {
             'client_id=adms-nonprod&response_type=code' +
             '&redirect_uri=https%3A%2F%2Fapply-qa.apps.asu.edu%2Feasso%2Fcallback%2F' +
             '&scope=openid+email+fbi_user_id';
+
+        this.selectors = {
+            // App landing page
+            appSignInLink: 'role=link[name=/^sign in$/i]',
+            appSignInButton: 'role=button[name=/^sign in$/i]',
+            appContinueButton: 'role=button[name="Continue"s]',
+
+            // IdP landing page
+            signUpWithEmailLink: 'role=link[name="Sign up with email"]',
+            signInWithEmailLink: 'role=link[name="Sign In with Email"]',
+
+            // IdP forms
+            emailInput: 'role=textbox[name="Email"s]',
+            passwordInput: 'role=textbox[name="Password"s]',
+            confirmPasswordInput: 'role=textbox[name="Confirm password"]',
+            signUpButton: 'role=button[name="Sign up"]',
+            signInButton: 'role=button[name="Sign in"]',
+            formError: 'text=/session invalid|already (exists|registered|in use)|account exists|try again|invalid|too many|limit|exceeded/i',
+
+            // Email verification (code screen)
+            otpDigitBoxes: 'input[inputmode="numeric"], input[autocomplete="one-time-code"]',
+            otpCodeTextbox: 'role=textbox[name=/code|verification/i]',
+            otpCodeInput: 'input[autocomplete="one-time-code"], input[name*="code" i]',
+            otpSubmitButton: 'role=button[name=/verify|confirm|continue|submit/i]',
+        };
     }
 
     /**
@@ -54,32 +82,31 @@ class AsuIdpPage extends BasePage {
             if (opts.mode === 'in-person') await landing.chooseInPersonMOL({ degreeType });
             else if (opts.mode === 'online') await landing.chooseOnlineMOL({ degreeType });
             else await landing.chooseRandomMOL({ degreeType });
-            await this.page.getByRole('button', { name: 'Continue', exact: true }).click();
+            await this.page.locator(this.selectors.appContinueButton).click();
         } else {
-            const signIn = this.page
-                .getByRole('link', { name: /^sign in$/i })
-                .or(this.page.getByRole('button', { name: /^sign in$/i }))
+            const signIn = this.page.locator(this.selectors.appSignInLink)
+                .or(this.page.locator(this.selectors.appSignInButton))
                 .first();
             await signIn.click();
         }
         await this.page.waitForURL(/login\.asu\.edu/, { timeout: this.navigationTimeout });
-        await expect(this.page.getByRole('link', { name: 'Sign up with email' })).toBeVisible({
+        await expect(this.page.locator(this.selectors.signUpWithEmailLink)).toBeVisible({
             timeout: this.navigationTimeout,
         });
     }
 
     /** From the IdP landing page, open "Sign up with email". */
     async openSignupFromIdp() {
-        await this.page.getByRole('link', { name: 'Sign up with email' }).click();
-        await expect(this.page.getByRole('textbox', { name: 'Confirm password' })).toBeVisible({
+        await this.page.locator(this.selectors.signUpWithEmailLink).click();
+        await expect(this.page.locator(this.selectors.confirmPasswordInput)).toBeVisible({
             timeout: this.navigationTimeout,
         });
     }
 
     /** From the IdP landing page, open "Sign In with Email". */
     async openLoginFromIdp() {
-        await this.page.getByRole('link', { name: 'Sign In with Email' }).click();
-        await expect(this.page.getByRole('textbox', { name: 'Email' })).toBeVisible({
+        await this.page.locator(this.selectors.signInWithEmailLink).click();
+        await expect(this.page.locator(this.selectors.emailInput)).toBeVisible({
             timeout: this.navigationTimeout,
         });
     }
@@ -91,9 +118,7 @@ class AsuIdpPage extends BasePage {
      * @returns {Promise<string|null>}
      */
     async getFormError(timeoutMs = 8000) {
-        const error = this.page
-            .getByText(/session invalid|already (exists|registered|in use)|account exists|try again|invalid|too many|limit|exceeded/i)
-            .first();
+        const error = this.page.locator(this.selectors.formError).first();
         const shown = await error
             .waitFor({ state: 'visible', timeout: timeoutMs })
             .then(() => true)
@@ -104,7 +129,7 @@ class AsuIdpPage extends BasePage {
     /** Go straight to the IdP sign-up page. Prefer startFromApp(); see its note. */
     async gotoSignup() {
         await this.page.goto(`${this.idpOrigin}/signup?${this.oauthParams}`);
-        await expect(this.page.getByRole('textbox', { name: 'Email' })).toBeVisible({
+        await expect(this.page.locator(this.selectors.emailInput)).toBeVisible({
             timeout: this.navigationTimeout,
         });
     }
@@ -112,7 +137,7 @@ class AsuIdpPage extends BasePage {
     /** Go straight to the IdP email sign-in page. */
     async gotoLogin() {
         await this.page.goto(`${this.idpOrigin}/email-password-login?${this.oauthParams}`);
-        await expect(this.page.getByRole('textbox', { name: 'Email' })).toBeVisible({
+        await expect(this.page.locator(this.selectors.emailInput)).toBeVisible({
             timeout: this.navigationTimeout,
         });
     }
@@ -124,10 +149,10 @@ class AsuIdpPage extends BasePage {
      */
     async signUp(email, password) {
         this.logger.info(`IdP sign-up for ${email}`);
-        await this.page.getByRole('textbox', { name: 'Email', exact: true }).fill(email);
-        await this.page.getByRole('textbox', { name: 'Password', exact: true }).fill(password);
-        await this.page.getByRole('textbox', { name: 'Confirm password' }).fill(password);
-        await this.page.getByRole('button', { name: 'Sign up' }).click();
+        await this.page.locator(this.selectors.emailInput).fill(email);
+        await this.page.locator(this.selectors.passwordInput).fill(password);
+        await this.page.locator(this.selectors.confirmPasswordInput).fill(password);
+        await this.page.locator(this.selectors.signUpButton).click();
     }
 
     /**
@@ -137,9 +162,9 @@ class AsuIdpPage extends BasePage {
      */
     async signIn(email, password) {
         this.logger.info(`IdP sign-in for ${email}`);
-        await this.page.getByRole('textbox', { name: 'Email', exact: true }).fill(email);
-        await this.page.getByRole('textbox', { name: 'Password', exact: true }).fill(password);
-        await this.page.getByRole('button', { name: 'Sign in' }).click();
+        await this.page.locator(this.selectors.emailInput).fill(email);
+        await this.page.locator(this.selectors.passwordInput).fill(password);
+        await this.page.locator(this.selectors.signInButton).click();
     }
 
     /**
@@ -150,22 +175,19 @@ class AsuIdpPage extends BasePage {
     async submitVerificationCode(code) {
         this.logger.info('Submitting email verification code');
         // Split one-box-per-digit layout (common for OTP).
-        const digitBoxes = this.page.locator('input[inputmode="numeric"], input[autocomplete="one-time-code"]');
+        const digitBoxes = this.page.locator(this.selectors.otpDigitBoxes);
         const count = await digitBoxes.count();
         if (count > 1) {
             for (let i = 0; i < code.length && i < count; i++) {
                 await digitBoxes.nth(i).fill(code[i]);
             }
         } else {
-            const single = this.page
-                .getByRole('textbox', { name: /code|verification/i })
-                .or(this.page.locator('input[autocomplete="one-time-code"], input[name*="code" i]'))
+            const single = this.page.locator(this.selectors.otpCodeTextbox)
+                .or(this.page.locator(this.selectors.otpCodeInput))
                 .first();
             await single.fill(code);
         }
-        const submit = this.page
-            .getByRole('button', { name: /verify|confirm|continue|submit/i })
-            .first();
+        const submit = this.page.locator(this.selectors.otpSubmitButton).first();
         if (await submit.isVisible().catch(() => false)) {
             await submit.click();
         }
