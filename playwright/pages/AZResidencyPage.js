@@ -47,6 +47,11 @@ const SUPPORT = {
  * Because follow-ups appear based on answers, answerRemainingQuestions() fills any
  * Yes/No group or dropdown still empty (No / first option) and logs what it did.
  * The old document-upload API is gone: the step has no uploads.
+ *
+ * POM rule for this page: every element is declared here. Fixed elements are named in
+ * `this.selectors`; elements that depend on data (a question's radio group, a radio,
+ * an option by label) come from the locator methods below. Specs use these names and
+ * the read-back methods, never their own locators.
  */
 class AZResidencyPage extends BasePage {
     /**
@@ -57,6 +62,12 @@ class AZResidencyPage extends BasePage {
 
         this.selectors = {
             heading: 'role=heading[name="Arizona residency"][level=1]',
+            introText: 'text=Begin by selecting the state you consider to be your permanent home.',
+            financialSupportHeading: 'role=heading[name="Financial support"]',
+            supportTotalLabel: 'text=/Total sum/',
+            parentElement: 'xpath=..',
+            option: 'role=option',
+            dropdownSearch: 'input[placeholder="Search..."]',
             permanentState: '#permanent',
             parentState: '#group-stateParentLives',
             parentRelationship: '#group-selectParentRelationship',
@@ -69,6 +80,38 @@ class AZResidencyPage extends BasePage {
         };
         this.QUESTIONS = QUESTIONS;
         this.SUPPORT = SUPPORT;
+    }
+
+    // ------------------------------------------------------------------ locators that depend on data
+
+    /**
+     * An open list's option by label; selected options show a trailing "✓".
+     * @param {string} label
+     * @returns {import('@playwright/test').Locator}
+     */
+    option(label) {
+        const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return this.page.getByRole('option', { name: new RegExp(`^${escaped}(\\s*✓)?$`) }).first();
+    }
+
+    /**
+     * A Yes/No question's radio group, by key (see QUESTIONS) or raw radiogroup id.
+     * @param {string} keyOrId
+     * @returns {import('@playwright/test').Locator}
+     */
+    questionGroup(keyOrId) {
+        const id = QUESTIONS[keyOrId] ? QUESTIONS[keyOrId].id : keyOrId;
+        return this.page.locator(`[role="radiogroup"][id="${id}"]`);
+    }
+
+    /**
+     * A radio by exact label inside a scope.
+     * @param {import('@playwright/test').Locator} scope
+     * @param {string} label
+     * @returns {import('@playwright/test').Locator}
+     */
+    radioIn(scope, label) {
+        return scope.getByRole('radio', { name: label, exact: true });
     }
 
     // ------------------------------------------------------------------ navigation
@@ -95,12 +138,66 @@ class AZResidencyPage extends BasePage {
      * @returns {Promise<void>}
      */
     async validateAZresidencyPage() {
-        await expect(this.page.getByText('Begin by selecting the state you consider to be your permanent home.')).toBeVisible();
+        await expect(this.page.locator(this.selectors.introText)).toBeVisible({ timeout: this.assertionTimeout });
         await expect(this.page.locator(this.selectors.permanentState)).toBeVisible();
         for (const key of ['enrolledElsewhere', 'enrolledInAzCollege', 'hasLicense', 'ownsVehicle', 'filedStateTaxes', 'employed']) {
-            await expect(this.page.locator('#' + QUESTIONS[key].id)).toBeVisible();
+            await expect(this.questionGroup(key), key).toBeVisible();
         }
-        await expect(this.page.getByRole('heading', { name: 'Financial support' })).toBeVisible();
+        await expect(this.page.locator(this.selectors.financialSupportHeading)).toBeVisible();
+    }
+
+    /**
+     * @returns {Promise<string>} the permanent home state currently chosen
+     */
+    async getPermanentState() {
+        return this.page.locator(this.selectors.permanentState).inputValue();
+    }
+
+    /**
+     * @param {string} selector - e.g. this.selectors.parentRelationship
+     * @returns {Promise<string>} the dropdown's current value
+     */
+    async getDropdownValue(selector) {
+        return this.page.locator(selector).inputValue();
+    }
+
+    /**
+     * The answer currently ticked for a question.
+     * @param {string} keyOrId
+     * @returns {Promise<'Yes'|'No'|undefined>}
+     */
+    async getAnswer(keyOrId) {
+        const group = this.questionGroup(keyOrId);
+        for (const label of /** @type {Array<'Yes'|'No'>} */ (['Yes', 'No'])) {
+            if ((await this.radioIn(group, label).getAttribute('aria-checked').catch(() => null)) === 'true') return label;
+        }
+        return undefined;
+    }
+
+    /**
+     * @returns {Promise<number>} how many "This is a required field." messages are shown
+     */
+    async getRequiredFieldErrorCount() {
+        return this.page.locator(this.selectors.requiredFieldError).count();
+    }
+
+    /**
+     * @returns {Promise<boolean>} whether "Total must be equal to 100%" is shown
+     */
+    async isSupportTotalErrorShown() {
+        return this.page.locator(this.selectors.supportTotalError).isVisible();
+    }
+
+    /**
+     * Parents in Arizona reveal the parent block (relationship, date, parent questions).
+     * @returns {Promise<void>}
+     */
+    async verifyArizonaParentBlockShown() {
+        await expect(this.page.locator(this.selectors.parentRelationship)).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page.locator(this.selectors.parentAzSinceMonth)).toBeVisible();
+        for (const key of ['parentFiledTaxes', 'parentHasAzLicense', 'parentEmployedInAz']) {
+            await expect(this.questionGroup(key), key).toBeVisible();
+        }
     }
 
     // ------------------------------------------------------------------ helpers
@@ -116,13 +213,13 @@ class AZResidencyPage extends BasePage {
         const box = this.page.locator(selector);
         await box.scrollIntoViewIfNeeded();
         await box.click();
-        await this.page.getByRole('option').first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        const first = this.page.locator(this.selectors.option).first();
+        await first.waitFor({ state: 'visible', timeout: this.assertionTimeout });
         // A selected option is shown with a trailing "✓"; ignore it when reading/matching.
-        const label = value || (await this.page.getByRole('option').first().innerText()).replace(/\s*✓\s*$/, '').trim();
-        const search = this.page.getByPlaceholder('Search...');
+        const label = value || (await first.innerText()).replace(/\s*✓\s*$/, '').trim();
+        const search = this.page.locator(this.selectors.dropdownSearch);
         if (await search.isVisible().catch(() => false)) await search.fill(label);
-        const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        await this.page.getByRole('option', { name: new RegExp(`^${escaped}(\\s*✓)?$`) }).first().click();
+        await this.option(label).click();
         await this.closeOpenList();
         return label;
     }
@@ -133,7 +230,7 @@ class AZResidencyPage extends BasePage {
      * @returns {Promise<void>}
      */
     async closeOpenList() {
-        const options = this.page.getByRole('option');
+        const options = this.page.locator(this.selectors.option);
         if (!(await options.first().isVisible().catch(() => false))) return;
         await this.page.keyboard.press('Escape');
         if (await options.first().isVisible().catch(() => false)) {
@@ -149,10 +246,9 @@ class AZResidencyPage extends BasePage {
      * @returns {Promise<void>}
      */
     async answer(keyOrId, yes) {
-        const id = QUESTIONS[keyOrId] ? QUESTIONS[keyOrId].id : keyOrId;
-        const group = this.page.locator(`[role="radiogroup"][id="${id}"]`);
+        const group = this.questionGroup(keyOrId);
         await group.waitFor({ state: 'visible', timeout: this.assertionTimeout });
-        await group.getByRole('radio', { name: yes ? 'Yes' : 'No', exact: true }).click();
+        await this.radioIn(group, yes ? 'Yes' : 'No').click();
     }
 
     /**
@@ -160,8 +256,16 @@ class AZResidencyPage extends BasePage {
      * @returns {Promise<boolean>}
      */
     async isQuestionVisible(keyOrId) {
-        const id = QUESTIONS[keyOrId] ? QUESTIONS[keyOrId].id : keyOrId;
-        return this.page.locator(`[role="radiogroup"][id="${id}"]`).isVisible().catch(() => false);
+        return this.questionGroup(keyOrId).isVisible().catch(() => false);
+    }
+
+    /**
+     * Wait until a follow-up question is hidden again.
+     * @param {string} keyOrId
+     * @returns {Promise<void>}
+     */
+    async waitForQuestionHidden(keyOrId) {
+        await expect(this.questionGroup(keyOrId)).toBeHidden({ timeout: this.assertionTimeout });
     }
 
     // ------------------------------------------------------------------ sections
@@ -211,7 +315,7 @@ class AZResidencyPage extends BasePage {
      * @returns {Promise<number>} the "Total sum" shown under the table
      */
     async getSupportTotal() {
-        const text = await this.page.getByText(/Total sum/).first().locator('xpath=..').innerText();
+        const text = await this.page.locator(this.selectors.supportTotalLabel).first().locator(this.selectors.parentElement).innerText();
         const m = text.match(/(\d+(\.\d+)?)/);
         return m ? Number(m[1]) : NaN;
     }
@@ -305,7 +409,7 @@ class AZResidencyPage extends BasePage {
             for (const item of todo) {
                 const target = `[data-autofill-key="${item.key}"]`;
                 if (item.kind === 'radio') {
-                    await this.page.locator(target).getByRole('radio', { name: 'No', exact: true }).click();
+                    await this.radioIn(this.page.locator(target), 'No').click();
                 } else {
                     await this.choose(target);
                 }
@@ -359,6 +463,7 @@ class AZResidencyPage extends BasePage {
      */
     async verifyErrorMessage(expectedMessage = 'This is a required field.') {
         await expect(this.page.getByText(expectedMessage).first()).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page).toHaveURL(/\/arizona-residency/);
     }
 
     /**

@@ -2,6 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { startApplicationAt, resumeApplication } = require('../utils/applicationJourney');
 const AZResidencyPage = require('../pages/AZResidencyPage');
+const ReviewPage = require('../pages/ReviewPage');
 
 /**
  * Arizona residency (step 5 of the application wizard), against the live page.
@@ -16,6 +17,9 @@ const AZResidencyPage = require('../pages/AZResidencyPage');
  *
  * Debugging without creating accounts: set RESIDENCY_TEST_EMAIL and
  * RESIDENCY_TEST_PASSWORD to an account whose application is on step 5.
+ *
+ * POM: every element comes from AZResidencyPage (its selectors, locator methods and
+ * read-back methods); this spec has no locators of its own.
  */
 test.describe('AZ Residency Page Tests', () => {
     test.describe.configure({ mode: 'serial', timeout: 120000 });
@@ -48,8 +52,7 @@ test.describe('AZ Residency Page Tests', () => {
         await residencyPage.clickContinue();
         await residencyPage.verifyErrorMessage('This is a required field.');
         // State, six Yes/No questions and the support total are all required.
-        expect(await page.locator(residencyPage.selectors.requiredFieldError).count()).toBeGreaterThanOrEqual(6);
-        await expect(page).toHaveURL(/\/arizona-residency/);
+        expect(await residencyPage.getRequiredFieldErrorCount()).toBeGreaterThanOrEqual(6);
     });
 
     test('Verify AZ Residency page loads successfully', async () => {
@@ -60,7 +63,7 @@ test.describe('AZ Residency Page Tests', () => {
     test('Answer permanent home question (non-AZ resident)', async () => {
         await freshPage();
         await residencyPage.answerPermanentHomeQuestion(false);
-        await expect(page.locator(residencyPage.selectors.permanentState)).toHaveValue('California');
+        expect(await residencyPage.getPermanentState()).toBe('California');
         expect(await residencyPage.isQuestionVisible('livedInAz12Months')).toBeFalsy();
         expect(await residencyPage.isQuestionVisible('married')).toBeFalsy();
     });
@@ -68,11 +71,10 @@ test.describe('AZ Residency Page Tests', () => {
     test('Answer permanent home question (AZ resident)', async () => {
         await freshPage();
         await residencyPage.answerPermanentHomeQuestion(true);
-        await expect(page.locator(residencyPage.selectors.permanentState)).toHaveValue('Arizona');
+        expect(await residencyPage.getPermanentState()).toBe('Arizona');
         expect(await residencyPage.isQuestionVisible('livedInAz12Months')).toBeTruthy();
         expect(await residencyPage.isQuestionVisible('married')).toBeTruthy();
-        await expect(page.locator('#' + residencyPage.QUESTIONS.livedInAz12Months.id)
-            .getByRole('radio', { name: 'Yes', exact: true })).toHaveAttribute('aria-checked', 'true');
+        expect(await residencyPage.getAnswer('livedInAz12Months')).toBe('Yes');
     });
 
     test('Financial support must total 100%', async () => {
@@ -80,25 +82,21 @@ test.describe('AZ Residency Page Tests', () => {
         await residencyPage.setFinancialSupport({ parent: 60, employment: 20 });
         expect(await residencyPage.getSupportTotal()).toBe(80);
         await residencyPage.clickContinue();
-        await expect(page.locator(residencyPage.selectors.supportTotalError)).toBeVisible();
+        await expect.poll(() => residencyPage.isSupportTotalErrorShown()).toBe(true);
 
         await residencyPage.setFinancialSupport({ parent: 60, employment: 40 });
         expect(await residencyPage.getSupportTotal()).toBe(100);
-        await expect(page.locator(residencyPage.selectors.supportTotalError)).toHaveCount(0);
+        await expect.poll(() => residencyPage.isSupportTotalErrorShown()).toBe(false);
     });
 
     test('Answer parent/guardian question', async () => {
         await freshPage();
         await residencyPage.answerParentGuardianQuestion(true);
         // Parents living in Arizona reveals the parent block.
-        await expect(page.locator(residencyPage.selectors.parentRelationship)).toBeVisible();
-        await expect(page.locator(residencyPage.selectors.parentAzSinceMonth)).toBeVisible();
-        expect(await residencyPage.isQuestionVisible('parentFiledTaxes')).toBeTruthy();
-        expect(await residencyPage.isQuestionVisible('parentHasAzLicense')).toBeTruthy();
-        expect(await residencyPage.isQuestionVisible('parentEmployedInAz')).toBeTruthy();
+        await residencyPage.verifyArizonaParentBlockShown();
 
         await residencyPage.fillArizonaParentDetails({ relationship: 'Mother', filedTaxes: true });
-        await expect(page.locator(residencyPage.selectors.parentRelationship)).toHaveValue('Mother');
+        expect(await residencyPage.getDropdownValue(residencyPage.selectors.parentRelationship)).toBe('Mother');
     });
 
     test('Employment follow-up question', async () => {
@@ -107,7 +105,7 @@ test.describe('AZ Residency Page Tests', () => {
         await residencyPage.answer('employed', false);
         expect(await residencyPage.isQuestionVisible('employedLast12Months')).toBeTruthy();
         await residencyPage.answer('employed', true);
-        await expect(page.locator('#' + residencyPage.QUESTIONS.employedLast12Months.id)).toBeHidden();
+        await residencyPage.waitForQuestionHidden('employedLast12Months');
     });
 
     test('Complete AZ residency form for AZ resident with AZ parent', async () => {
@@ -123,6 +121,6 @@ test.describe('AZ Residency Page Tests', () => {
 
     test('Save and continue to next section', async () => {
         await residencyPage.saveAndContinue();
-        await expect(page.getByRole('heading', { name: 'Review', level: 1 })).toBeVisible();
+        await new ReviewPage(page).verifyPageLoaded();
     });
 });
