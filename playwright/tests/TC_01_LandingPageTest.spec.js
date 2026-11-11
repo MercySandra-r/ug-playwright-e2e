@@ -21,7 +21,25 @@ test.describe('Landing Page Tests', () => {
 
   test('Verify footer links', async () => {
     // This test corresponds to verifyFooter() in the original test
-    await footerLinksPage.validateFooterLinks();
+    const { FOOTER_LINKS } = FooterLinksPage;
+    await footerLinksPage.scrollToFooter();
+
+    // Exactly the expected links, in order, in each group
+    expect(await footerLinksPage.getLinkNames()).toEqual({
+      utility: FOOTER_LINKS.filter((l) => l.group === 'utility').map((l) => l.name),
+      legal: FOOTER_LINKS.filter((l) => l.group === 'legal').map((l) => l.name),
+    });
+
+    for (const link of FOOTER_LINKS) {
+      await test.step(`${link.name} opens in a new tab`, async () => {
+        const shown = await footerLinksPage.readLink(link);
+        expect(shown.visible, `${link.name} visible`).toBeTruthy();
+        expect(shown.href, `${link.name} href`).toMatch(link.href);
+        expect(shown.newTab, `${link.name} opens in a new tab`).toBeTruthy();
+
+        expect(await footerLinksPage.openLink(link), `${link.name} destination`).toMatch(link.lands);
+      });
+    }
   });
 
   test('Verify landing page elements and navigation', async ({ page }) => {
