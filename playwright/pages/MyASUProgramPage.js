@@ -71,6 +71,10 @@ class MyASUProgramPage extends BasePage {
             academicCalendarLink: 'role=link[name="Academic Calendar"]',
             continueButton: 'button[type="submit"][form="page-form"]',
             firstChoiceError: 'text=Please select a first choice program.',
+            // Shown under the selection (with "Update term" / "Change program") when the same
+            // person (name, birthday, SSN) has already applied for that start date.
+            duplicateStartDateError: 'text=You have already submitted an application for your chosen start date.',
+            updateTermButton: 'role=button[name="Update term"]',
         };
     }
 
@@ -309,6 +313,38 @@ class MyASUProgramPage extends BasePage {
         const dialog = this.page.getByRole('dialog').or(this.page.getByRole('alertdialog')).first();
         await dialog.getByRole('button', { name: 'Back', exact: true }).click();
         await dialog.waitFor({ state: 'hidden', timeout: this.assertionTimeout });
+    }
+
+    /**
+     * Open a program's "Choose this program" dialog, read the start terms and whether each
+     * can be chosen, then close the dialog WITHOUT saving. Terms the applicant has already
+     * applied for (for this program) are shown disabled: "Select a start date you have
+     * not already applied for."
+     * @param {string} program - e.g. "Anthropology, BA"
+     * @returns {Promise<Array<{ label: string, disabled: boolean }>>}
+     */
+    async getStartTermOptions(program) {
+        await this.waitForResults();
+        if (!(await this.programHeading(program).isVisible().catch(() => false))) {
+            await this.searchProgram(program.replace(/,.*$/, ''));
+        }
+        await this.programCard(program).getByRole('button', { name: 'Choose this program' }).click();
+        const dialog = this.page.getByRole('alertdialog');
+        await dialog.waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        await dialog.getByRole('radio').first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        const raw = await dialog.getByRole('radio').evaluateAll((els) => els.map((e) => ({
+            label: (e.getAttribute('aria-label') || e.textContent || '').trim(),
+            disabled: e.getAttribute('aria-disabled') === 'true' || e.hasAttribute('disabled'),
+        })));
+        /** @type {Map<string, boolean>} */
+        const byLabel = new Map();
+        for (const t of raw) {
+            if (!/\d{4}/.test(t.label)) continue;
+            byLabel.set(t.label, (byLabel.get(t.label) || false) || t.disabled);
+        }
+        await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+        await dialog.waitFor({ state: 'hidden', timeout: this.assertionTimeout });
+        return [...byLabel].map(([label, disabled]) => ({ label, disabled }));
     }
 
     /**

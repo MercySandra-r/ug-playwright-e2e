@@ -62,13 +62,108 @@ class PostAppSubmissionDashboardPage extends BasePage {
         const fromUrl = this.page.url().match(/\/ug-app\/(\d+)\//);
         if (fromUrl) return fromUrl[1];
         await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
-        // The card is rendered more than once (hidden copies), so take a visible match.
-        const card = this.page.locator('p:visible', { hasText: /Application ID:\s*\d+/ }).first();
-        await card.waitFor({ state: 'visible', timeout: this.navigationTimeout });
-        const m = (await card.innerText()).match(/(\d+)/);
+        const card = await this.submittedCard();
+        const m = (await card.innerText()).match(/Application ID:\s*(\d+)/);
         if (!m) throw new Error('No submitted application found on the dashboard');
         this.applicationId = m[1];
         return m[1];
+    }
+
+    // ------------------------------------------------------------------ main dashboard (/dashboard)
+
+    /**
+     * With a draft in progress the main dashboard shows "In-progress applications" and
+     * hides submitted ones behind "View previously submitted applications"; expand it.
+     * @returns {Promise<void>}
+     */
+    async revealSubmittedApplications() {
+        await this.page.getByRole('heading', { level: 1 }).first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        await this.settle();
+        const reveal = this.page.getByRole('button', { name: 'View previously submitted applications' });
+        if (await reveal.isVisible().catch(() => false)) await reveal.click();
+    }
+
+    /**
+     * The main dashboard card of a submitted application (the one saying "Submitted on").
+     * Cards are rendered more than once (hidden copies), so only visible matches count.
+     * @param {string} [id] - a specific application ID; defaults to the first submitted one
+     * @returns {Promise<import('@playwright/test').Locator>}
+     */
+    async submittedCard(id) {
+        await this.revealSubmittedApplications();
+        const submitted = this.page.locator('p:visible', { hasText: /^\s*Submitted on / });
+        await submitted.first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        // The card is the nearest ancestor holding both its button and the Application ID.
+        const cards = submitted.locator('xpath=ancestor::*[.//button[normalize-space()="View application"] and contains(normalize-space(.), "Application ID")][1]');
+        // Card text runs together ("...5020364Submitted on..."), so use (?!\d), not \b.
+        return id ? cards.filter({ hasText: new RegExp(`Application ID:\\s*${id}(?!\\d)`) }).first() : cards.first();
+    }
+
+    /**
+     * ID of an in-progress (draft) application, if the dashboard shows one.
+     * @returns {Promise<string|undefined>}
+     */
+    async getDraftApplicationId() {
+        await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
+        await this.page.getByRole('heading', { level: 1 }).first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        await this.settle();
+        const heading = this.page.getByRole('heading', { name: 'In-progress applications' });
+        if (!(await heading.isVisible().catch(() => false))) return undefined;
+        const card = this.page.locator('p:visible', { hasText: /^\s*Continue your application/ }).first()
+            .locator('xpath=ancestor::*[.//button[normalize-space()="Continue"] and contains(normalize-space(.), "Application ID")][1]');
+        return ((await card.innerText()).match(/Application ID:\s*(\d+)/) || [])[1];
+    }
+
+    /**
+     * Open a second application: resume the in-progress draft if there is one (so reruns
+     * don't pile up drafts), otherwise "Start a new application" -> "Continue with new
+     * application" and answer the learning-mode / degree modal. Never submits anything.
+     * @param {{ mode?: 'In-person'|'Online'|'ASU Local' }} [opts]
+     * @returns {Promise<{ applicationId: string, resumed: boolean }>}
+     */
+    async startOrResumeNewApplication({ mode = 'Online' } = {}) {
+        const draftId = await this.getDraftApplicationId();
+        if (draftId) {
+            const card = this.page.locator('p:visible', { hasText: new RegExp(`Application ID:\\s*${draftId}(?!\\d)`) }).first()
+                .locator('xpath=ancestor::*[.//button[normalize-space()="Continue"] and contains(normalize-space(.), "Application ID")][1]');
+            await card.getByRole('button', { name: 'Continue', exact: true }).click();
+            await this.page.waitForURL(/\/ug-app\/\d+\//, { timeout: this.navigationTimeout });
+            return { applicationId: draftId, resumed: true };
+        }
+        await this.page.getByRole('button', { name: 'Start a new application' }).click();
+        await this.page.getByRole('button', { name: 'Continue with new application' }).click();
+        const modal = this.page.getByRole('alertdialog');
+        await modal.waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        await modal.getByRole('radio', { name: mode, exact: true }).click();
+        await modal.getByRole('radio', { name: "Yes, I want to pursue an associate or bachelor's degree." }).click();
+        await modal.getByRole('button', { name: 'Continue', exact: true }).click();
+        await this.page.waitForURL(/\/ug-app\/\d+\//, { timeout: this.navigationTimeout });
+        const m = this.page.url().match(/\/ug-app\/(\d+)\//);
+        return { applicationId: m ? m[1] : '', resumed: false };
+    }
+
+    /**
+     * Profile menu items, e.g. ['Dashboard', 'Edit profile', 'Sign out'].
+     * @returns {Promise<string[]>}
+     */
+    async getProfileMenuItems() {
+        await this.page.getByRole('button', { name: 'Profile menu' }).click();
+        const menu = this.page.getByRole('menu');
+        await menu.waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        const items = (await menu.locator('a, button, [role="menuitem"]').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean);
+        await this.page.keyboard.press('Escape');
+        return [...new Set(items)];
+    }
+
+    /**
+     * Sign out through the Profile menu.
+     * @returns {Promise<void>}
+     */
+    async signOut() {
+        await this.page.getByRole('button', { name: 'Profile menu' }).click();
+        await this.page.getByRole('menu').getByText('Sign out', { exact: true }).click();
+        await this.page.waitForURL((u) => !/\/dashboard|\/ug-app\//.test(u.pathname), { timeout: this.navigationTimeout });
+        await this.settle();
     }
 
     /**
@@ -87,8 +182,7 @@ class PostAppSubmissionDashboardPage extends BasePage {
         }
         if (!onNextSteps()) {
             this.logger.warn(`Direct link to Next steps landed on ${this.page.url()}; using "View application"`);
-            const card = this.page.locator('p:visible', { hasText: new RegExp(`Application ID:\\s*${id}`) }).first()
-                .locator('xpath=ancestor::*[.//button[normalize-space()="View application"]][1]');
+            const card = await this.submittedCard(id);
             await card.getByRole('button', { name: 'View application' }).click();
             await this.page.waitForURL(/\/ug-app\/\d+\/dashboard/, { timeout: this.navigationTimeout });
         }
@@ -147,9 +241,8 @@ class PostAppSubmissionDashboardPage extends BasePage {
         const id = await this.getSubmittedApplicationId();
         const back = this.page.url();
         await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
-        const card = this.page.locator('p:visible', { hasText: new RegExp(`Application ID:\\s*${id}`) }).first()
-            .locator('xpath=ancestor::*[.//button[normalize-space()="View application"]][1]');
-        const status = (await card.locator('p:visible', { hasText: /^\s*Submitted on / }).first().innerText()).trim();
+        const card = await this.submittedCard(id);
+        const status = (((await card.innerText()).match(/Submitted on [^\n]+/) || [''])[0]).trim();
         if (/\/ug-app\//.test(back)) await this.page.goto(back, { timeout: this.navigationTimeout });
         return status;
     }
