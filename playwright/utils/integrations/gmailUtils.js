@@ -98,6 +98,8 @@ class GmailUtils {
      * @param {number} [opts.timeoutMs] - Give up after this long (default: 60000).
      * @param {number} [opts.pollIntervalMs] - Gap between polls (default: 3000).
      * @param {RegExp} [opts.codeRegex] - How to find the code (default: 6-digit run).
+     * @param {string[]} [opts.excludeIds] - Ignore these messages (e.g. from messageIdsTo()
+     *   before the request), so an earlier email inside the clock-skew slack isn't picked up.
      * @returns {Promise<{ code: string|null, link: string|null, subject: string, messageId: string, body: string }>}
      */
     async waitForVerificationEmail({
@@ -109,6 +111,7 @@ class GmailUtils {
         pollIntervalMs = 3000,
         // ASU IdP sends "Your Verification Code" from noreply@asu.edu with a 6-digit code.
         codeRegex = /\b(\d{6})\b/,
+        excludeIds = [],
     }) {
         if (!this.gmail) throw new Error('GmailUtils not initialized. Call initialize() first.');
 
@@ -124,7 +127,7 @@ class GmailUtils {
 
         while (Date.now() < deadline) {
             const list = await this.gmail.users.messages.list({ userId: 'me', q, maxResults: 5 });
-            const messages = list.data.messages || [];
+            const messages = (list.data.messages || []).filter((/** @type {any} */ m) => !excludeIds.includes(String(m.id)));
             if (messages.length > 0) {
                 // Newest first: messages.list already returns most-recent first.
                 const msg = await this.gmail.users.messages.get({ userId: 'me', id: messages[0].id, format: 'full' });
@@ -143,6 +146,18 @@ class GmailUtils {
             await new Promise((r) => setTimeout(r, pollIntervalMs));
         }
         throw new Error(`No verification email for ${toAddress} within ${timeoutMs}ms (q="${q}")`);
+    }
+
+    /**
+     * IDs of the most recent messages sent to `toAddress` (newest first).
+     * @param {string} toAddress
+     * @param {number} [max]
+     * @returns {Promise<string[]>}
+     */
+    async messageIdsTo(toAddress, max = 10) {
+        if (!this.gmail) throw new Error('GmailUtils not initialized. Call initialize() first.');
+        const list = await this.gmail.users.messages.list({ userId: 'me', q: `to:${toAddress}`, maxResults: max });
+        return (list.data.messages || []).map((/** @type {any} */ m) => String(m.id));
     }
 
     /**
