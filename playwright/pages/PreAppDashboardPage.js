@@ -1,10 +1,31 @@
 // @ts-check
 const { expect } = require('@playwright/test');
 const BasePage = require('./BasePage');
-const { faker } = require('@faker-js/faker');
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August',
+    'September', 'October', 'November', 'December'];
 
 /**
- * Page Object for Pre-Application Dashboard related actions
+ * Page Object for the pre-application dashboard (/dashboard before any application):
+ * "Welcome! You're a few steps away from becoming a Sun Devil."
+ *
+ * Rebuilt against the live page on 2026-11-11 (new account asuqa0045):
+ *  - Legal name: First name, Preferred first name (optional), Middle name (optional),
+ *    Last name, Suffix (optional dropdown)
+ *  - Contact email: the account's email, shown read-only (its Edit button is disabled)
+ *  - Birthday: Month / Day / Year dropdowns; years run from 5 years ago back 100 years
+ *  - Phone number: country code (+1 default) and number; "Is this a mobile number?" and
+ *    an SMS opt-in can follow once a number is entered
+ *  - "Start new application", then the Application FAQ accordion
+ * Empty submit flags first name, last name, birthday ("This is a required field.") and
+ * phone ("Phone number is required"); a short number gives "Enter a valid phone number."
+ * After "Start new application" a BriteVerify dialog may question the contact details
+ * ("could not be verified"); submitting as is is the normal path.
+ *
+ * POM rule for this page: every element is declared here. Fixed elements are named in
+ * `this.selectors`; elements that depend on data (an option, a radio, an FAQ question,
+ * the learning-mode radio) come from the locator methods below. Specs use these names
+ * and the read-back methods, never their own locators.
  */
 class PreAppDashboardPage extends BasePage {
     /**
@@ -12,556 +33,418 @@ class PreAppDashboardPage extends BasePage {
      */
     constructor(page) {
         super(page, 'PreAppDashboardPage');
-        
-        // Define page selectors based on actual ASU dashboard structure
+
         this.selectors = {
-            // Header and Navigation
-            pageTitle: 'h1, h2, [role="heading"]',
-            welcomeMessage: 'text="Welcome! You\'re a few steps away from becoming a Sun Devil."',
-            profileMenu: 'button[aria-label="Profile menu"], button:has-text("Profile")',
-            
-            // Loading States
-            loadingIndicator: '[role="progressbar"], .loading, text="Loading"',
-            
-            // Personal Information Section (based on actual ASU form screenshot)
-            firstNameInput: 'input[placeholder="Enter your legal first name"], input[name="firstName"], input[id*="firstName"], label:has-text("First name") + input',
-            preferredFirstNameInput: 'input[placeholder="Enter your preferred first name"], input[name="preferredFirstName"], input[id*="preferred"]',
-            middleNameInput: 'input[placeholder="Enter your legal middle name"], input[name="middleName"], input[id*="middle"]',
-            lastNameInput: 'input[placeholder="Enter your legal last name"], input[name="lastName"], input[id*="lastName"], label:has-text("Last name") + input',
-            suffixSelect: 'select:has(option:text("Please select one")), select[name="suffix"], select[id*="suffix"]',
-            
-            // Birthday Section (based on actual ASU form screenshot)
-            birthdaySection: 'text="Birthday", [aria-label*="Birthday"], label:has-text("Birthday")',
-            birthMonthSelect: 'select:has(option:text("Month")), select[name*="month"], select[id*="month"], select[aria-label*="Month"]',
-            birthDaySelect: 'select:has(option:text("Day")), select[name*="day"], select[id*="day"], select[aria-label*="Day"]',
-            birthYearSelect: 'select:has(option:text("Year")), select[name*="year"], select[id*="year"], select[aria-label*="Year"]',
-            dateClearButton: 'button:has-text("Clear"), button[aria-label*="Clear date"]',
-            
-            // Contact Information (based on actual ASU form screenshot)
-            emailInput: 'input[name="email"], input[type="email"], input[placeholder*="email"], input[aria-label*="email"]',
-            phoneNumberInput: 'input[placeholder="Enter phone number"], input[name="phoneNumber"], input[type="tel"], input[aria-label*="Phone"]',
-            phoneTypeSelect: 'select[name="phoneType"], select[aria-label*="Phone type"]',
-            countryCodeSelect: 'select:has(option:text("+1")), select[name="countryCode"], select[aria-label*="Country"]',
-            
-            // Start New Application Button (based on screenshot)
-            startNewAppButton: 'button:has-text("Start new application"), button:has-text("Start New Application"), button:has-text("Start Application")',
-            
-            // Error Messages (multiple possible patterns)
-            errorMessage: '.error-message, .error, [role="alert"], .field-error, .validation-error',
-            /**
-             * Get selector for a field's error message
-             * @param {string} fieldName - The name of the field
-             * @returns {string} The CSS selector for the field's error message
-             */
-            fieldErrorMessage: (fieldName) => `[data-testid="${fieldName}-error"], .${fieldName}-error, [aria-describedby*="${fieldName}"] + .error`,
-            
-            // Buttons (multiple possible text variations)
-            submitButton: 'button[type="submit"], button:has-text("Submit")',
-            cancelButton: 'button:has-text("Cancel"), button:has-text("Back")',
-            saveAndContinueButton: 'button:has-text("Save & Continue"), button:has-text("Continue"), button:has-text("Next")',
-            
-            // Modal Dialogs
-            confirmationModal: '.modal, .dialog, [role="dialog"]',
-            modalConfirmButton: '.modal button:has-text("Confirm"), .modal button:has-text("OK"), .modal button:has-text("Yes")',
-            modalCancelButton: '.modal button:has-text("Cancel"), .modal button:has-text("No")'
+            welcomeHeading: 'role=heading[name=/^Welcome! You.re a few steps away from becoming a Sun Devil/][level=1]',
+            introText: 'text=Begin your new application by providing your legal name, birthday and phone number.',
+            profileMenu: 'role=button[name="Profile menu"]',
+
+            // Legal name
+            firstNameInput: 'role=textbox[name="First name"s]',
+            preferredFirstNameInput: 'role=textbox[name="Preferred first name (Optional)"]',
+            middleNameInput: 'role=textbox[name="Middle name (Optional)"]',
+            lastNameInput: 'role=textbox[name="Last name"s]',
+            suffixSelect: 'role=combobox[name=/^Suffix/]',
+
+            // Contact email (read-only here; edited in Profile)
+            contactEmailLabel: 'text=Contact email',
+            contactEmailEditButton: 'role=button[name="Edit"s]',
+
+            // Birthday
+            birthdayGroup: 'role=group[name=/^Birthday/]',
+            birthMonthSelect: 'role=combobox[name="Month"s]',
+            birthDaySelect: 'role=combobox[name="Day"s]',
+            birthYearSelect: 'role=combobox[name="Year"s]',
+
+            // Phone
+            phoneHeading: 'role=heading[name="Phone number"][level=3]',
+            countryCodeInput: 'role=textbox[name="Country code"]',
+            phoneNumberInput: 'role=textbox[name="Phone number"s]',
+            mobileGroup: 'role=radiogroup[name="Is this a mobile number?"]',
+            smsGroup: 'role=radiogroup[name=/SMS messaging/]',
+
+            // Start, FAQ
+            startNewAppButton: 'role=button[name="Start new application"]',
+            faqHeading: 'role=heading[name="Application FAQ"][level=2]',
+
+            // Dropdown options
+            option: 'role=option',
+
+            // Learning-mode modal (accounts that skipped the landing-page choice)
+            degreeRadio: '[role="radio"][value="DG"]',
+            modalContinueButton: 'role=button[name="Continue"s]',
+
+            // BriteVerify dialog after Start new application
+            alertDialog: 'role=alertdialog',
+
+            // Messages
+            requiredFieldError: 'text=This is a required field.',
+            phoneRequiredError: 'text=Phone number is required',
+            invalidPhoneError: 'text=Enter a valid phone number.',
         };
-        
-        // Initialize any page-specific properties
+
+        this.MONTHS = MONTHS;
         this.currentYear = new Date().getFullYear();
     }
 
+    // ------------------------------------------------------------------ locators that depend on data
+
     /**
-     * Navigate to the Pre-Application Dashboard
-     * @returns {Promise<void>}
+     * An open list's option by exact label (or the first option when none given).
+     * @param {string} [label]
+     * @returns {import('@playwright/test').Locator}
      */
-    async navigateToDashboard() {
-        await this.page.goto('/dashboard');
-        await this.page.waitForLoadState('networkidle');
-        await this.verifyPageLoaded();
+    option(label) {
+        return label
+            ? this.page.getByRole('option', { name: label, exact: true }).first()
+            : this.page.locator(this.selectors.option).first();
     }
 
     /**
-     * Verify the Pre-Application Dashboard page is loaded
+     * A radio by exact label inside one of the page's radio groups.
+     * @param {string} groupSelector - e.g. this.selectors.mobileGroup
+     * @param {string} label
+     * @returns {import('@playwright/test').Locator}
+     */
+    radioIn(groupSelector, label) {
+        return this.page.locator(groupSelector).getByRole('radio', { name: label, exact: true });
+    }
+
+    /**
+     * Learning-mode radio in the modal some accounts see first.
+     * @param {'online'|'in-person'|string} mode
+     * @returns {import('@playwright/test').Locator}
+     */
+    learningModeRadio(mode) {
+        return this.page.locator(`[role="radio"][value="${mode}"]`);
+    }
+
+    /**
+     * An Application FAQ question (a disclosure button).
+     * @param {string} question
+     * @returns {import('@playwright/test').Locator}
+     */
+    faqQuestion(question) {
+        return this.page.getByRole('button', { name: question, exact: true });
+    }
+
+    /**
+     * The contact email as shown on the form.
+     * @param {string} email
+     * @returns {import('@playwright/test').Locator}
+     */
+    contactEmailText(email) {
+        return this.page.getByText(email, { exact: true });
+    }
+
+    /**
+     * The BriteVerify "could not be verified" dialog.
+     * @returns {import('@playwright/test').Locator}
+     */
+    briteVerifyDialog() {
+        return this.page.locator(this.selectors.alertDialog).filter({ hasText: 'could not be verified' });
+    }
+
+    // ------------------------------------------------------------------ navigation
+
+    /**
+     * Open the pre-app dashboard. Accounts that signed in (rather than coming from the
+     * landing page's learning-mode choice) first get "How would you like to attend ASU?";
+     * it is answered with `mode`.
+     * @param {'online'|'in-person'} [mode]
+     * @returns {Promise<void>}
+     */
+    async navigateToDashboard(mode = 'online') {
+        await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
+        await this.answerLearningModeIfAsked(mode);
+        await this.verifyPageLoaded();
+        // The form re-initialises shortly after load and can wipe values typed too early.
+        await this.settle();
+    }
+
+    /**
      * @returns {Promise<void>}
      */
     async verifyPageLoaded() {
-        await expect(this.page).toHaveURL(/.*dashboard/);
-        
-        // Wait for loading to complete
-        try {
-            await this.page.waitForSelector(this.selectors.loadingIndicator, { state: 'hidden', timeout: 30000 });
-        } catch (error) {
-            // Loading indicator might not be present, continue
-            this.logger.warn('Loading indicator not found or did not disappear');
-        }
-        
-        // Check for either welcome message or page title
-        try {
-            await expect(this.page.locator(this.selectors.welcomeMessage)).toBeVisible({ timeout: 10000 });
-        } catch (error) {
-            // If welcome message not found, check for any heading
-            await expect(this.page.locator(this.selectors.pageTitle).first()).toBeVisible({ timeout: 10000 });
+        await expect(this.page).toHaveURL(/\/dashboard/, { timeout: this.navigationTimeout });
+        await expect(this.page.locator(this.selectors.welcomeHeading)).toBeVisible({ timeout: this.navigationTimeout });
+    }
+
+    /**
+     * Every part of the form is shown, plus Start new application and the FAQ.
+     * @returns {Promise<void>}
+     */
+    async verifyFormVisible() {
+        const s = this.selectors;
+        for (const selector of [s.introText, s.firstNameInput, s.preferredFirstNameInput, s.middleNameInput, s.lastNameInput,
+            s.suffixSelect, s.contactEmailLabel, s.birthdayGroup, s.birthMonthSelect, s.birthDaySelect, s.birthYearSelect,
+            s.phoneHeading, s.countryCodeInput, s.phoneNumberInput, s.startNewAppButton, s.faqHeading]) {
+            await expect(this.page.locator(selector).first(), selector).toBeVisible({ timeout: this.assertionTimeout });
         }
     }
 
     /**
-     * Fill in personal information
-     * @param {Object} userData - User data object
-     * @param {string} userData.firstName - First name
-     * @param {string} [userData.preferredFirstName] - Preferred first name (optional)
-     * @param {string} [userData.middleName] - Middle name (optional)
-     * @param {string} userData.lastName - Last name
-     * @param {string} [userData.suffix] - Name suffix (e.g., 'Jr', 'Sr', 'III')
+     * The account's email is shown as the contact email and can't be edited here.
+     * @param {string} email
+     * @returns {Promise<void>}
+     */
+    async verifyContactEmail(email) {
+        await expect(this.contactEmailText(email).first()).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page.locator(this.selectors.contactEmailEditButton).first()).toBeDisabled();
+    }
+
+    // ------------------------------------------------------------------ dropdowns
+
+    /**
+     * Pick an option from one of the page's dropdowns.
+     * @param {string} selector
+     * @param {string} value - exact option label
+     * @returns {Promise<void>}
+     */
+    async chooseFromDropdown(selector, value) {
+        await this.page.locator(selector).click();
+        await this.option(value).click();
+    }
+
+    /**
+     * Option labels of a dropdown (closes it again).
+     * @param {string} selector
+     * @returns {Promise<string[]>}
+     */
+    async getDropdownOptions(selector) {
+        await this.page.locator(selector).click();
+        const options = this.page.locator(this.selectors.option);
+        await options.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        const labels = (await options.allInnerTexts()).map((t) => t.replace(/\s*✓\s*$/, '').trim()).filter(Boolean);
+        await this.page.keyboard.press('Escape');
+        return labels;
+    }
+
+    /** @returns {Promise<string[]>} */
+    async getSuffixOptions() { return this.getDropdownOptions(this.selectors.suffixSelect); }
+
+    /** @returns {Promise<string[]>} birth years offered, newest first */
+    async getBirthYearOptions() { return this.getDropdownOptions(this.selectors.birthYearSelect); }
+
+    // ------------------------------------------------------------------ legal name
+
+    /**
+     * Fill the legal name (optional parts only when given).
+     * @param {{ firstName: string, preferredFirstName?: string, middleName?: string,
+     *           lastName: string, suffix?: string }} data
      * @returns {Promise<void>}
      */
     async fillPersonalInformation({ firstName, preferredFirstName, middleName, lastName, suffix }) {
-        console.log('Starting to fill personal information...');
-        
-        // Fill First name - try multiple approaches
-        await this.fillFieldWithFallbacks('firstName', firstName, [
-            this.selectors.firstNameInput,
-            'input[placeholder*="First name" i]',
-            'input[aria-label*="First name" i]',
-            'label:has-text("First name") + input',
-            'input[name="firstName"]'
-        ]);
-        
-        // Fill Preferred first name (optional)
-        if (preferredFirstName) {
-            await this.fillFieldWithFallbacks('preferredFirstName', preferredFirstName, [
-                this.selectors.preferredFirstNameInput,
-                'input[placeholder*="Preferred" i]',
-                'input[aria-label*="Preferred" i]',
-                'input[name="preferredFirstName"]'
-            ], true);
-        }
-        
-        // Fill Middle name (optional)
-        if (middleName) {
-            await this.fillFieldWithFallbacks('middleName', middleName, [
-                this.selectors.middleNameInput,
-                'input[placeholder*="Middle" i]',
-                'input[aria-label*="Middle" i]',
-                'input[name="middleName"]'
-            ], true);
-        }
-        
-        // Fill Last name - try multiple approaches
-        await this.fillFieldWithFallbacks('lastName', lastName, [
-            this.selectors.lastNameInput,
-            'input[placeholder*="Last name" i]',
-            'input[aria-label*="Last name" i]',
-            'label:has-text("Last name") + input',
-            'input[name="lastName"]'
-        ]);
-        
-        // Select suffix (optional)
-        if (suffix) {
-            await this.selectFieldWithFallbacks('suffix', suffix, [
-                this.selectors.suffixSelect,
-                'select[aria-label*="Suffix" i]',
-                'select:has(option:text("Jr"))',
-                'select[name="suffix"]'
-            ], true);
-        }
-        
-        console.log('✓ Personal information filling completed');
+        await this.page.locator(this.selectors.firstNameInput).fill(firstName);
+        if (preferredFirstName) await this.page.locator(this.selectors.preferredFirstNameInput).fill(preferredFirstName);
+        if (middleName) await this.page.locator(this.selectors.middleNameInput).fill(middleName);
+        await this.page.locator(this.selectors.lastNameInput).fill(lastName);
+        if (suffix) await this.chooseFromDropdown(this.selectors.suffixSelect, suffix);
     }
 
-    /**
-     * Helper method to fill a field with multiple fallback selectors
-     * @param {string} fieldName - Name of the field for logging
-     * @param {string} value - Value to fill
-     * @param {string[]} selectors - Array of selectors to try
-     * @param {boolean} [optional=false] - Whether the field is optional
-     * @returns {Promise<void>}
-     */
-    async fillFieldWithFallbacks(fieldName, value, selectors, optional = false) {
-        for (const selector of selectors) {
-            try {
-                const field = this.page.locator(selector).first();
-                if (await field.count() > 0 && await field.isVisible()) {
-                    await field.fill(value);
-                    console.log(`✓ Filled ${fieldName}: ${value}`);
-                    return;
-                }
-            } catch (error) {
-                continue;
-            }
-        }
-        
-        if (!optional) {
-            console.log(`❌ Required field ${fieldName} not found with any selector`);
-        } else {
-            console.log(`⚠️ Optional field ${fieldName} not found, skipping`);
-        }
-    }
+    // ------------------------------------------------------------------ birthday
 
     /**
-     * Helper method to select from dropdown with multiple fallback selectors
-     * @param {string} fieldName - Name of the field for logging
-     * @param {string} value - Value to select
-     * @param {string[]} selectors - Array of selectors to try
-     * @param {boolean} [optional=false] - Whether the field is optional
-     * @returns {Promise<void>}
-     */
-    async selectFieldWithFallbacks(fieldName, value, selectors, optional = false) {
-        for (const selector of selectors) {
-            try {
-                const field = this.page.locator(selector).first();
-                if (await field.count() > 0 && await field.isVisible()) {
-                    await field.selectOption({ value: value });
-                    console.log(`✓ Selected ${fieldName}: ${value}`);
-                    return;
-                }
-            } catch (error) {
-                continue;
-            }
-        }
-        
-        if (!optional) {
-            console.log(`❌ Required dropdown ${fieldName} not found with any selector`);
-        } else {
-            console.log(`⚠️ Optional dropdown ${fieldName} not found, skipping`);
-        }
-    }
-
-    /**
-     * Set birthday (ASU uses "Birthday" instead of "Date of Birth")
-     * @param {Object} date - Date object with month, day, and year
-     * @param {string|number} date.month - Month (1-12 or month name)
-     * @param {string|number} date.day - Day (1-31)
-     * @param {string|number} date.year - Year (e.g., 1990)
+     * Set the birthday. Month may be a name ("June") or number (6).
+     * @param {{ month: string|number, day: string|number, year: string|number }} date
      * @returns {Promise<void>}
      */
     async setDateOfBirth({ month, day, year }) {
-        try {
-            // Try to clear any existing date first
-            const clearButton = this.page.locator(this.selectors.dateClearButton);
-            if (await clearButton.count() > 0) {
-                await clearButton.click();
-            }
-        } catch (error) {
-            // Clear button might not exist, continue
-            this.logger.warn('Clear button not found, continuing with date selection');
-        }
-        
-        // Set month - try multiple selectors
-        const monthSelect = this.page.locator(this.selectors.birthMonthSelect).first();
-        if (await monthSelect.count() > 0) {
-            await monthSelect.selectOption({ value: month.toString() });
-        }
-        
-        // Set day - try multiple selectors
-        const daySelect = this.page.locator(this.selectors.birthDaySelect).first();
-        if (await daySelect.count() > 0) {
-            await daySelect.selectOption({ value: day.toString() });
-        }
-        
-        // Set year - try multiple selectors
-        const yearSelect = this.page.locator(this.selectors.birthYearSelect).first();
-        if (await yearSelect.count() > 0) {
-            await yearSelect.selectOption({ value: year.toString() });
-        }
+        const monthName = /^\d+$/.test(String(month)) ? MONTHS[Number(month) - 1] : String(month);
+        await this.chooseFromDropdown(this.selectors.birthMonthSelect, monthName);
+        await this.chooseFromDropdown(this.selectors.birthDaySelect, String(Number(day)));
+        await this.chooseFromDropdown(this.selectors.birthYearSelect, String(year));
     }
 
     /**
-     * Generate a random date of birth for a specific age
-     * @param {number} age - Desired age
-     * @returns {Object} Object with month, day, and year
+     * A random birthday for someone `age` years old (day 1-28 to suit every month).
+     * @param {number} age
+     * @returns {{ month: string, day: number, year: number }}
      */
     generateRandomBirthDateForAge(age) {
-        const currentYear = new Date().getFullYear();
-        const birthYear = currentYear - age;
-        const month = Math.floor(Math.random() * 12) + 1; // 1-12
-        const day = Math.floor(Math.random() * 28) + 1; // 1-28 (to handle February)
-        
         return {
-            month,
-            day,
-            year: birthYear
+            month: MONTHS[Math.floor(Math.random() * 12)],
+            day: Math.floor(Math.random() * 28) + 1,
+            year: this.currentYear - age,
         };
     }
 
     /**
-     * Set date of birth for age > 24 (Adult category)
-     * Uses verified dropdown behavior: click to open, then select by name
+     * @param {number} minAge
+     * @param {number} maxAge
+     * @returns {Promise<{ month: string, day: number, year: number }>}
+     */
+    async setDateOfBirthForAgeBetween(minAge, maxAge) {
+        const age = minAge + Math.floor(Math.random() * (maxAge - minAge + 1));
+        const date = this.generateRandomBirthDateForAge(age);
+        await this.setDateOfBirth(date);
+        return date;
+    }
+
+    /** Age 25-35. @returns {Promise<{ month: string, day: number, year: number }>} */
+    async setDateOfBirthForAdult() { return this.setDateOfBirthForAgeBetween(25, 35); }
+
+    /** Age 18-24. @returns {Promise<{ month: string, day: number, year: number }>} */
+    async setDateOfBirthForYoungAdult() { return this.setDateOfBirthForAgeBetween(18, 24); }
+
+    /** Age 18 by birth year. @returns {Promise<{ month: string, day: number, year: number }>} */
+    async setDateOfBirthForExactly18() { return this.setDateOfBirthForAgeBetween(18, 18); }
+
+    /** Age 16-17. @returns {Promise<{ month: string, day: number, year: number }>} */
+    async setDateOfBirthForMinor() { return this.setDateOfBirthForAgeBetween(16, 17); }
+
+    // ------------------------------------------------------------------ phone
+
+    /**
+     * Enter the phone number and answer the follow-ups if they appear: mobile (Yes for
+     * phoneType 'Mobile') and SMS (always No, so nothing is texted to test numbers).
+     * The contact email can't be edited here; `email` is ignored.
+     * @param {{ email?: string, phoneNumber: string, phoneType?: string, countryCode?: string }} data
      * @returns {Promise<void>}
      */
-    async setDateOfBirthForAdult() {
-        console.log('Setting date of birth for age > 24 (Adult)...');
-        
-        try {
-            // Generate date for someone aged 25-35
-            const age = Math.floor(Math.random() * 11) + 25; // Random age between 25-35
-            const currentYear = new Date().getFullYear();
-            const birthYear = currentYear - age;
-            
-            const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December'];
-            const monthName = months[Math.floor(Math.random() * 12)];
-            const day = Math.floor(Math.random() * 28) + 1; // 1-28
-            
-            console.log(`Setting birth date: ${monthName} ${day}, ${birthYear} (Age: ${age})`);
-            
-            // Select Month
-            const monthField = this.page.getByRole('combobox', { name: 'Month' });
-            await monthField.waitFor({ state: 'visible', timeout: 10000 });
-            await monthField.click();
-            await this.page.waitForTimeout(1000);
-            await this.page.getByRole('option', { name: monthName }).click();
-            
-            // Select Day
-            const dayField = this.page.getByRole('combobox', { name: 'Day' });
-            await dayField.waitFor({ state: 'visible', timeout: 10000 });
-            await dayField.click();
-            await this.page.waitForTimeout(1000);
-            await this.page.getByRole('option', { name: day.toString() }).click();
-            
-            // Select Year
-            const yearField = this.page.getByRole('combobox', { name: 'Year' });
-            await yearField.waitFor({ state: 'visible', timeout: 10000 });
-            await yearField.click();
-            await this.page.waitForTimeout(1000);
-            await this.page.getByRole('option', { name: birthYear.toString() }).click();
-            
-            console.log(`✓ Adult date of birth set: ${monthName} ${day}, ${birthYear}`);
-            
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.log(`⚠️ Failed to set adult date of birth: ${errorMessage}`);
-            throw error;
+    async fillContactInformation({ phoneNumber, phoneType = 'Mobile' }) {
+        await this.fillPhone(phoneNumber);
+        const mobile = this.page.locator(this.selectors.mobileGroup);
+        if (await mobile.waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false)) {
+            await this.radioIn(this.selectors.mobileGroup, /mobile/i.test(phoneType) ? 'Yes' : 'No').click();
+        }
+        if (await this.page.locator(this.selectors.smsGroup).isVisible().catch(() => false)) {
+            await this.radioIn(this.selectors.smsGroup, 'No').click();
         }
     }
 
     /**
-     * Set date of birth for age between 18-24 (Young Adult category)
-     * Uses verified dropdown behavior: click to open, then select by name
+     * Type a phone number and make sure it stuck (the formatted field can drop input
+     * typed while the form is still initialising).
+     * @param {string} phone - digits, e.g. "2025551234"
      * @returns {Promise<void>}
      */
-    async setDateOfBirthForYoungAdult() {
-        console.log('Setting date of birth for age 18-24 (Young Adult)...');
-        
-        try {
-            // Generate date for someone aged 18-24
-            const age = Math.floor(Math.random() * 7) + 18; // Random age between 18-24
-            const currentYear = new Date().getFullYear();
-            const birthYear = currentYear - age;
-            
-            const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December'];
-            const monthName = months[Math.floor(Math.random() * 12)];
-            const day = Math.floor(Math.random() * 28) + 1; // 1-28
-            
-            console.log(`Setting birth date: ${monthName} ${day}, ${birthYear} (Age: ${age})`);
-            
-            // Select Month
-            const monthField = this.page.getByRole('combobox', { name: 'Month' });
-            await monthField.waitFor({ state: 'visible', timeout: 10000 });
-            await monthField.click();
+    async fillPhone(phone) {
+        const box = this.page.locator(this.selectors.phoneNumberInput);
+        const digits = phone.replace(/\D/g, '');
+        for (let attempt = 0; attempt < 3; attempt++) {
+            await box.fill(phone);
+            await box.blur();
+            if ((await box.inputValue()).replace(/\D/g, '') === digits) return;
             await this.page.waitForTimeout(1000);
-            await this.page.getByRole('option', { name: monthName }).click();
-            
-            // Select Day
-            const dayField = this.page.getByRole('combobox', { name: 'Day' });
-            await dayField.waitFor({ state: 'visible', timeout: 10000 });
-            await dayField.click();
-            await this.page.waitForTimeout(1000);
-            await this.page.getByRole('option', { name: day.toString() }).click();
-            
-            // Select Year
-            const yearField = this.page.getByRole('combobox', { name: 'Year' });
-            await yearField.waitFor({ state: 'visible', timeout: 10000 });
-            await yearField.click();
-            await this.page.waitForTimeout(1000);
-            await this.page.getByRole('option', { name: birthYear.toString() }).click();
-            
-            console.log(`✓ Young Adult date of birth set: ${monthName} ${day}, ${birthYear}`);
-            
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.log(`⚠️ Failed to set young adult date of birth: ${errorMessage}`);
-            throw error;
         }
+        throw new Error(`Phone number field did not keep "${phone}" (shows "${await box.inputValue()}")`);
     }
 
     /**
-     * Set date of birth for exactly age 18 (Exactly 18 category)
-     * Uses verified dropdown behavior: click to open, then select by name
+     * Rough E.164 check of a phone number (no page interaction).
+     * @param {string} phone
+     * @param {string} [_countryCode]
+     * @returns {Promise<boolean>}
+     */
+    async isValidPhoneNumber(phone, _countryCode = 'US') {
+        return /^\+?[1-9]\d{1,14}$/.test(phone);
+    }
+
+    // ------------------------------------------------------------------ read-back and validation
+
+    /**
+     * What the form currently shows.
+     * @returns {Promise<{ firstName: string, preferredFirstName: string, middleName: string,
+     *   lastName: string, suffix: string, birth: { month: string, day: string, year: string },
+     *   countryCode: string, phone: string }>}
+     */
+    async readFormValues() {
+        const value = (/** @type {string} */ selector) => this.page.locator(selector).first().inputValue();
+        return {
+            firstName: await value(this.selectors.firstNameInput),
+            preferredFirstName: await value(this.selectors.preferredFirstNameInput),
+            middleName: await value(this.selectors.middleNameInput),
+            lastName: await value(this.selectors.lastNameInput),
+            suffix: await value(this.selectors.suffixSelect),
+            birth: {
+                month: await value(this.selectors.birthMonthSelect),
+                day: await value(this.selectors.birthDaySelect),
+                year: await value(this.selectors.birthYearSelect),
+            },
+            countryCode: await value(this.selectors.countryCodeInput),
+            phone: (await value(this.selectors.phoneNumberInput)).replace(/\D/g, ''),
+        };
+    }
+
+    /**
+     * Start new application on the empty form: first name, last name and birthday are
+     * flagged as required, the phone as "Phone number is required", and the page stays.
      * @returns {Promise<void>}
      */
-    async setDateOfBirthForExactly18() {
-        console.log('Setting date of birth for exactly age 18...');
-        
-        try {
-            // Generate date for someone exactly 18 years old
-            const currentYear = new Date().getFullYear();
-            const birthYear = currentYear - 18;
-            
-            const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December'];
-            const monthName = months[Math.floor(Math.random() * 12)];
-            const day = Math.floor(Math.random() * 28) + 1; // 1-28
-            
-            console.log(`Setting birth date: ${monthName} ${day}, ${birthYear} (Age: 18)`);
-            
-            // Select Month
-            const monthField = this.page.getByRole('combobox', { name: 'Month' });
-            await monthField.waitFor({ state: 'visible', timeout: 10000 });
-            await monthField.click();
-            await this.page.waitForTimeout(1000);
-            await this.page.getByRole('option', { name: monthName }).click();
-            
-            // Select Day
-            const dayField = this.page.getByRole('combobox', { name: 'Day' });
-            await dayField.waitFor({ state: 'visible', timeout: 10000 });
-            await dayField.click();
-            await this.page.waitForTimeout(1000);
-            await this.page.getByRole('option', { name: day.toString() }).click();
-            
-            // Select Year
-            const yearField = this.page.getByRole('combobox', { name: 'Year' });
-            await yearField.waitFor({ state: 'visible', timeout: 10000 });
-            await yearField.click();
-            await this.page.waitForTimeout(1000);
-            await this.page.getByRole('option', { name: birthYear.toString() }).click();
-            
-            console.log(`✓ Exactly 18 date of birth set: ${monthName} ${day}, ${birthYear}`);
-            
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.log(`⚠️ Failed to set exactly 18 date of birth: ${errorMessage}`);
-            throw error;
-        }
+    async verifyRequiredFieldErrors() {
+        await this.page.locator(this.selectors.startNewAppButton).click();
+        await expect(this.page.locator(this.selectors.phoneRequiredError)).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page.locator(this.selectors.requiredFieldError)).toHaveCount(3);
+        await expect(this.page).toHaveURL(/\/dashboard/);
     }
 
     /**
-     * Set date of birth for age < 18 (Minor category)
-     * Uses verified dropdown behavior: click to open, then select by name
+     * An invalid phone number is flagged on submit. Only the phone is filled, so the
+     * click can't start an application; the page must stay on the dashboard.
+     * @param {string} phone - e.g. "123"
      * @returns {Promise<void>}
      */
-    async setDateOfBirthForMinor() {
-        console.log('Setting date of birth for age < 18 (Minor)...');
-        
-        try {
-            // Generate date for someone aged 16-17
-            const age = Math.floor(Math.random() * 2) + 16; // Random age between 16-17
-            const currentYear = new Date().getFullYear();
-            const birthYear = currentYear - age;
-            
-            const months = ['January', 'February', 'March', 'April', 'May', 'June', 
-                          'July', 'August', 'September', 'October', 'November', 'December'];
-            const monthName = months[Math.floor(Math.random() * 12)];
-            const day = Math.floor(Math.random() * 28) + 1; // 1-28
-            
-            console.log(`Setting birth date: ${monthName} ${day}, ${birthYear} (Age: ${age})`);
-            
-            // Select Month
-            const monthField = this.page.getByRole('combobox', { name: 'Month' });
-            await monthField.waitFor({ state: 'visible', timeout: 10000 });
-            await monthField.click();
-            await this.page.waitForTimeout(1000);
-            await this.page.getByRole('option', { name: monthName }).click();
-            
-            // Select Day
-            const dayField = this.page.getByRole('combobox', { name: 'Day' });
-            await dayField.waitFor({ state: 'visible', timeout: 10000 });
-            await dayField.click();
-            await this.page.waitForTimeout(1000);
-            await this.page.getByRole('option', { name: day.toString() }).click();
-            
-            // Select Year
-            const yearField = this.page.getByRole('combobox', { name: 'Year' });
-            await yearField.waitFor({ state: 'visible', timeout: 10000 });
-            await yearField.click();
-            await this.page.waitForTimeout(1000);
-            await this.page.getByRole('option', { name: birthYear.toString() }).click();
-            
-            console.log(`✓ Minor date of birth set: ${monthName} ${day}, ${birthYear}`);
-            
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            console.log(`⚠️ Failed to set minor date of birth: ${errorMessage}`);
-            throw error;
-        }
+    async verifyInvalidPhoneError(phone) {
+        await this.fillPhone(phone);
+        await this.page.locator(this.selectors.startNewAppButton).click();
+        await expect(this.page.locator(this.selectors.invalidPhoneError)).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page).toHaveURL(/\/dashboard/);
     }
 
     /**
-     * Fill in contact information
-     * @param {Object} contactInfo - Contact information
-     * @param {string} contactInfo.email - Email address
-     * @param {string} contactInfo.phoneNumber - US Phone number (digits only)
-     * @param {string} [contactInfo.phoneType] - Phone type (e.g., 'Mobile', 'Home', 'Work')
-     * @param {string} [contactInfo.countryCode] - Country code (e.g., '+1' for US)
+     * Whether a message is shown anywhere on the form (old API; fieldName is ignored).
+     * @param {string} _fieldName
+     * @param {string} expectedMessage
+     * @returns {Promise<boolean>}
+     */
+    async verifyFieldError(_fieldName, expectedMessage) {
+        return this.page.getByText(expectedMessage).first().isVisible().catch(() => false);
+    }
+
+    // ------------------------------------------------------------------ FAQ
+
+    /**
+     * Expand an FAQ question and return its answer text.
+     * @param {string} question - e.g. "Is there an application fee?"
+     * @returns {Promise<string>}
+     */
+    async expandFaq(question) {
+        const button = this.faqQuestion(question);
+        if ((await button.getAttribute('aria-expanded')) !== 'true') await button.click();
+        await expect(button).toHaveAttribute('aria-expanded', 'true', { timeout: this.assertionTimeout });
+        const panelId = await button.getAttribute('aria-controls');
+        const panel = panelId ? this.page.locator(`[id="${panelId}"]`) : button.locator('xpath=following-sibling::*[1]');
+        await expect(panel).toBeVisible({ timeout: this.assertionTimeout });
+        return (await panel.innerText()).replace(/\s+/g, ' ').trim();
+    }
+
+    // ------------------------------------------------------------------ start an application
+
+    /**
+     * Answer the learning-mode modal if it is shown over the form.
+     * @param {'online'|'in-person'} mode
      * @returns {Promise<void>}
      */
-    async fillContactInformation({ email, phoneNumber, phoneType = 'Mobile', countryCode = '+1' }) {
-        // Fill email
-        const emailField = this.page.locator(this.selectors.emailInput).first();
-        if (await emailField.count() > 0) {
-            await emailField.fill(email);
-            this.logger.info(`Filled email: ${email}`);
-        } else {
-            this.logger.warn('Email field not found');
+    async answerLearningModeIfAsked(mode) {
+        const firstName = this.page.locator(this.selectors.firstNameInput);
+        const modeRadio = this.learningModeRadio(mode);
+        // Whichever appears first: the form itself, or the learning-mode modal over it.
+        await firstName.or(modeRadio).first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        if (await modeRadio.isVisible().catch(() => false)) {
+            await modeRadio.click();
+            const degree = this.page.locator(this.selectors.degreeRadio);
+            if (await degree.isVisible().catch(() => false)) await degree.click();
+            await this.page.locator(this.selectors.modalContinueButton).click();
         }
-        
-        // Fill US Phone number
-        const phoneField = this.page.locator(this.selectors.phoneNumberInput).first();
-        if (await phoneField.count() > 0) {
-            await phoneField.fill(phoneNumber);
-            this.logger.info(`Filled US phone number: ${phoneNumber}`);
-        } else {
-            this.logger.warn('US Phone number field not found');
-        }
-        
-        // Select country code if available
-        if (countryCode) {
-            const countryField = this.page.locator(this.selectors.countryCodeSelect).first();
-            if (await countryField.count() > 0) {
-                await countryField.selectOption({ value: countryCode });
-                this.logger.info(`Selected country code: ${countryCode}`);
-            }
-        }
-        
-        // Select phone type if available
-        if (phoneType) {
-            const phoneTypeField = this.page.locator(this.selectors.phoneTypeSelect).first();
-            if (await phoneTypeField.count() > 0) {
-                await phoneTypeField.selectOption({ label: phoneType });
-                this.logger.info(`Selected phone type: ${phoneType}`);
-            }
-        }
+        await firstName.waitFor({ state: 'visible', timeout: this.navigationTimeout });
     }
 
     /**
-     * Validate phone number format
-     * @param {string} phone - The phone number to validate
-     * @param {string} [countryCode='US'] - ISO country code (default: 'US')
-     * @returns {Promise<boolean>} Whether the phone number is valid
-     */
-    async isValidPhoneNumber(phone, countryCode = 'US') {
-        try {
-            const isValid = await this.page.evaluate((phoneNum) => {
-                // This is a simplified validation - in a real app, you'd use a library like libphonenumber-js
-                const phoneRegex = /^\+?[1-9]\d{1,14}$/; // E.164 format
-                return phoneRegex.test(phoneNum);
-            }, phone);
-            
-            return isValid;
-        } catch (error) {
-            const errorMessage = error instanceof Error ? error.message : String(error);
-            this.logger.error(`Error validating phone number: ${errorMessage}`);
-            return false;
-        }
-    }
-
-    /**
-     * Fill the pre-app dashboard ("Welcome! You're a few steps away...") and start an
-     * application. Uses locators verified live on 2026-11-10 and handles:
-     *  - the learning-mode modal shown to accounts that skipped the landing-page choice
-     *  - the BriteVerify "could not be verified" dialog (submitted as is)
-     * Answers "No" to SMS so nothing is texted to the test number.
-     * @param {{ firstName?: string, lastName?: string,
+     * Fill the pre-app dashboard and start an application. Handles the learning-mode
+     * modal and the BriteVerify dialog. Answers "No" to SMS so nothing is texted.
+     * @param {{ firstName?: string, preferredFirstName?: string, middleName?: string,
+     *           lastName?: string, suffix?: string,
      *           birth?: { month: string, day: string, year: string },
      *           phone?: string, mode?: 'online'|'in-person', captureValidations?: boolean }} [data]
      *   captureValidations: click Start new application on the empty form first and record the
@@ -572,6 +455,9 @@ class PreAppDashboardPage extends BasePage {
         const {
             firstName = 'Qa',
             lastName = 'Automation',
+            preferredFirstName,
+            middleName,
+            suffix,
             birth = { month: 'June', day: '15', year: '2000' },
             phone = '2025551234',
             mode = 'online',
@@ -581,37 +467,16 @@ class PreAppDashboardPage extends BasePage {
         if (!/\/dashboard/.test(this.page.url())) {
             await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
         }
+        await this.answerLearningModeIfAsked(mode);
 
-        const firstNameBox = this.page.getByRole('textbox', { name: 'First name', exact: true });
-        const modeRadio = this.page.locator(`[role="radio"][value="${mode}"]`);
-        // Whichever appears first: the form itself, or the learning-mode modal over it.
-        await firstNameBox.or(modeRadio).first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
-        if (await modeRadio.isVisible().catch(() => false)) {
-            await modeRadio.click();
-            const degree = this.page.locator('[role="radio"][value="DG"]');
-            if (await degree.isVisible().catch(() => false)) await degree.click();
-            await this.page.getByRole('button', { name: 'Continue', exact: true }).click();
-        }
-
-        await firstNameBox.waitFor({ state: 'visible', timeout: this.navigationTimeout });
-        const startButton = this.page.getByRole('button', { name: 'Start new application' });
+        const startButton = this.page.locator(this.selectors.startNewAppButton);
         if (captureValidations) {
             // Click Start new application on the empty form first and record what it flags.
             await this.captureFieldValidations({ stepName: 'Start new application', button: startButton });
         }
-        await firstNameBox.fill(firstName);
-        await this.page.getByRole('textbox', { name: 'Last name', exact: true }).fill(lastName);
-        for (const [box, value] of /** @type {Array<[string, string]>} */ ([['Month', birth.month], ['Day', birth.day], ['Year', birth.year]])) {
-            await this.page.getByRole('combobox', { name: box }).click();
-            await this.page.getByRole('option', { name: value, exact: true }).click();
-        }
-        await this.page.getByRole('textbox', { name: 'Phone number' }).fill(phone);
-        await this.page.getByRole('radiogroup', { name: 'Is this a mobile number?' })
-            .getByRole('radio', { name: 'Yes', exact: true }).click();
-        const sms = this.page.getByRole('radiogroup', { name: /SMS messaging/ });
-        if (await sms.isVisible().catch(() => false)) {
-            await sms.getByRole('radio', { name: 'No', exact: true }).click();
-        }
+        await this.fillPersonalInformation({ firstName, preferredFirstName, middleName, lastName, suffix });
+        await this.setDateOfBirth(birth);
+        await this.fillContactInformation({ phoneNumber: phone, phoneType: 'Mobile' });
 
         await startButton.click();
         await this.handleBriteVerifyPopup('submit');
@@ -623,36 +488,23 @@ class PreAppDashboardPage extends BasePage {
     }
 
     /**
-     * Click the Start New Application button
+     * Click "Start new application" (old API: the form must already be filled) and
+     * answer BriteVerify if it asks.
      * @returns {Promise<void>}
      */
     async startNewApplication() {
-        // Wait for loading to complete first
-        try {
-            await this.page.waitForSelector(this.selectors.loadingIndicator, { state: 'hidden', timeout: 30000 });
-        } catch (error) {
-            this.logger.warn('Loading indicator not found or did not disappear');
-        }
-        
-        // Try to find and click the start application button
-        const startButton = this.page.locator(this.selectors.startNewAppButton);
-        const alternativeButton = this.page.locator('button').filter({ hasText: /start|begin|application/i });
-        
-        if (await startButton.count() > 0) {
-            this.logger.info('Clicking Start New Application button');
-            await startButton.first().click();
-        } else if (await alternativeButton.count() > 0) {
-            this.logger.info('Clicking alternative application button');
-            await alternativeButton.first().click();
-        } else {
-            throw new Error('No Start Application button found on the page');
-        }
-
-        // BriteVerify may question the contact details; submitting as-is is the normal path.
+        await this.page.locator(this.selectors.startNewAppButton).click();
         await this.handleBriteVerifyPopup('submit');
+        await this.settle();
+    }
 
-        await this.page.waitForLoadState('networkidle');
-        await this.page.waitForTimeout(2000); // Additional wait for form to load
+    /**
+     * Old API: every action submits the form with "Start new application".
+     * @param {'save'|'continue'|'submit'} [_action]
+     * @returns {Promise<void>}
+     */
+    async submitForm(_action = 'continue') {
+        await this.startNewApplication();
     }
 
     /**
@@ -665,7 +517,7 @@ class PreAppDashboardPage extends BasePage {
      * @returns {Promise<boolean>} true if the dialog appeared and was answered.
      */
     async handleBriteVerifyPopup(action = 'submit', timeoutMs = 20000) {
-        const dialog = this.page.getByRole('alertdialog').filter({ hasText: 'could not be verified' });
+        const dialog = this.briteVerifyDialog();
         const shown = await dialog
             .waitFor({ state: 'visible', timeout: timeoutMs })
             .then(() => true)
@@ -680,60 +532,11 @@ class PreAppDashboardPage extends BasePage {
     }
 
     /**
-     * Submit the form
-     * @param {'save'|'continue'|'submit'} [action='continue'] - Form submission action
-     * @returns {Promise<void>}
-     */
-    async submitForm(action = 'continue') {
-        switch (action.toLowerCase()) {
-            case 'save':
-                await this.page.click(this.selectors.cancelButton);
-                break;
-            case 'submit':
-                await this.page.click(this.selectors.submitButton);
-                break;
-            case 'continue':
-            default:
-                await this.page.click(this.selectors.saveAndContinueButton);
-        }
-        
-        await this.page.waitForLoadState('networkidle');
-    }
-
-    /**
-     * Verify error message is displayed for a field
-     * @param {string} fieldName - Name of the field
-     * @param {string} expectedMessage - Expected error message
-     * @returns {Promise<boolean>} Whether the error message is displayed and matches
-     */
-    /**
-     * Verify error message is displayed for a field
-     * @param {string} fieldName - Name of the field
-     * @param {string} expectedMessage - Expected error message
-     * @returns {Promise<boolean>} Whether the error message is displayed and matches
-     */
-    async verifyFieldError(fieldName, expectedMessage) {
-        const errorLocator = this.page.locator(this.selectors.fieldErrorMessage(fieldName));
-        const isVisible = await errorLocator.isVisible();
-        
-        if (!isVisible) return false;
-        
-        const actualMessage = await errorLocator.textContent();
-        return actualMessage?.includes(expectedMessage) ?? false;
-    }
-
-    /**
-     * Verify the application is started successfully
-     * @returns {Promise<boolean>} Whether the application was started successfully
+     * Whether the application wizard opened (/ug-app/<applicationId>/<step>).
+     * @returns {Promise<boolean>}
      */
     async isApplicationStarted() {
-        try {
-            // A started application opens the wizard at /ug-app/<applicationId>/<step>.
-            await this.page.waitForURL(/\/ug-app\/\d+\//, { timeout: 45000 });
-            return true;
-        } catch (error) {
-            return false;
-        }
+        return this.page.waitForURL(/\/ug-app\/\d+\//, { timeout: 45000 }).then(() => true).catch(() => false);
     }
 }
 

@@ -170,7 +170,8 @@ class BasePage {
         const text = node instanceof HTMLElement ? node.innerText : node.textContent || '';
         return clean(text.split('\n').find((line) => line.trim()) || '');
       };
-      const labelSelector = 'label.form-label .label-text, label.form-label, legend, label.m-checkbox';
+      // Plain <label>s and h3 headings too (the pre-app form labels its phone with a heading).
+      const labelSelector = 'label.form-label .label-text, label, legend, h3';
       /** @param {Element} el @param {string} message */
       const fieldOf = (el, message) => {
         for (let p = el.parentElement; p && p !== document.body; p = p.parentElement) {
