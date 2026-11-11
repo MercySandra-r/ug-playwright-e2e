@@ -6,6 +6,8 @@ const LoginPage = require('../pages/LoginPage');
  * Test suite for Login functionality.
  * Sign-in now happens on ASU's IdP (login.asu.edu); LoginPage drives it.
  * Messages below are the IdP's wording (verified live 2026-11-10).
+ *
+ * POM: every element comes from LoginPage; this spec has no locators of its own.
  */
 test.describe('Login Tests', () => {
     let loginPage;
@@ -53,9 +55,6 @@ test.describe('Login Tests', () => {
     test('Verify login form validation', async () => {
         // Touch and leave both fields empty: the IdP flags them and keeps Sign in disabled
         await loginPage.touchEmptyFields();
-
-        await expect(loginPage.page.getByText('Email is required', { exact: true })).toBeVisible();
-        await expect(loginPage.page.getByText('Password is required', { exact: true })).toBeVisible();
-        await expect(loginPage.signInButton()).toBeDisabled();
+        await loginPage.verifyRequiredFieldErrors();
     });
 });

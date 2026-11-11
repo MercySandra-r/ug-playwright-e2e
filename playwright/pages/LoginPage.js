@@ -3,7 +3,12 @@ const { expect } = require('@playwright/test');
 const BasePage = require('./BasePage');
 
 /**
- * Page Object for Login related actions
+ * Page Object for signing in. The app's own /user/login page is gone (404): sign-in
+ * happens on ASU's IdP (login.asu.edu), reached from the app's "Sign in" button.
+ * Messages are the IdP's wording (verified live 2026-11-10).
+ *
+ * POM rule for this page: every element is declared in `this.selectors`. Specs use
+ * these names and the methods below, never their own locators.
  */
 class LoginPage extends BasePage {
     /**
@@ -11,37 +16,35 @@ class LoginPage extends BasePage {
      */
     constructor(page) {
         super(page);
-        // Define page selectors
         this.selectors = {
-            // Login Form
-            // emailInput, passwordInput and loginButton now use getByRole - see respective methods
-            emailInput: 'input[name="email"]', // Legacy selector - use getByRole in methods
-            passwordInput: 'input[name="password"]', // Legacy selector - use getByRole in methods
-            loginButton: 'button:has-text("Log In")', // Legacy selector - use getByRole in methods
-            // IdP landing option; a <button> whose name comes from its text.
-            loginWithAsuriteButton: 'button:has-text("Sign In with ASURITE ID")',
+            // IdP "Sign in with email" form
+            emailInput: 'role=textbox[name="Email"s]',
+            passwordInput: 'role=textbox[name="Password"s]',
+            signInButton: 'role=button[name="Sign in"s]',
+            backToOptionsLink: 'role=link[name="Back to other sign in options"]',
+            // IdP landing option; hands off to ASU web login (weblogin.asu.edu)
+            asuriteButton: 'role=button[name="Sign In with ASURITE ID"]',
 
-            // Error Messages (IdP wording, verified live 2026-11-10)
-            emailNotFoundError: 'text=Email not found',
+            // Messages (IdP wording)
             invalidEmailFormatError: 'text=Please enter a valid email address',
             incorrectCredentialsError: 'text=Incorrect username or password',
-            
-            // Page Elements
-            pageTitle: 'h1',
-            asuLoginForm: '#login-form',
-            
-            // Dashboard (after successful login)
-            dashboardHeader: 'h1:has-text("Dashboard")'
+            emailRequiredError: 'text="Email is required"',
+            passwordRequiredError: 'text="Password is required"',
+
+            // ASU web login (weblogin.asu.edu)
+            asuriteSignInHeading: 'role=heading[name="Sign In"]',
+            asuriteUserIdInput: 'role=textbox[name="ASURITE User ID"]',
+
+            // App after sign-in
+            welcomeText: 'text=Welcome',
         };
     }
 
     /**
-     * Navigate to the login page
+     * Open the IdP "Sign in with email" form via the app's Sign in button.
      * @returns {Promise<void>}
      */
     async navigateToLoginPage() {
-        // The app's own /user/login page is gone (404). Sign-in now happens on ASU's
-        // IdP (login.asu.edu), reached from the app's "Sign in" button.
         const AsuIdpPage = require('./AsuIdpPage');
         const idp = new AsuIdpPage(this.page);
         await idp.startFromApp();
@@ -55,8 +58,8 @@ class LoginPage extends BasePage {
      * @returns {Promise<void>}
      */
     async enterCredentials(email, password) {
-        await this.page.getByRole('textbox', { name: 'Email', exact: true }).fill(email);
-        await this.page.getByRole('textbox', { name: 'Password', exact: true }).fill(password);
+        await this.page.locator(this.selectors.emailInput).fill(email);
+        await this.page.locator(this.selectors.passwordInput).fill(password);
     }
 
     /**
@@ -73,7 +76,7 @@ class LoginPage extends BasePage {
      * @returns {import('@playwright/test').Locator}
      */
     signInButton() {
-        return this.page.getByRole('button', { name: 'Sign in', exact: true });
+        return this.page.locator(this.selectors.signInButton);
     }
 
     /**
@@ -82,9 +85,19 @@ class LoginPage extends BasePage {
      * @returns {Promise<void>}
      */
     async touchEmptyFields() {
-        await this.page.getByRole('textbox', { name: 'Email', exact: true }).click();
-        await this.page.getByRole('textbox', { name: 'Password', exact: true }).click();
-        await this.page.getByRole('textbox', { name: 'Email', exact: true }).click();
+        await this.page.locator(this.selectors.emailInput).click();
+        await this.page.locator(this.selectors.passwordInput).click();
+        await this.page.locator(this.selectors.emailInput).click();
+    }
+
+    /**
+     * Both "is required" messages are shown and Sign in stays disabled.
+     * @returns {Promise<void>}
+     */
+    async verifyRequiredFieldErrors() {
+        await expect(this.page.locator(this.selectors.emailRequiredError)).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page.locator(this.selectors.passwordRequiredError)).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.signInButton()).toBeDisabled();
     }
 
     /**
@@ -94,9 +107,9 @@ class LoginPage extends BasePage {
      */
     async clickLoginWithAsurite() {
         if (/email-password-login/.test(this.page.url())) {
-            await this.page.getByRole('link', { name: 'Back to other sign in options' }).click();
+            await this.page.locator(this.selectors.backToOptionsLink).click();
         }
-        await this.page.locator(this.selectors.loginWithAsuriteButton).click();
+        await this.page.locator(this.selectors.asuriteButton).click();
         await this.settle();
     }
 
@@ -106,9 +119,8 @@ class LoginPage extends BasePage {
      */
     async isAsuLoginPageDisplayed() {
         await this.page.waitForURL(/.*weblogin\.asu\.edu/);
-        // Check for ASURITE-specific elements that are visible on the page
-        const signInHeading = await this.page.getByRole('heading', { name: 'Sign In' }).isVisible();
-        const asuriteUserIdField = await this.page.getByRole('textbox', { name: 'ASURITE User ID' }).isVisible();
+        const signInHeading = await this.page.locator(this.selectors.asuriteSignInHeading).isVisible();
+        const asuriteUserIdField = await this.page.locator(this.selectors.asuriteUserIdInput).isVisible();
         return signInHeading && asuriteUserIdField;
     }
 
@@ -117,15 +129,7 @@ class LoginPage extends BasePage {
      * @returns {Promise<boolean>}
      */
     async isDashboardDisplayed() {
-        return await this.page.getByText('Welcome').isVisible();
-    }
-
-    /**
-     * Verify email not found error is displayed
-     * @returns {Promise<boolean>}
-     */
-    async isEmailNotFoundErrorVisible() {
-        return await this.page.isVisible(this.selectors.emailNotFoundError);
+        return this.page.locator(this.selectors.welcomeText).first().isVisible();
     }
 
     /**
