@@ -9,7 +9,7 @@ module.exports = defineConfig({
   testDir: './tests',
   fullyParallel: true,
   // Number of retries for failing tests
-  retries: process.env.CI ? 2 : 1,
+  retries: 3,
   // Workers for running tests in parallel
   workers: process.env.CI ? 1 : undefined,
   timeout: 60000, // Global timeout: 60 seconds
