@@ -195,3 +195,87 @@ test.describe('AZ Residency Page Tests (veteran)', () => {
         await new ReviewPage(page).verifyPageLoaded();
     });
 });
+
+/**
+ * Arizona residency for a spouse/dependent of a U.S. service member or veteran (My
+ * information's second uniformed-services option). The step asks "Which best describes
+ * the service member or veteran?"; each answer has its own follow-ups. Every scenario is
+ * also answered all-Yes with Arizona, checking nothing is left unanswered.
+ *
+ * One fresh spouse/dependent applicant per run, taken through steps 1-4 (beforeAll); or set
+ * RESIDENCY_SPOUSE_TEST_EMAIL / RESIDENCY_SPOUSE_TEST_PASSWORD to such an account whose
+ * application is on (or past) step 5. The last test saves the step and continues to Review.
+ */
+test.describe('AZ Residency Page Tests (spouse/dependent of a service member)', () => {
+    test.describe.configure({ mode: 'serial', timeout: 120000 });
+
+    /** @type {import('@playwright/test').BrowserContext} */
+    let context;
+    /** @type {import('@playwright/test').Page} */
+    let page;
+    /** @type {AZResidencyPage} */
+    let residencyPage;
+
+    test.beforeAll(async ({ browser }, testInfo) => {
+        testInfo.setTimeout(480000);
+        context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+        page = await context.newPage();
+        residencyPage = new AZResidencyPage(page);
+        residencyPage.applicationId = process.env.RESIDENCY_SPOUSE_TEST_EMAIL && process.env.RESIDENCY_SPOUSE_TEST_PASSWORD
+            ? await resumeApplication(page, process.env.RESIDENCY_SPOUSE_TEST_EMAIL, process.env.RESIDENCY_SPOUSE_TEST_PASSWORD)
+            : await startApplicationAt(page, 'arizona-residency', { spouseOfServiceMember: true });
+    });
+
+    test.afterAll(async () => {
+        await context?.close();
+    });
+
+    const freshPage = () => residencyPage.navigateToAZResidency();
+
+    test('Which best describes the service member: options and their follow-ups', async () => {
+        await freshPage();
+        expect(await residencyPage.isSpouseOfServiceMemberSectionShown()).toBe(true);
+        expect(await residencyPage.isVeteranSectionShown()).toBe(false);
+        expect(await residencyPage.getDropdownOptionsOf(residencyPage.selectors.serviceMemberType))
+            .toEqual(residencyPage.SERVICE_MEMBER_TYPES);
+        /** @type {Record<string, string[]>} */
+        const seen = {};
+        for (const type of residencyPage.SERVICE_MEMBER_TYPES) {
+            await residencyPage.choose(residencyPage.selectors.serviceMemberType, type);
+            seen[type] = await residencyPage.getSpouseOfServiceMemberFollowUps();
+        }
+        expect(seen).toEqual({
+            'Active Duty': ['stationedState'],
+            'Armed Forces Reserve': ['stationedState'],
+            'National Guard': ['stationedState'],
+            'Not Applicable': [],
+            'Veteran': ['registeredToVote', 'chapter30or33', 'discharged'],
+        });
+    });
+
+    test('Every scenario answered all Yes with Arizona leaves nothing unanswered', async () => {
+        test.setTimeout(600000);
+        for (const type of residencyPage.SERVICE_MEMBER_TYPES) {
+            await test.step(type, async () => {
+                await freshPage();
+                await residencyPage.fillArizonaResidentAllYes({ type });
+                const details = await residencyPage.getSpouseOfServiceMemberDetails();
+                expect(details.type).toBe(type);
+                if (details.stationedState !== undefined) expect(details.stationedState).toBe('Arizona');
+                if (details.registeredToVote !== undefined) expect(details.registeredToVote).toBe('Yes');
+                if (details.chapter30or33 !== undefined) expect(details.chapter30or33).toBe('Yes');
+                expect(await residencyPage.getQuestionsNotAnsweredYes(), `${type}: every question Yes`).toEqual([]);
+                expect(await residencyPage.answerRemainingQuestions(4, { answer: true, preferredOption: 'Arizona' }),
+                    `${type}: nothing left unanswered`).toEqual([]);
+                expect(await residencyPage.getSupportTotal()).toBe(100);
+            });
+        }
+    });
+
+    test('Spouse of a veteran, every answer Yes: save and continue to Review', async () => {
+        await freshPage();
+        await residencyPage.fillArizonaResidentAllYes({ type: 'Veteran' });
+        await residencyPage.saveAndContinue();
+        await new ReviewPage(page).verifyPageLoaded();
+    });
+});

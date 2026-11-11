@@ -21,7 +21,12 @@ const QUESTIONS = {
     parentEmployedInAz: { id: 'radio_isParentEmployedInAz', label: 'Is either parent or legal guardian employed in Arizona?' },
     // Veterans only (uniformed services "I am a U.S. service member or veteran", status Veteran).
     registeredToVote: { id: 'radio_isRegisteredToVote', label: 'Are you registered to vote?' },
+    // Spouse/dependent of a veteran only.
+    chapter30or33: { id: 'radio_isEligibleFor30or33ChapterBenefits', label: 'Are you eligible for Chapter 30 or Chapter 33 benefits?' },
 };
+
+/** "Which best describes the service member or veteran?" options (spouse/dependent, 2026-11-11). */
+const SERVICE_MEMBER_TYPES = ['Active Duty', 'Armed Forces Reserve', 'National Guard', 'Not Applicable', 'Veteran'];
 
 /** "Which character of service is noted on your DD-214?" options, as listed (2026-11-11). */
 const DD214_CHARACTER_OF_SERVICE = ['Under Honorable Conditions (General)', 'Under Other Than Honorable Conditions',
@@ -59,6 +64,15 @@ const SUPPORT = {
  * discharged or released from active duty?" (month + year) and "Are you registered to
  * vote?" (Yes/No). See fillVeteranDetails() / getVeteranDetails().
  *
+ * Spouses/dependents of a service member or veteran (My information's second uniformed
+ * option) get "Which best describes the service member or veteran?" (SERVICE_MEMBER_TYPES):
+ *  - Active Duty / Armed Forces Reserve / National Guard: "Where is your
+ *    spouse/parent/guardian currently stationed?" (state)
+ *  - Not Applicable: nothing more
+ *  - Veteran: "Are you registered to vote?", "Are you eligible for Chapter 30 or Chapter 33
+ *    benefits?", and the service member's discharge month + year
+ * See fillSpouseOfServiceMemberDetails() / getSpouseOfServiceMemberFollowUps().
+ *
  * POM rule for this page: every element is declared here. Fixed elements are named in
  * `this.selectors`; elements that depend on data (a question's radio group, a radio,
  * an option by label) come from the locator methods below. Specs use these names and
@@ -93,6 +107,13 @@ class AZResidencyPage extends BasePage {
             dd214CharacterOfService: '#group-selectService',
             dischargeMonth: '#group-MILEXITDT-month',
             dischargeYear: '#group-MILEXITDT-year',
+            registeredToVoteState: '#group-selectStateRegisteredToVote',
+
+            // Spouses/dependents of a service member or veteran only
+            serviceMemberType: '#group-selectSectorOfMilitary',
+            serviceMemberStationedState: '#group-selectStateGuardianStationed',
+            serviceMemberDischargeMonth: '#group-SP_VET_DIS-month',
+            serviceMemberDischargeYear: '#group-SP_VET_DIS-year',
             supportTotalError: 'text=Total must be equal to 100%',
             requiredFieldError: 'text=This is a required field.',
             continueButton: 'button[type="submit"][form="page-form"]',
@@ -100,6 +121,7 @@ class AZResidencyPage extends BasePage {
         this.QUESTIONS = QUESTIONS;
         this.SUPPORT = SUPPORT;
         this.DD214_CHARACTER_OF_SERVICE = DD214_CHARACTER_OF_SERVICE;
+        this.SERVICE_MEMBER_TYPES = SERVICE_MEMBER_TYPES;
     }
 
     // ------------------------------------------------------------------ locators that depend on data
@@ -206,6 +228,98 @@ class AZResidencyPage extends BasePage {
      */
     async isSupportTotalErrorShown() {
         return this.page.locator(this.selectors.supportTotalError).isVisible();
+    }
+
+    // ------------------------------------------------------------------ spouses/dependents of service members
+
+    /**
+     * Whether "Which best describes the service member or veteran?" is shown.
+     * @returns {Promise<boolean>}
+     */
+    async isSpouseOfServiceMemberSectionShown() {
+        return this.page.locator(this.selectors.serviceMemberType).isVisible().catch(() => false);
+    }
+
+    /**
+     * Follow-ups shown for the current "Which best describes..." answer, by name.
+     * @returns {Promise<string[]>} subset of stationedState, registeredToVote, chapter30or33, discharged
+     */
+    async getSpouseOfServiceMemberFollowUps() {
+        await this.page.waitForTimeout(500); // follow-ups render after the choice
+        const s = this.selectors;
+        /** @type {string[]} */
+        const shown = [];
+        if (await this.page.locator(s.serviceMemberStationedState).isVisible().catch(() => false)) shown.push('stationedState');
+        if (await this.isQuestionVisible('registeredToVote')) shown.push('registeredToVote');
+        if (await this.isQuestionVisible('chapter30or33')) shown.push('chapter30or33');
+        if (await this.page.locator(s.serviceMemberDischargeMonth).isVisible().catch(() => false)) shown.push('discharged');
+        return shown;
+    }
+
+    /**
+     * Answer "Which best describes the service member or veteran?" and whatever it asks next.
+     * @param {{ type?: string, stationedState?: string, registeredToVote?: boolean,
+     *           chapter30or33?: boolean, discharged?: { month: string, year: string } }} [data]
+     *   defaults: Active Duty, stationed in Arizona, Yes / Yes, discharged May 2020
+     * @returns {Promise<Record<string, any>>} what was entered (only the questions shown)
+     */
+    async fillSpouseOfServiceMemberDetails({ type = 'Active Duty', stationedState = 'Arizona', registeredToVote = true,
+        chapter30or33 = true, discharged = { month: 'May', year: '2020' } } = {}) {
+        await this.choose(this.selectors.serviceMemberType, type);
+        const shown = await this.getSpouseOfServiceMemberFollowUps();
+        /** @type {Record<string, any>} */
+        const entered = { type };
+        if (shown.includes('stationedState')) {
+            entered.stationedState = await this.chooseOrFirst(this.selectors.serviceMemberStationedState, stationedState);
+        }
+        if (shown.includes('registeredToVote')) {
+            await this.answer('registeredToVote', registeredToVote);
+            entered.registeredToVote = registeredToVote ? 'Yes' : 'No';
+        }
+        if (shown.includes('chapter30or33')) {
+            await this.answer('chapter30or33', chapter30or33);
+            entered.chapter30or33 = chapter30or33 ? 'Yes' : 'No';
+        }
+        if (shown.includes('discharged')) {
+            await this.choose(this.selectors.serviceMemberDischargeMonth, discharged.month);
+            await this.choose(this.selectors.serviceMemberDischargeYear, discharged.year);
+            entered.discharged = discharged;
+        }
+        return entered;
+    }
+
+    /**
+     * The spouse/dependent answers as shown (fields not shown come back undefined).
+     * @returns {Promise<Record<string, any>>}
+     */
+    async getSpouseOfServiceMemberDetails() {
+        const s = this.selectors;
+        /** @param {string} selector */
+        const value = async (selector) => ((await this.page.locator(selector).isVisible().catch(() => false))
+            ? this.getDropdownValue(selector) : undefined);
+        /** @type {Record<string, any>} */
+        const out = { type: await value(s.serviceMemberType) };
+        const stationedState = await value(s.serviceMemberStationedState);
+        if (stationedState !== undefined) out.stationedState = stationedState;
+        if (await this.isQuestionVisible('registeredToVote')) out.registeredToVote = await this.getAnswer('registeredToVote');
+        if (await this.isQuestionVisible('chapter30or33')) out.chapter30or33 = await this.getAnswer('chapter30or33');
+        const month = await value(s.serviceMemberDischargeMonth);
+        if (month !== undefined) out.discharged = { month, year: await value(s.serviceMemberDischargeYear) };
+        return out;
+    }
+
+    /**
+     * Yes/No questions currently shown that are not answered Yes (by radiogroup id).
+     * @returns {Promise<string[]>}
+     */
+    async getQuestionsNotAnsweredYes() {
+        return this.page.evaluate(() => [...document.querySelectorAll('main [role="radiogroup"][id]')]
+            .filter((g) => g.getClientRects().length > 0)
+            .filter((g) => {
+                const yes = [...g.querySelectorAll('[role="radio"]')].find((r) => (r.textContent || '').trim() === 'Yes');
+                return !yes || yes.getAttribute('aria-checked') !== 'true';
+            })
+            .map((g) => g.id));
     }
 
     // ------------------------------------------------------------------ veterans
@@ -528,13 +642,17 @@ class AZResidencyPage extends BasePage {
      *           veteran?: { characterOfService?: string, discharged?: { month: string, year: string }, registeredToVote?: boolean } }} [data]
      *   veteran: answers for the veteran questions when they are shown (defaults: Honorable,
      *   May 2020, registered to vote = defaultAnswer)
+     * @param {{ type?: string, stationedState?: string, registeredToVote?: boolean,
+     *           chapter30or33?: boolean, discharged?: { month: string, year: string } }} [spouseOfServiceMember]
+     *   answers for "Which best describes the service member or veteran?" and its follow-ups
+     *   when shown (Yes/No answers default to defaultAnswer, the state to preferredOption)
      *   enrolledAt: school typed into "Where are you currently enrolled?" when it appears
      *   (default "Mesa Community College")
      *   defaultAnswer / preferredOption: how the safety net answers anything left
      *   (default No and the first option)
      * @returns {Promise<string[]>} ids filled by the safety net
      */
-    async fillResidencyInformation(data = {}) {
+    async fillResidencyInformation(data = {}, spouseOfServiceMember = {}) {
         const isAz = data.isArizonaResident === true;
         await this.selectPermanentState(data.permanentState || (isAz ? 'Arizona' : 'California'));
         if (isAz) await this.answer('livedInAz12Months', true);
@@ -547,6 +665,11 @@ class AZResidencyPage extends BasePage {
         }
         for (const [key, yes] of Object.entries(data.answers || {})) {
             if (await this.isQuestionVisible(key)) await this.answer(key, yes);
+        }
+        if (await this.isSpouseOfServiceMemberSectionShown()) {
+            const yes = data.defaultAnswer === true;
+            await this.fillSpouseOfServiceMemberDetails({ registeredToVote: yes, chapter30or33: yes,
+                stationedState: data.preferredOption, ...spouseOfServiceMember });
         }
         if (await this.isVeteranSectionShown()) {
             await this.fillVeteranDetails({ registeredToVote: data.defaultAnswer === true, ...(data.veteran || {}) });
@@ -562,9 +685,12 @@ class AZResidencyPage extends BasePage {
      * Arizona resident with every answer Yes: permanent home and parents' state Arizona,
      * every question (including follow-ups they reveal) Yes, and Arizona in any dropdown
      * that offers it (license state, tax state, ...). Parent support 100%.
+     * @param {{ type?: string, stationedState?: string, discharged?: { month: string, year: string } }} [spouseOfServiceMember]
+     *   for spouses/dependents of a service member: which describes the service member
+     *   (default Active Duty)
      * @returns {Promise<string[]>} ids filled by the safety net
      */
-    async fillArizonaResidentAllYes() {
+    async fillArizonaResidentAllYes(spouseOfServiceMember = {}) {
         return this.fillResidencyInformation({
             isArizonaResident: true,
             permanentState: 'Arizona',
@@ -573,7 +699,7 @@ class AZResidencyPage extends BasePage {
             answers: Object.fromEntries(Object.keys(QUESTIONS).map((key) => [key, true])),
             defaultAnswer: true,
             preferredOption: 'Arizona',
-        });
+        }, spouseOfServiceMember);
     }
 
     /**
