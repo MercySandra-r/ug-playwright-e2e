@@ -20,6 +20,11 @@ const SUBJECTS = ['English', 'Math', 'Science', 'Social Science', 'Language', 'F
  *          academic year, course name, duration, course level, then one grade per term
  *          (Semester = 2 grades, ...), "Save course". Saved courses list per subject
  *          with Edit / Delete. No minimum number of courses is enforced.
+ *
+ * POM rule for this page: every element is declared here. Fixed elements are named in
+ * `this.selectors`; elements that depend on data (a subject tab, a course row or its
+ * Edit/Delete button, a grade field, an option by label) come from the locator methods
+ * below. Specs use these names and the read-back methods, never their own locators.
  */
 class MyHighSchoolGradesPage extends BasePage {
     /**
@@ -30,6 +35,8 @@ class MyHighSchoolGradesPage extends BasePage {
 
         this.selectors = {
             heading: 'role=heading[name="My high school grades"][level=1]',
+            introHeading: 'role=heading[name="Want a faster admission decision?"]',
+            option: 'role=option',
             selfReportGroup: 'role=group[name="Would you like to self-report your high school grades?"]',
             noSelfReportHint: 'text=Select Save and Continue to go to the next page.',
 
@@ -49,11 +56,92 @@ class MyHighSchoolGradesPage extends BasePage {
             saveCourseButton: 'role=button[name="Save course"]',
             clearCourseButton: 'role=button[name="Clear course fields"]',
 
+            // Subject tabs and saved courses
+            subjectTabs: 'role=tablist',
+            subjectTab: 'role=tab',
+            coursesTableAfterPanel: 'xpath=following::table[1]',
+            row: 'role=row',
+            cell: 'role=cell',
+
+            // Edit course dialog and delete confirmation
+            editCourseDialog: 'role=dialog[name="Edit course"]',
+            editGradeBoxes: 'role=combobox[name=/ grade$/]',
+            updateCourseButton: 'role=button[name="Update course"s]',
+            dialog: 'role=dialog',
+            alertDialog: 'role=alertdialog',
+            confirmDeleteButton: 'role=button[name=/^(delete|remove|yes|confirm)/i]',
+
             continueButton: 'button[type="submit"][form="page-form"]',
             gradeReportingError: 'text=Please select an option for grade reporting',
         };
 
         this.SUBJECTS = SUBJECTS;
+    }
+
+    // ------------------------------------------------------------------ locators that depend on data
+
+    /**
+     * An open list's option by label; selected options show a trailing "✓".
+     * @param {string} label
+     * @returns {import('@playwright/test').Locator}
+     */
+    option(label) {
+        const escaped = label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return this.page.getByRole('option', { name: new RegExp(`^${escaped}( ✓)?$`) }).first();
+    }
+
+    /**
+     * A radio by exact label inside a scope.
+     * @param {import('@playwright/test').Locator} scope
+     * @param {string} label
+     * @returns {import('@playwright/test').Locator}
+     */
+    radioIn(scope, label) {
+        return scope.getByRole('radio', { name: label, exact: true });
+    }
+
+    /**
+     * @param {string} subject - one of SUBJECTS
+     * @returns {import('@playwright/test').Locator}
+     */
+    subjectTab(subject) {
+        return this.page.getByRole('tab', { name: subject, exact: true });
+    }
+
+    /**
+     * @param {string} subject - one of SUBJECTS
+     * @returns {import('@playwright/test').Locator}
+     */
+    subjectPanel(subject) {
+        return this.page.getByRole('tabpanel', { name: subject });
+    }
+
+    /**
+     * Selector of the i-th grade dropdown in the "Add a course" form (0-based).
+     * @param {number} i
+     * @returns {string}
+     */
+    gradeFieldSelector(i) {
+        return `#grades-update-${i}`;
+    }
+
+    /**
+     * Saved course row in the current subject's table.
+     * @param {string} name
+     * @returns {import('@playwright/test').Locator}
+     */
+    courseRow(name) {
+        return this.page.locator(this.selectors.row).filter({ has: this.page.getByRole('cell', { name, exact: true }) });
+    }
+
+    /**
+     * A saved course's Edit or Delete button.
+     * @param {'Edit'|'Delete'} action
+     * @param {string} name
+     * @returns {import('@playwright/test').Locator}
+     */
+    courseButton(action, name) {
+        return this.page.getByRole('button', { name: `${action} course work for ${name}` });
     }
 
     // ------------------------------------------------------------------ navigation
@@ -80,8 +168,48 @@ class MyHighSchoolGradesPage extends BasePage {
      * @returns {Promise<void>}
      */
     async validateMyHighSchoolGrade() {
-        await expect(this.page.getByRole('heading', { name: 'Want a faster admission decision?' })).toBeVisible();
-        await expect(this.page.locator(this.selectors.selfReportGroup)).toBeVisible();
+        await expect(this.page.locator(this.selectors.introHeading)).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page.locator(this.selectors.selfReportGroup)).toBeVisible({ timeout: this.assertionTimeout });
+    }
+
+    /**
+     * Answering No shows only the "Save and Continue" hint, no Overall academics.
+     * @returns {Promise<void>}
+     */
+    async verifyTranscriptOnlyShown() {
+        await expect(this.page.locator(this.selectors.noSelfReportHint)).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page.locator(this.selectors.overallAcademicsHeading)).toHaveCount(0);
+    }
+
+    /**
+     * Answering Yes shows Overall academics: GPA, GPA scale and grading system.
+     * @returns {Promise<void>}
+     */
+    async verifyOverallAcademicsShown() {
+        const s = this.selectors;
+        for (const selector of [s.overallAcademicsHeading, s.unweightedGpa, s.gpaScale, s.gradingSystem]) {
+            await expect(this.page.locator(selector), selector).toBeVisible({ timeout: this.assertionTimeout });
+        }
+    }
+
+    /**
+     * Overall academics as shown: { unweightedGPA, gpaScale, gradingSystem }.
+     * @returns {Promise<{ unweightedGPA: string, gpaScale: string, gradingSystem: string }>}
+     */
+    async getAcademicDetails() {
+        return {
+            unweightedGPA: await this.page.locator(this.selectors.unweightedGpa).inputValue(),
+            gpaScale: await this.page.locator(this.selectors.gpaScale).inputValue(),
+            gradingSystem: await this.page.locator(this.selectors.gradingSystem).inputValue(),
+        };
+    }
+
+    /**
+     * Subject tab labels in page order.
+     * @returns {Promise<string[]>}
+     */
+    async getSubjectTabs() {
+        return (await this.page.locator(this.selectors.subjectTab).allInnerTexts()).map((t) => t.trim());
     }
 
     // ------------------------------------------------------------------ helpers
@@ -97,9 +225,10 @@ class MyHighSchoolGradesPage extends BasePage {
         const box = this.page.locator(selector);
         await box.scrollIntoViewIfNeeded();
         await box.click();
-        await this.page.getByRole('option').first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
-        const label = value || (await this.page.getByRole('option').first().innerText()).replace(/\s*✓\s*$/, '').trim();
-        await this.page.getByRole('option', { name: new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}( ✓)?$`) }).first().click();
+        const first = this.page.locator(this.selectors.option).first();
+        await first.waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        const label = value || (await first.innerText()).replace(/\s*✓\s*$/, '').trim();
+        await this.option(label).click();
         await this.closeOpenList();
         return label;
     }
@@ -110,7 +239,7 @@ class MyHighSchoolGradesPage extends BasePage {
      * @returns {Promise<void>}
      */
     async closeOpenList() {
-        const options = this.page.getByRole('option');
+        const options = this.page.locator(this.selectors.option);
         if (!(await options.first().isVisible().catch(() => false))) return;
         await this.page.keyboard.press('Escape');
         if (await options.first().isVisible().catch(() => false)) {
@@ -127,8 +256,9 @@ class MyHighSchoolGradesPage extends BasePage {
     async getDropdownOptions(selector) {
         await this.closeOpenList();
         await this.page.locator(selector).click();
-        await this.page.getByRole('option').first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
-        const labels = (await this.page.getByRole('option').allInnerTexts())
+        const options = this.page.locator(this.selectors.option);
+        await options.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        const labels = (await options.allInnerTexts())
             .map((t) => t.replace(/\s+/g, ' ').replace(/\s*✓\s*$/, '').trim()).filter(Boolean);
         await this.closeOpenList();
         return labels;
@@ -142,8 +272,7 @@ class MyHighSchoolGradesPage extends BasePage {
      * @returns {Promise<void>}
      */
     async answerSelfReport(selfReport) {
-        await this.page.locator(this.selectors.selfReportGroup)
-            .getByRole('radio', { name: selfReport ? 'Yes' : 'No', exact: true }).click();
+        await this.radioIn(this.page.locator(this.selectors.selfReportGroup), selfReport ? 'Yes' : 'No').click();
         if (selfReport) {
             await this.page.locator(this.selectors.unweightedGpa).waitFor({ state: 'visible', timeout: this.assertionTimeout });
         } else {
@@ -202,7 +331,7 @@ class MyHighSchoolGradesPage extends BasePage {
     async selectGradingSystem(system) {
         const label = /^a\s*-\s*f$|letter/i.test(system) ? 'A-F' : /100|percent|point/i.test(system) ? '100 point based' : system;
         await this.choose(this.selectors.gradingSystem, label);
-        await this.page.getByRole('tablist').waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        await this.page.locator(this.selectors.subjectTabs).waitFor({ state: 'visible', timeout: this.assertionTimeout });
     }
 
     /**
@@ -252,7 +381,7 @@ class MyHighSchoolGradesPage extends BasePage {
      * @returns {Promise<void>}
      */
     async selectSubject(subject) {
-        const tab = this.page.getByRole('tab', { name: subject, exact: true });
+        const tab = this.subjectTab(subject);
         await tab.click();
         await expect(tab).toHaveAttribute('aria-selected', 'true', { timeout: this.assertionTimeout });
     }
@@ -279,7 +408,7 @@ class MyHighSchoolGradesPage extends BasePage {
         const grades = [];
         for (let i = 0; i < count; i++) {
             const g = (data.grades && data.grades[i]) || data.grade || 'A';
-            await this.choose(`#grades-update-${i}`, g);
+            await this.choose(this.gradeFieldSelector(i), g);
             grades.push(g);
         }
         await this.page.locator(this.selectors.saveCourseButton).click();
@@ -304,27 +433,17 @@ class MyHighSchoolGradesPage extends BasePage {
     }
 
     /**
-     * Saved course row in the current subject's table.
-     * @param {string} name
-     * @returns {import('@playwright/test').Locator}
-     */
-    courseRow(name) {
-        return this.page.getByRole('row').filter({ has: this.page.getByRole('cell', { name, exact: true }) });
-    }
-
-    /**
      * Saved courses for a subject: [{ name, grades }].
      * @param {string} subject
      * @returns {Promise<Array<{ name: string, grades: string }>>}
      */
     async getCourses(subject) {
         await this.selectSubject(subject);
-        const panel = this.page.getByRole('tabpanel', { name: subject });
-        const rows = panel.locator('xpath=following::table[1]').getByRole('row');
+        const rows = this.subjectPanel(subject).locator(this.selectors.coursesTableAfterPanel).locator(this.selectors.row);
         /** @type {Array<{ name: string, grades: string }>} */
         const out = [];
         for (let i = 1; i < await rows.count(); i++) {
-            const cells = rows.nth(i).getByRole('cell');
+            const cells = rows.nth(i).locator(this.selectors.cell);
             if ((await cells.count()) < 2) continue;
             out.push({ name: (await cells.nth(0).innerText()).trim(), grades: (await cells.nth(1).innerText()).trim() });
         }
@@ -339,19 +458,19 @@ class MyHighSchoolGradesPage extends BasePage {
      * @returns {Promise<void>}
      */
     async editCourse(name, { grades }) {
-        await this.page.getByRole('button', { name: `Edit course work for ${name}` }).click();
-        const modal = this.page.getByRole('dialog', { name: 'Edit course' });
+        await this.courseButton('Edit', name).click();
+        const modal = this.page.locator(this.selectors.editCourseDialog);
         await modal.waitFor({ state: 'visible', timeout: this.assertionTimeout });
-        const gradeBoxes = modal.getByRole('combobox', { name: / grade$/ });
+        const gradeBoxes = modal.locator(this.selectors.editGradeBoxes);
         await gradeBoxes.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
         for (let i = 0; i < grades.length && i < await gradeBoxes.count(); i++) {
             // Inside the dialog the list closes on its own; never click outside (it would close the dialog).
             await gradeBoxes.nth(i).click();
-            await this.page.getByRole('option', { name: grades[i], exact: true }).first().click();
+            await this.option(grades[i]).click();
         }
-        await modal.getByRole('button', { name: 'Update course', exact: true }).click();
+        await modal.locator(this.selectors.updateCourseButton).click();
         await modal.waitFor({ state: 'hidden', timeout: this.assertionTimeout });
-        await expect(this.courseRow(name).getByRole('cell').nth(1)).toHaveText(grades.join(', '), { timeout: this.assertionTimeout });
+        await expect(this.courseRow(name).locator(this.selectors.cell).nth(1)).toHaveText(grades.join(', '), { timeout: this.assertionTimeout });
     }
 
     /**
@@ -360,9 +479,9 @@ class MyHighSchoolGradesPage extends BasePage {
      * @returns {Promise<void>}
      */
     async deleteCourse(name) {
-        await this.page.getByRole('button', { name: `Delete course work for ${name}` }).click();
-        const confirm = this.page.getByRole('dialog').or(this.page.getByRole('alertdialog')).first()
-            .getByRole('button', { name: /^(delete|remove|yes|confirm)/i });
+        await this.courseButton('Delete', name).click();
+        const confirm = this.page.locator(this.selectors.dialog).or(this.page.locator(this.selectors.alertDialog)).first()
+            .locator(this.selectors.confirmDeleteButton);
         if (await confirm.first().waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false)) {
             await confirm.first().click();
         }
@@ -376,7 +495,7 @@ class MyHighSchoolGradesPage extends BasePage {
     async validateCourse({ name, grade }) {
         const row = this.courseRow(name);
         await expect(row).toBeVisible({ timeout: this.assertionTimeout });
-        if (grade) await expect(row.getByRole('cell').nth(1)).toContainText(grade);
+        if (grade) await expect(row.locator(this.selectors.cell).nth(1)).toContainText(grade);
     }
 
     // ------------------------------------------------------------------ flow-spec entry points
@@ -427,6 +546,7 @@ class MyHighSchoolGradesPage extends BasePage {
      */
     async verifyErrorMessage(expectedMessage = 'Please select an option for grade reporting') {
         await expect(this.page.getByText(expectedMessage).first()).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page).toHaveURL(/\/my-high-school-grades/);
     }
 
     /**

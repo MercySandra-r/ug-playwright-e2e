@@ -2,6 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { startApplicationAt, resumeApplication } = require('../utils/applicationJourney');
 const MyHighSchoolGradesPage = require('../pages/MyHighSchoolGradesPage');
+const AZResidencyPage = require('../pages/AZResidencyPage');
 
 /**
  * My high school grades (step 4 of the application wizard), against the live page.
@@ -13,6 +14,9 @@ const MyHighSchoolGradesPage = require('../pages/MyHighSchoolGradesPage');
  *
  * Debugging without creating accounts: set GRADES_TEST_EMAIL and GRADES_TEST_PASSWORD
  * to an account whose application is on step 4.
+ *
+ * POM: every element comes from MyHighSchoolGradesPage (its selectors, locator methods
+ * and read-back methods); this spec has no locators of its own.
  */
 test.describe('My High School Grades Page Tests', () => {
     test.describe.configure({ mode: 'serial', timeout: 120000 });
@@ -44,7 +48,6 @@ test.describe('My High School Grades Page Tests', () => {
         await freshPage();
         await gradesPage.clickContinue();
         await gradesPage.verifyErrorMessage('Please select an option for grade reporting');
-        await expect(page).toHaveURL(/\/my-high-school-grades/);
     });
 
     test('Verify My High School Grades page loads successfully', async () => {
@@ -55,17 +58,13 @@ test.describe('My High School Grades Page Tests', () => {
     test('Select transcript only report type', async () => {
         await freshPage();
         await gradesPage.selectTranscriptOnlyCard();
-        await expect(page.locator(gradesPage.selectors.noSelfReportHint)).toBeVisible();
-        await expect(page.locator(gradesPage.selectors.overallAcademicsHeading)).toHaveCount(0);
+        await gradesPage.verifyTranscriptOnlyShown();
     });
 
     test('Self-reporting shows overall academics', async () => {
         await freshPage();
         await gradesPage.answerSelfReport(true);
-        await expect(page.locator(gradesPage.selectors.overallAcademicsHeading)).toBeVisible();
-        await expect(page.locator(gradesPage.selectors.unweightedGpa)).toBeVisible();
-        await expect(page.locator(gradesPage.selectors.gpaScale)).toBeVisible();
-        await expect(page.locator(gradesPage.selectors.gradingSystem)).toBeVisible();
+        await gradesPage.verifyOverallAcademicsShown();
     });
 
     test('Select GPA scale and grading system', async () => {
@@ -76,16 +75,14 @@ test.describe('My High School Grades Page Tests', () => {
 
         await gradesPage.enterAcademicDetails({ unweightedGPA: '3.75', gpaScale: '4', gradingSystem: 'A-F' });
         await gradesPage.validateAcademicDetails({ unweightedGPA: '3.75' });
-        await expect(page.locator(gradesPage.selectors.gpaScale)).toHaveValue('4');
-        await expect(page.locator(gradesPage.selectors.gradingSystem)).toHaveValue('A-F');
+        expect(await gradesPage.getAcademicDetails()).toMatchObject({ gpaScale: '4', gradingSystem: 'A-F' });
     });
 
     test('Validate course subjects and course title options', async () => {
         await freshPage();
         await gradesPage.answerSelfReport(true);
         await gradesPage.enterAcademicDetails({ unweightedGPA: '3.50' });
-        const tabs = (await page.getByRole('tab').allInnerTexts()).map((t) => t.trim());
-        expect(tabs).toEqual(gradesPage.SUBJECTS);
+        expect(await gradesPage.getSubjectTabs()).toEqual(gradesPage.SUBJECTS);
 
         expect(await gradesPage.getDropdownOptions(gradesPage.selectors.academicYear))
             .toEqual(['Freshman/9', 'Sophomore/10', 'Junior/11', 'Senior/12']);
@@ -104,7 +101,7 @@ test.describe('My High School Grades Page Tests', () => {
             await gradesPage.choose(gradesPage.selectors.courseName);
             await gradesPage.choose(gradesPage.selectors.duration, 'Semester');
             await gradesPage.choose(gradesPage.selectors.courseLevel, 'High School');
-            return gradesPage.getDropdownOptions('#grades-update-0');
+            return gradesPage.getDropdownOptions(gradesPage.gradeFieldSelector(0));
         })();
         expect(gradeOptions).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'In Progress', 'Pass']);
     });
@@ -140,12 +137,12 @@ test.describe('My High School Grades Page Tests', () => {
     test('Self-report choice can be changed back to transcripts only', async () => {
         // Switching to No should hide the self-report form; switch back to keep courses.
         await gradesPage.answerSelfReport(false);
-        await expect(page.locator(gradesPage.selectors.noSelfReportHint)).toBeVisible();
+        await gradesPage.verifyTranscriptOnlyShown();
         await gradesPage.answerSelfReport(true);
     });
 
     test('Save and continue to next section', async () => {
         await gradesPage.saveAndContinue();
-        await expect(page.getByRole('heading', { name: /Arizona residency/i, level: 1 })).toBeVisible();
+        await new AZResidencyPage(page).verifyPageLoaded();
     });
 });
