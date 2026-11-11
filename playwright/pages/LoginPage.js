@@ -194,6 +194,8 @@ class LoginPage extends BasePage {
         try {
             await this.page.waitForURL(/apply-qa\.apps\.asu\.edu\/(?!easso)/, { timeout: 45000 });
             await this.settle();
+            // So an application started next is logged against this account.
+            require('../utils/accountLog').noteSignedIn(this.page, email);
             return true;
         } catch (e) {
             return false;
