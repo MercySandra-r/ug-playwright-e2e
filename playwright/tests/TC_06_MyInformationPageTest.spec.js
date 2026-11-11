@@ -146,6 +146,82 @@ test.describe('My Information Page Tests', () => {
         expect((await myInfoPage.readFormValues()).guardians).toContain('Pat Guardian');
     });
 
+    test('Former names: up to 10, then the limit is reached; one can be deleted', async () => {
+        const before = await myInfoPage.getFormerNames();
+        // Letters only, unique per run so reruns on a reused account don't collide.
+        const run = faker.string.alpha({ length: 5, casing: 'upper' });
+        /** @type {string[]} */
+        const added = [];
+        for (let i = before.length; i < 10; i++) {
+            const name = { firstName: 'Former', lastName: `${run}${String.fromCharCode(65 + i)}` };
+            await myInfoPage.addFormerName(name);
+            added.push(`${name.firstName} ${name.lastName}`);
+            expect(await myInfoPage.isFormerNameDisplayed(added[added.length - 1])).toBe(true);
+        }
+        expect(await myInfoPage.getFormerNames()).toHaveLength(10);
+        await myInfoPage.verifyFormerNameLimitReached();
+
+        // Deleting one frees a slot again.
+        const removed = /** @type {string} */ (added.pop() ?? before[before.length - 1]);
+        await myInfoPage.deleteFormerName(removed);
+        const after = await myInfoPage.getFormerNames();
+        expect(after).toHaveLength(9);
+        expect(after).not.toContain(removed);
+        expect(await myInfoPage.canAddFormerName()).toBe(true);
+
+        // Remove the rest this test added (the end-to-end test adds one more later).
+        for (const name of added) await myInfoPage.deleteFormerName(name);
+    });
+
+    test('Uniformed Services: every option and the follow-ups it shows', async () => {
+        const options = await myInfoPage.getDropdownOptions(myInfoPage.selectors.uniformedServices);
+        expect(options).toEqual([
+            'I am a U.S. service member or veteran',
+            'I am the spouse/dependent of a U.S. service member or veteran',
+            myInfoPage.NO_UNIFORMED_SERVICES,
+        ]);
+        /** @type {Record<string, { fields: string[], branchLabel: string|undefined }>} */
+        const seen = {};
+        for (const option of options) {
+            await myInfoPage.selectMilitaryAffiliation(option);
+            seen[option] = await myInfoPage.getUniformedServicesFollowUps();
+        }
+        test.info().annotations.push({ type: 'follow-ups', description: JSON.stringify(seen) });
+        expect(seen).toEqual({
+            [options[0]]: { fields: ['serviceStatus', 'serviceBranch', 'vaBenefits', 'jstAuthorize'], branchLabel: 'Select your branch of service:' },
+            [options[1]]: { fields: ['serviceBranch', 'vaBenefits'], branchLabel: "Select your spouse or guardian's branch of service:" },
+            [options[2]]: { fields: [], branchLabel: undefined },
+        });
+
+        // The service member's own choices.
+        await myInfoPage.selectMilitaryAffiliation(options[0]);
+        expect(await myInfoPage.getRadioOptions(myInfoPage.selectors.serviceStatusGroup))
+            .toEqual(['Active Duty', 'Armed Forces Reserve', 'National Guard', 'Veteran']);
+        const branches = await myInfoPage.getDropdownOptions(myInfoPage.selectors.serviceBranch);
+        test.info().annotations.push({ type: 'branches', description: JSON.stringify(branches) });
+        expect(branches.length).toBeGreaterThan(0);
+    });
+
+    test('Parents: valid and invalid contact; BriteVerify flags the invalid phone on Continue', async () => {
+        test.setTimeout(240000);
+        await myInfoPage.addParentInformation({ firstName: 'Valid', lastName: 'Parent', isLiving: true,
+            email: 'ugnaaqaautomation1+guardian@gmail.com', phone: '4809657788' });
+        await myInfoPage.addParentInformation({ firstName: 'Invalid', lastName: 'Parent', isLiving: true,
+            email: 'qa@au.is', phone: '5005550123' });
+        expect(await myInfoPage.getGuardians()).toEqual(expect.arrayContaining(['Valid Parent', 'Invalid Parent']));
+
+        // BriteVerify only checks contact details when the step is continued.
+        await myInfoPage.completeRequiredFields();
+        const flagged = await myInfoPage.continueAndReadVerification(); // then "Go back and change"
+        test.info().annotations.push({ type: 'BriteVerify', description: JSON.stringify(flagged) });
+        expect(flagged).toContainEqual({ item: 'Additional parent / guardian phone', value: '+1 (500) 555-0123' });
+        expect(flagged.map((f) => f.value)).not.toContain('+1 (480) 965-7788');
+
+        // Clean up so later tests (and reruns) start without these guardians.
+        await myInfoPage.deleteGuardian('Invalid Parent');
+        await myInfoPage.deleteGuardian('Valid Parent');
+    });
+
     test('Floating help opens', async () => {
         await myInfoPage.validateFloatingHelp();
     });
@@ -179,7 +255,11 @@ test.describe('My Information Page Tests', () => {
             guardians: expect.arrayContaining([`${guardian.firstName} ${guardian.lastName}`]),
             affiliations: entered.asuAffiliate.affiliations,
             affiliateId: entered.asuAffiliate.affiliateId,
-            militaryStatus: entered.militaryStatus,
+            militaryStatus: entered.uniformed.affiliation,
+            serviceStatus: entered.uniformed.status,
+            serviceBranch: entered.uniformed.branch,
+            vaBenefits: entered.uniformed.vaBenefits,
+            jstAuthorize: entered.uniformed.jstAuthorize,
             educationBenefits: 'Yes',
             benefitProvider: entered.benefitProvider,
         });
