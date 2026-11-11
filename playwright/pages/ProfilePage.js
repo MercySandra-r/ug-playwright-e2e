@@ -3,7 +3,50 @@ const { expect } = require('@playwright/test');
 const BasePage = require('./BasePage');
 
 /**
- * Page Object for Profile related actions
+ * Profile fields as named in their "Edit <field>, current value: <value>" links, and the
+ * page each link opens.
+ */
+const FIELDS = {
+    legalName: { label: 'legal name', path: '/profile/edit-name' },
+    preferredFirstName: { label: 'preferred first name', path: '/profile/edit-preferred-first-name' },
+    birthday: { label: 'birthday', path: '/profile/edit-birthday' },
+    pronouns: { label: 'pronouns', path: '/profile/edit-pronoun' },
+    genderIdentity: { label: 'gender identity', path: '/profile/edit-gender' },
+    phoneNumber: { label: 'phone number', path: '/profile/edit-phone-number' },
+    smsPreference: { label: 'SMS messaging preference', path: '/profile/edit-phone-number' },
+};
+
+/** Shown instead of a value when an optional field is empty. */
+const EMPTY_VALUES = ['Add one', 'Select'];
+
+/**
+ * Page Object for the applicant profile (/profile), reached from the Profile menu's
+ * "Edit profile" or Review's Profile section.
+ *
+ * Rebuilt against the live page on 2026-11-11:
+ *  - /profile is a read-only summary: "Welcome, <name>", "Application ID: <id>", then one
+ *    row per field with an "Edit <field>, current value: <value>" link (legal name,
+ *    preferred first name, birthday, pronouns, gender identity, phone number, SMS
+ *    preference). Contact email and the sign-in method are shown without an edit link.
+ *  - Each link opens its own page with Save and Cancel: edit-name (first, middle, last,
+ *    suffix), edit-preferred-first-name, edit-birthday (month/day/year), edit-pronoun
+ *    (He/Him, She/Her, They/Them), edit-gender (Female, Male, Nonbinary, Identity not
+ *    listed, Prefer not to disclose), edit-phone-number (country code, number, mobile and
+ *    SMS questions).
+ * There is no address or emergency contact on Profile any more.
+ *
+ * What can be edited depends on the account's in-progress applications (QA team,
+ * 2026-11-11); a field is editable when it shows its Edit link:
+ *  - none in progress: nothing is editable
+ *  - one in progress (after the pre-app dashboard): every field
+ *  - several in progress: all but legal name and birthday
+ *  - contact email: never
+ * See expectedEditableFields() and getEditableFields().
+ *
+ * POM rule for this page: every element is declared here. Fixed elements are named in
+ * `this.selectors`; elements that depend on data (a field's Edit link, a radio, an
+ * option) come from the locator methods below. Specs use these names and the read-back
+ * methods, never their own locators.
  */
 class ProfilePage extends BasePage {
     /**
@@ -11,299 +54,452 @@ class ProfilePage extends BasePage {
      */
     constructor(page) {
         super(page, 'ProfilePage');
-        
-        // Define page selectors
+
         this.selectors = {
-            // Profile icon and navigation
-            profileIcon: '[data-cy="profile-icon"]',
-            editProfileButton: 'button:has-text("Edit Profile")',
-            
-            // Profile information
-            profileEmail: '[data-cy="profile-email"]',
-            
-            // Personal Information Section
-            firstNameInput: 'input[name="firstName"]',
-            middleNameInput: 'input[name="middleName"]',
-            lastNameInput: 'input[name="lastName"]',
-            preferredNameInput: 'input[name="preferredName"]',
-            dateOfBirthInput: 'input[name="dateOfBirth"]',
-            
-            // Pronouns
-            pronounsDropdown: 'select[name="pronouns"]',
-            customPronounsInput: 'input[name="customPronouns"]',
-            
-            // Gender Identity
-            genderDropdown: 'select[name="gender"]',
-            customGenderInput: 'input[name="customGender"]',
-            
-            // Contact Information
-            phoneNumberInput: 'input[name="phoneNumber"]',
-            addressLine1Input: 'input[name="addressLine1"]',
-            addressLine2Input: 'input[name="addressLine2"]',
-            cityInput: 'input[name="city"]',
-            stateDropdown: 'select[name="state"]',
-            zipCodeInput: 'input[name="zipCode"]',
-            countryDropdown: 'select[name="country"]',
-            
-            // Emergency Contact
-            emergencyContactNameInput: 'input[name="emergencyContactName"]',
-            emergencyContactRelationshipInput: 'input[name="emergencyContactRelationship"]',
-            emergencyContactPhoneInput: 'input[name="emergencyContactPhone"]',
-            emergencyContactEmailInput: 'input[name="emergencyContactEmail"]',
-            
-            // Form Actions
-            saveButton: 'button:has-text("Save")',
-            cancelButton: 'button:has-text("Cancel")',
-            returnToDashboardButton: 'a:has-text("Return to Dashboard")',
-            
-            // Status Section
-            statusSection: '.status-section',
-            applicationStatus: '.application-status',
-            
-            // Error Messages
-            errorMessage: '.error-message',
-            validationError: '.validation-error',
-            
-            // Success Message
-            successMessage: '.success-message'
+            // Summary (/profile)
+            pageLabel: 'text="Applicant profile"',
+            welcomeText: 'text=/^Welcome, /',
+            applicationIdText: 'text=/^Application ID: /',
+            contactEmailLabel: 'text="Contact email"',
+            // The value right after the "Contact email" label (it has an info button between).
+            contactEmailValue: 'xpath=following::p[1]',
+            contactEmailEditLink: 'role=link[name=/^Edit (contact )?email/i]',
+            editLinks: 'role=link[name=/^Edit .+, current value: /]',
+            returnToDashboardLink: 'role=link[name="Return to dashboard"]',
+
+            // Profile menu (header)
+            profileMenuButton: 'role=button[name="Profile menu"]',
+            profileMenu: 'role=menu',
+            editProfileItem: 'text="Edit profile"',
+
+            // Edit pages: shared
+            saveButton: 'role=button[name="Save"s]',
+            cancelButton: 'role=button[name="Cancel"s]',
+            cancelText: 'text="Cancel"',
+            option: 'role=option',
+
+            // edit-name
+            firstNameInput: 'role=textbox[name="First name"s]',
+            middleNameInput: 'role=textbox[name="Middle name (Optional)"]',
+            lastNameInput: 'role=textbox[name="Last name"s]',
+            suffixSelect: 'role=combobox[name="Suffix (Optional)"]',
+
+            // edit-preferred-first-name
+            preferredFirstNameInput: 'role=textbox[name="Preferred first name (Optional)"]',
+
+            // edit-birthday
+            birthdayGroup: 'role=group[name="Birthday"]',
+            birthMonthSelect: 'role=combobox[name="Month"s]',
+            birthDaySelect: 'role=combobox[name="Day"s]',
+            birthYearSelect: 'role=combobox[name="Year"s]',
+
+            // edit-pronoun, edit-gender
+            pronounsGroup: 'role=radiogroup[name="Pronouns (Optional)"]',
+            genderGroup: 'role=radiogroup[name="Gender identity (Optional)"]',
+            radio: 'role=radio',
+
+            // edit-phone-number
+            countryCodeInput: 'role=textbox[name="Country code"]',
+            phoneNumberInput: 'role=textbox[name="Phone number"s]',
+            mobileGroup: 'role=radiogroup[name="Is this a mobile number?"]',
+            smsGroup: 'role=radiogroup[name=/SMS messaging/]',
+
+            // "Information Verification Required" dialog (BriteVerify) after saving a phone
+            verifyDialog: 'role=alertdialog',
+            goBackAndChangeButton: 'role=button[name="Go back and change"]',
         };
+        this.FIELDS = FIELDS;
     }
-    
+
+    // ------------------------------------------------------------------ locators that depend on data
+
     /**
-     * Navigate to the profile page
+     * A field's "Edit <field>, current value: ..." link on /profile.
+     * @param {keyof FIELDS} field
+     * @returns {import('@playwright/test').Locator}
+     */
+    editLink(field) {
+        const label = FIELDS[field].label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        return this.page.getByRole('link', { name: new RegExp(`^Edit ${label}, current value: `) });
+    }
+
+    /**
+     * A radio by exact label inside one of the page's radio groups.
+     * @param {string} groupSelector
+     * @param {string} label
+     * @returns {import('@playwright/test').Locator}
+     */
+    radioIn(groupSelector, label) {
+        return this.page.locator(groupSelector).getByRole('radio', { name: label, exact: true });
+    }
+
+    /**
+     * An open list's option by exact label.
+     * @param {string} label
+     * @returns {import('@playwright/test').Locator}
+     */
+    option(label) {
+        return this.page.getByRole('option', { name: label, exact: true }).first();
+    }
+
+    // ------------------------------------------------------------------ navigation
+
+    /**
+     * Open /profile.
      * @returns {Promise<void>}
      */
     async navigateToProfile() {
-        await this.page.goto('/profile');
-        await this.page.waitForLoadState('networkidle');
+        await this.page.goto('/profile', { timeout: this.navigationTimeout });
         await this.verifyPageLoaded();
     }
-    
+
     /**
-     * Open the profile edit mode
+     * Open Profile the way users do: Profile menu -> "Edit profile".
      * @returns {Promise<void>}
      */
     async openProfile() {
-        // Click on profile icon
-        await this.page.click(this.selectors.profileIcon);
-        await this.page.waitForTimeout(1000);
-        
-        // Click on edit profile button
-        await this.page.click(this.selectors.editProfileButton);
-        await this.page.waitForLoadState('networkidle');
-        
-        // Verify the page is in edit mode
-        await expect(this.page.locator(this.selectors.firstNameInput)).toBeVisible();
+        await this.page.locator(this.selectors.profileMenuButton).click();
+        await this.page.locator(this.selectors.profileMenu).locator(this.selectors.editProfileItem).click();
+        await this.verifyPageLoaded();
     }
-    
+
     /**
-     * Verify the profile page is loaded
+     * From the main dashboard, open Profile through the Profile menu.
+     * @returns {Promise<void>}
+     */
+    async openProfileFromDashboard() {
+        await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
+        await this.openProfile();
+    }
+
+    /**
      * @returns {Promise<void>}
      */
     async verifyPageLoaded() {
-        await expect(this.page).toHaveURL(/.*profile/);
-        await expect(this.page.locator(this.selectors.profileEmail)).toBeVisible();
+        await expect(this.page).toHaveURL(/\/profile$/, { timeout: this.navigationTimeout });
+        await expect(this.page.locator(this.selectors.pageLabel)).toBeVisible({ timeout: this.navigationTimeout });
+        await expect(this.page.locator(this.selectors.editLinks).first()).toBeVisible({ timeout: this.navigationTimeout });
     }
-    
+
     /**
-     * Validate the email displayed on the profile page
-     * @param {string} expectedEmail - The expected email address
-     * @returns {Promise<boolean>} Whether the email matches the expected value
-     */
-    async validateEmail(expectedEmail) {
-        try {
-            const actualEmail = await this.page.textContent(this.selectors.profileEmail);
-            return actualEmail.trim() === expectedEmail.trim();
-        } catch (error) {
-            console.error('Error validating email:', error);
-            return false;
-        }
-    }
-    
-    /**
-     * Select pronouns from dropdown or enter custom pronouns
-     * @param {string} pronouns - The pronouns to select or 'custom' for custom input
-     * @param {string} [customPronouns] - Custom pronouns (required if pronouns is 'custom')
-     * @returns {Promise<void>}
-     */
-    async selectPronouns(pronouns, customPronouns) {
-        if (pronouns.toLowerCase() === 'custom' && customPronouns) {
-            await this.page.selectOption(this.selectors.pronounsDropdown, 'custom');
-            await this.page.fill(this.selectors.customPronounsInput, customPronouns);
-        } else {
-            await this.page.selectOption(this.selectors.pronounsDropdown, pronouns);
-        }
-    }
-    
-    /**
-     * Select gender from dropdown or enter custom gender
-     * @param {string} gender - The gender to select or 'custom' for custom input
-     * @param {string} [customGender] - Custom gender (required if gender is 'custom')
-     * @returns {Promise<void>}
-     */
-    async selectGender(gender, customGender) {
-        if (gender.toLowerCase() === 'custom' && customGender) {
-            await this.page.selectOption(this.selectors.genderDropdown, 'custom');
-            await this.page.fill(this.selectors.customGenderInput, customGender);
-        } else {
-            await this.page.selectOption(this.selectors.genderDropdown, gender);
-        }
-    }
-    
-    /**
-     * Update personal information
-     * @param {Object} personalInfo - Object containing personal information
-     * @param {string} [personalInfo.firstName] - First name
-     * @param {string} [personalInfo.middleName] - Middle name
-     * @param {string} [personalInfo.lastName] - Last name
-     * @param {string} [personalInfo.preferredName] - Preferred name
-     * @param {string} [personalInfo.dateOfBirth] - Date of birth (format: YYYY-MM-DD)
-     * @returns {Promise<void>}
-     */
-    async updatePersonalInfo(personalInfo) {
-        if (personalInfo.firstName) {
-            await this.page.fill(this.selectors.firstNameInput, personalInfo.firstName);
-        }
-        
-        if (personalInfo.middleName) {
-            await this.page.fill(this.selectors.middleNameInput, personalInfo.middleName);
-        }
-        
-        if (personalInfo.lastName) {
-            await this.page.fill(this.selectors.lastNameInput, personalInfo.lastName);
-        }
-        
-        if (personalInfo.preferredName) {
-            await this.page.fill(this.selectors.preferredNameInput, personalInfo.preferredName);
-        }
-        
-        if (personalInfo.dateOfBirth) {
-            await this.page.fill(this.selectors.dateOfBirthInput, personalInfo.dateOfBirth);
-        }
-    }
-    
-    /**
-     * Update contact information
-     * @param {Object} contactInfo - Object containing contact information
-     * @param {string} [contactInfo.phoneNumber] - Phone number
-     * @param {string} [contactInfo.addressLine1] - Address line 1
-     * @param {string} [contactInfo.addressLine2] - Address line 2
-     * @param {string} [contactInfo.city] - City
-     * @param {string} [contactInfo.state] - State
-     * @param {string} [contactInfo.zipCode] - ZIP code
-     * @param {string} [contactInfo.country] - Country
-     * @returns {Promise<void>}
-     */
-    async updateContactInfo(contactInfo) {
-        if (contactInfo.phoneNumber) {
-            await this.page.fill(this.selectors.phoneNumberInput, contactInfo.phoneNumber);
-        }
-        
-        if (contactInfo.addressLine1) {
-            await this.page.fill(this.selectors.addressLine1Input, contactInfo.addressLine1);
-        }
-        
-        if (contactInfo.addressLine2) {
-            await this.page.fill(this.selectors.addressLine2Input, contactInfo.addressLine2);
-        }
-        
-        if (contactInfo.city) {
-            await this.page.fill(this.selectors.cityInput, contactInfo.city);
-        }
-        
-        if (contactInfo.state) {
-            await this.page.selectOption(this.selectors.stateDropdown, contactInfo.state);
-        }
-        
-        if (contactInfo.zipCode) {
-            await this.page.fill(this.selectors.zipCodeInput, contactInfo.zipCode);
-        }
-        
-        if (contactInfo.country) {
-            await this.page.selectOption(this.selectors.countryDropdown, contactInfo.country);
-        }
-    }
-    
-    /**
-     * Update emergency contact information
-     * @param {Object} emergencyContact - Object containing emergency contact information
-     * @param {string} [emergencyContact.name] - Emergency contact name
-     * @param {string} [emergencyContact.relationship] - Relationship to the applicant
-     * @param {string} [emergencyContact.phone] - Emergency contact phone number
-     * @param {string} [emergencyContact.email] - Emergency contact email
-     * @returns {Promise<void>}
-     */
-    async updateEmergencyContact(emergencyContact) {
-        if (emergencyContact.name) {
-            await this.page.fill(this.selectors.emergencyContactNameInput, emergencyContact.name);
-        }
-        
-        if (emergencyContact.relationship) {
-            await this.page.fill(this.selectors.emergencyContactRelationshipInput, emergencyContact.relationship);
-        }
-        
-        if (emergencyContact.phone) {
-            await this.page.fill(this.selectors.emergencyContactPhoneInput, emergencyContact.phone);
-        }
-        
-        if (emergencyContact.email) {
-            await this.page.fill(this.selectors.emergencyContactEmailInput, emergencyContact.email);
-        }
-    }
-    
-    /**
-     * Save the profile changes
-     * @returns {Promise<boolean>} Whether the save was successful
-     */
-    async save() {
-        try {
-            await this.page.click(this.selectors.saveButton);
-            await this.page.waitForLoadState('networkidle');
-            
-            // Check for success message or redirect
-            const success = await this.page.$(this.selectors.successMessage) || 
-                           !(await this.page.$(this.selectors.saveButton));
-            
-            return !!success;
-        } catch (error) {
-            console.error('Error saving profile:', error);
-            return false;
-        }
-    }
-    
-    /**
-     * Return to the dashboard
+     * "Return to dashboard" goes back to /dashboard.
      * @returns {Promise<void>}
      */
     async returnToDashboard() {
-        await this.page.click(this.selectors.returnToDashboardButton);
-        await this.page.waitForLoadState('networkidle');
+        await this.page.locator(this.selectors.returnToDashboardLink).click();
+        await this.page.waitForURL(/\/dashboard/, { timeout: this.navigationTimeout });
     }
-    
+
+    // ------------------------------------------------------------------ read-back
+
     /**
-     * Check the application status
-     * @returns {Promise<string>} The application status text
+     * Everything the summary shows. Optional fields that are empty come back as ''.
+     * @returns {Promise<{ welcomeName: string, applicationId: string, contactEmail: string,
+     *   legalName: string, preferredFirstName: string, birthday: string, pronouns: string,
+     *   genderIdentity: string, phoneNumber: string, smsPreference: string }>}
+     */
+    async readProfile() {
+        const names = await this.page.locator(this.selectors.editLinks).evaluateAll((links) =>
+            links.map((a) => a.getAttribute('aria-label') || (a.textContent || '').trim()));
+        /** @param {keyof FIELDS} field */
+        const valueOf = (field) => {
+            const prefix = `Edit ${FIELDS[field].label}, current value: `;
+            const raw = (names.find((n) => n.startsWith(prefix)) || '').slice(prefix.length).trim();
+            return EMPTY_VALUES.includes(raw) ? '' : raw;
+        };
+        const welcome = await this.page.locator(this.selectors.welcomeText).first().innerText();
+        const appId = await this.page.locator(this.selectors.applicationIdText).first().innerText().catch(() => '');
+        const email = await this.page.locator(this.selectors.contactEmailLabel).first()
+            .locator(this.selectors.contactEmailValue).innerText();
+        return {
+            welcomeName: welcome.replace(/^Welcome,\s*/, '').trim(),
+            applicationId: (appId.match(/(\d+)/) || [])[1] || '',
+            contactEmail: email.trim(),
+            legalName: valueOf('legalName'),
+            preferredFirstName: valueOf('preferredFirstName'),
+            birthday: valueOf('birthday'),
+            pronouns: valueOf('pronouns'),
+            genderIdentity: valueOf('genderIdentity'),
+            phoneNumber: valueOf('phoneNumber'),
+            smsPreference: valueOf('smsPreference'),
+        };
+    }
+
+    /**
+     * Fields that should be editable for a number of in-progress applications (see the
+     * class notes). Contact email is never editable and isn't listed.
+     * @param {number} inProgressCount
+     * @returns {Array<keyof FIELDS>}
+     */
+    static expectedEditableFields(inProgressCount) {
+        const all = /** @type {Array<keyof FIELDS>} */ (Object.keys(FIELDS));
+        if (inProgressCount <= 0) return [];
+        if (inProgressCount === 1) return all;
+        return all.filter((f) => f !== 'legalName' && f !== 'birthday');
+    }
+
+    /**
+     * Fields that currently show an Edit link, in FIELDS order.
+     * @returns {Promise<Array<keyof FIELDS>>}
+     */
+    async getEditableFields() {
+        await this.page.locator(this.selectors.pageLabel).waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        /** @type {Array<keyof FIELDS>} */
+        const editable = [];
+        for (const field of /** @type {Array<keyof FIELDS>} */ (Object.keys(FIELDS))) {
+            if (await this.editLink(field).isVisible().catch(() => false)) editable.push(field);
+        }
+        return editable;
+    }
+
+    /**
+     * Contact email never has an Edit link.
+     * @returns {Promise<boolean>}
+     */
+    async isContactEmailEditable() {
+        return this.page.locator(this.selectors.contactEmailEditLink).isVisible().catch(() => false);
+    }
+
+    /**
+     * Old API: whether the profile shows this contact email.
+     * @param {string} expectedEmail
+     * @returns {Promise<boolean>}
+     */
+    async validateEmail(expectedEmail) {
+        return (await this.readProfile()).contactEmail === expectedEmail.trim();
+    }
+
+    /**
+     * Old API: the application shown on the profile, e.g. "Application ID: 5020353".
+     * @returns {Promise<string>}
      */
     async checkStatus() {
-        await this.page.waitForSelector(this.selectors.statusSection, { state: 'visible' });
-        const statusElement = await this.page.$(this.selectors.applicationStatus);
-        return statusElement ? statusElement.textContent() : 'Status not found';
+        return (await this.page.locator(this.selectors.applicationIdText).first().innerText()).trim();
     }
-    
+
+    // ------------------------------------------------------------------ edit pages
+
     /**
-     * Verify error message is displayed
-     * @param {string} expectedMessage - The expected error message
-     * @returns {Promise<boolean>} Whether the error message is displayed and matches
+     * Open a field's edit page from /profile.
+     * @param {keyof FIELDS} field
+     * @returns {Promise<void>}
+     */
+    async openEditor(field) {
+        await this.editLink(field).click();
+        await this.page.waitForURL(new RegExp(`${FIELDS[field].path}$`), { timeout: this.navigationTimeout });
+        await expect(this.page.locator(this.selectors.saveButton)).toBeVisible({ timeout: this.navigationTimeout });
+    }
+
+    /**
+     * Save the open edit page; back on /profile.
+     * @returns {Promise<boolean>} true once back on the summary
+     */
+    async save() {
+        await this.page.locator(this.selectors.saveButton).click();
+        await this.page.waitForURL(/\/profile$/, { timeout: this.navigationTimeout });
+        await this.verifyPageLoaded();
+        return true;
+    }
+
+    /**
+     * Leave the open edit page without saving (Cancel is a button on most pages, plain
+     * text on the phone page).
+     * @returns {Promise<void>}
+     */
+    async cancel() {
+        // Never "Submit as is" from the verification dialog: go back, then cancel.
+        const verify = this.page.locator(this.selectors.verifyDialog);
+        if (await verify.isVisible().catch(() => false)) {
+            await verify.locator(this.selectors.goBackAndChangeButton).click();
+            await verify.waitFor({ state: 'hidden', timeout: this.assertionTimeout });
+        }
+        await this.page.locator(this.selectors.cancelButton).or(this.page.locator(this.selectors.cancelText)).first().click();
+        await this.page.waitForURL(/\/profile$/, { timeout: this.navigationTimeout });
+        await this.verifyPageLoaded();
+    }
+
+    /**
+     * Whether Save is enabled on the open edit page (pronouns/gender keep it disabled
+     * until a choice is made).
+     * @returns {Promise<boolean>}
+     */
+    async isSaveEnabled() {
+        return this.page.locator(this.selectors.saveButton).isEnabled();
+    }
+
+    /**
+     * Values on the open edit-name page.
+     * @returns {Promise<{ firstName: string, middleName: string, lastName: string, suffix: string }>}
+     */
+    async readLegalNameForm() {
+        const value = (/** @type {string} */ s) => this.page.locator(s).inputValue();
+        const suffix = this.page.locator(this.selectors.suffixSelect);
+        const suffixText = await suffix.evaluate((el) => (el instanceof HTMLSelectElement
+            ? (el.selectedOptions[0]?.textContent || '') : /** @type {HTMLInputElement} */ (el).value).trim());
+        return {
+            firstName: await value(this.selectors.firstNameInput),
+            middleName: await value(this.selectors.middleNameInput),
+            lastName: await value(this.selectors.lastNameInput),
+            suffix: suffixText === 'Please select one' ? '' : suffixText,
+        };
+    }
+
+    /**
+     * Values on the open edit-birthday page.
+     * @returns {Promise<{ month: string, day: string, year: string }>}
+     */
+    async readBirthdayForm() {
+        return {
+            month: await this.page.locator(this.selectors.birthMonthSelect).inputValue(),
+            day: await this.page.locator(this.selectors.birthDaySelect).inputValue(),
+            year: await this.page.locator(this.selectors.birthYearSelect).inputValue(),
+        };
+    }
+
+    /**
+     * Values on the open edit-phone-number page.
+     * @returns {Promise<{ countryCode: string, phone: string, isMobile: string|undefined, sms: string|undefined }>}
+     */
+    async readPhoneForm() {
+        /** @param {string} group */
+        const checked = async (group) => {
+            const radio = this.page.locator(group).getByRole('radio', { checked: true });
+            return (await radio.count()) ? (await radio.first().innerText()).trim() : undefined;
+        };
+        return {
+            countryCode: await this.page.locator(this.selectors.countryCodeInput).inputValue(),
+            phone: (await this.page.locator(this.selectors.phoneNumberInput).inputValue()).replace(/\D/g, ''),
+            isMobile: await checked(this.selectors.mobileGroup),
+            sms: await checked(this.selectors.smsGroup),
+        };
+    }
+
+    /**
+     * Radio labels of a radio group on the open edit page.
+     * @param {string} groupSelector - this.selectors.pronounsGroup or genderGroup
+     * @returns {Promise<string[]>}
+     */
+    async getRadioOptions(groupSelector) {
+        const radios = this.page.locator(groupSelector).locator(this.selectors.radio);
+        await radios.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        return (await radios.allInnerTexts()).map((t) => t.trim());
+    }
+
+    /**
+     * Empty first and last name on the open edit-name page (nothing is saved).
+     * @returns {Promise<void>}
+     */
+    async clearLegalName() {
+        await this.page.locator(this.selectors.firstNameInput).fill('');
+        await this.page.locator(this.selectors.lastNameInput).fill('');
+    }
+
+    /**
+     * Empty the phone number on the open edit-phone-number page (nothing is saved).
+     * @returns {Promise<void>}
+     */
+    async clearPhone() {
+        // The formatted field ignores fill(''); select everything and delete it.
+        const box = this.page.locator(this.selectors.phoneNumberInput);
+        await box.click();
+        await box.press('Control+A');
+        await box.press('Backspace');
+        await expect(box).toHaveValue('', { timeout: this.assertionTimeout });
+    }
+
+    /**
+     * Click Save on the open edit page and capture the field validations it shows. Throws
+     * (via captureFieldValidations) if the save goes through instead.
+     * @param {string} stepName - name for the log and report
+     * @returns {Promise<Array<{ field: string, message: string }>>}
+     */
+    async captureSaveValidations(stepName) {
+        return this.captureFieldValidations({ stepName, button: this.page.locator(this.selectors.saveButton) });
+    }
+
+    // ------------------------------------------------------------------ updates (each opens, fills, saves)
+
+    /**
+     * @param {string} name - '' clears it
+     * @returns {Promise<void>}
+     */
+    async updatePreferredFirstName(name) {
+        await this.openEditor('preferredFirstName');
+        await this.page.locator(this.selectors.preferredFirstNameInput).fill(name);
+        await this.save();
+    }
+
+    /**
+     * Choose pronouns and save. (No custom pronouns are offered any more.)
+     * @param {'He/Him'|'She/Her'|'They/Them'|string} pronouns
+     * @param {string} [_customPronouns] - ignored
+     * @returns {Promise<void>}
+     */
+    async selectPronouns(pronouns, _customPronouns) {
+        await this.openEditor('pronouns');
+        await this.radioIn(this.selectors.pronounsGroup, pronouns).click();
+        await this.save();
+    }
+
+    /**
+     * Choose a gender identity and save.
+     * @param {'Female'|'Male'|'Nonbinary'|'Identity not listed'|'Prefer not to disclose'|string} gender
+     * @param {string} [_customGender] - ignored
+     * @returns {Promise<void>}
+     */
+    async selectGender(gender, _customGender) {
+        await this.openEditor('genderIdentity');
+        await this.radioIn(this.selectors.genderGroup, gender).click();
+        await this.save();
+    }
+
+    /**
+     * Old API: update name parts and/or preferred name. Legal-name parts are saved on
+     * edit-name, the preferred name on its own page. dateOfBirth is ignored here; use
+     * openEditor('birthday') to change it deliberately.
+     * @param {{ firstName?: string, middleName?: string, lastName?: string, preferredName?: string, dateOfBirth?: string }} info
+     * @returns {Promise<void>}
+     */
+    async updatePersonalInfo(info) {
+        if (info.firstName || info.middleName || info.lastName) {
+            await this.openEditor('legalName');
+            if (info.firstName) await this.page.locator(this.selectors.firstNameInput).fill(info.firstName);
+            if (info.middleName) await this.page.locator(this.selectors.middleNameInput).fill(info.middleName);
+            if (info.lastName) await this.page.locator(this.selectors.lastNameInput).fill(info.lastName);
+            await this.save();
+        }
+        if (info.preferredName) await this.updatePreferredFirstName(info.preferredName);
+    }
+
+    /**
+     * Old API: only the phone number lives on Profile now; address fields are ignored.
+     * @param {{ phoneNumber?: string }} contact
+     * @returns {Promise<void>}
+     */
+    async updateContactInfo(contact) {
+        if (!contact.phoneNumber) return;
+        await this.openEditor('phoneNumber');
+        await this.page.locator(this.selectors.phoneNumberInput).fill(contact.phoneNumber);
+        await this.save();
+    }
+
+    /**
+     * Old API. Profile has no emergency contact any more; logs and does nothing.
+     * @param {Record<string, string>} _contact
+     * @returns {Promise<void>}
+     */
+    async updateEmergencyContact(_contact) {
+        this.logger.warn('updateEmergencyContact: Profile has no emergency contact section');
+    }
+
+    /**
+     * Old API: whether a message is shown on the page.
+     * @param {string} expectedMessage
+     * @returns {Promise<boolean>}
      */
     async verifyErrorMessage(expectedMessage) {
-        try {
-            const errorLocator = this.page.locator(this.selectors.errorMessage);
-            await errorLocator.waitFor({ state: 'visible', timeout: 5000 });
-            const actualMessage = await errorLocator.textContent();
-            return actualMessage.includes(expectedMessage);
-        } catch (error) {
-            return false;
-        }
+        return this.page.getByText(expectedMessage).first()
+            .waitFor({ state: 'visible', timeout: this.assertionTimeout }).then(() => true).catch(() => false);
     }
 }
 
