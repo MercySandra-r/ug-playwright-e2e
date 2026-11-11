@@ -58,6 +58,8 @@ test.describe('AZ Residency Page Tests', () => {
     test('Verify AZ Residency page loads successfully', async () => {
         await freshPage();
         await residencyPage.validateAZresidencyPage();
+        // This applicant has no uniformed-services affiliation, so no veteran questions.
+        expect(await residencyPage.isVeteranSectionShown()).toBe(false);
     });
 
     test('Answer permanent home question (non-AZ resident)', async () => {
@@ -123,6 +125,72 @@ test.describe('AZ Residency Page Tests', () => {
     });
 
     test('Save and continue to next section', async () => {
+        await residencyPage.saveAndContinue();
+        await new ReviewPage(page).verifyPageLoaded();
+    });
+});
+
+/**
+ * Arizona residency for a veteran: My information answered "I am a U.S. service member or
+ * veteran" with status Veteran, which adds three questions to this step (DD-214 character
+ * of service, discharge date, "Are you registered to vote?").
+ *
+ * One fresh veteran applicant per run, taken through steps 1-4 (beforeAll); or set
+ * RESIDENCY_VETERAN_TEST_EMAIL / RESIDENCY_VETERAN_TEST_PASSWORD to a veteran account whose
+ * application is on (or past) step 5. The last test saves the step and continues to Review.
+ */
+test.describe('AZ Residency Page Tests (veteran)', () => {
+    test.describe.configure({ mode: 'serial', timeout: 120000 });
+
+    /** @type {import('@playwright/test').BrowserContext} */
+    let context;
+    /** @type {import('@playwright/test').Page} */
+    let page;
+    /** @type {AZResidencyPage} */
+    let residencyPage;
+
+    test.beforeAll(async ({ browser }, testInfo) => {
+        testInfo.setTimeout(480000);
+        context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+        page = await context.newPage();
+        residencyPage = new AZResidencyPage(page);
+        residencyPage.applicationId = process.env.RESIDENCY_VETERAN_TEST_EMAIL && process.env.RESIDENCY_VETERAN_TEST_PASSWORD
+            ? await resumeApplication(page, process.env.RESIDENCY_VETERAN_TEST_EMAIL, process.env.RESIDENCY_VETERAN_TEST_PASSWORD)
+            : await startApplicationAt(page, 'arizona-residency', { veteran: true });
+    });
+
+    test.afterAll(async () => {
+        await context?.close();
+    });
+
+    const freshPage = () => residencyPage.navigateToAZResidency();
+
+    test('Veteran questions are asked: DD-214, discharge date, voter registration', async () => {
+        await freshPage();
+        expect(await residencyPage.isVeteranSectionShown()).toBe(true);
+        expect(await residencyPage.isQuestionVisible('registeredToVote')).toBe(true);
+        expect(await residencyPage.getDropdownOptionsOf(residencyPage.selectors.dd214CharacterOfService))
+            .toEqual(residencyPage.DD214_CHARACTER_OF_SERVICE);
+        expect(await residencyPage.getDropdownOptionsOf(residencyPage.selectors.dischargeMonth)).toHaveLength(12);
+        const years = await residencyPage.getDropdownOptionsOf(residencyPage.selectors.dischargeYear);
+        expect(years[0]).toBe(String(new Date().getFullYear()));
+        expect(years).toHaveLength(101);
+    });
+
+    test('Veteran answers can be entered and read back', async () => {
+        await freshPage();
+        const entered = await residencyPage.fillVeteranDetails({
+            characterOfService: 'Honorable', discharged: { month: 'May', year: '2020' }, registeredToVote: true,
+        });
+        expect(await residencyPage.getVeteranDetails()).toEqual(entered);
+    });
+
+    test('Arizona resident veteran, every answer Yes: save and continue to Review', async () => {
+        await freshPage();
+        await residencyPage.fillArizonaResidentAllYes();
+        expect(await residencyPage.getVeteranDetails()).toEqual({
+            characterOfService: 'Honorable', discharged: { month: 'May', year: '2020' }, registeredToVote: 'Yes',
+        });
         await residencyPage.saveAndContinue();
         await new ReviewPage(page).verifyPageLoaded();
     });

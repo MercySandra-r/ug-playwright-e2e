@@ -24,10 +24,12 @@ const STEPS = ['my-information', 'my-program', 'my-schools', 'my-high-school-gra
  *
  * @param {import('@playwright/test').Page} page
  * @param {'my-information'|'my-program'|'my-schools'|'my-high-school-grades'|'arizona-residency'|'review'} step
- * @param {{ captureValidations?: boolean }} [options]
+ * @param {{ captureValidations?: boolean, veteran?: boolean }} [options]
+ *   veteran: on My information answer uniformed services as "I am a U.S. service member or
+ *   veteran" with status Veteran (Arizona residency then asks the veteran questions)
  * @returns {Promise<string>} the application ID
  */
-async function startApplicationAt(page, step, { captureValidations = true } = {}) {
+async function startApplicationAt(page, step, { captureValidations = true, veteran = false } = {}) {
     const target = STEPS.indexOf(step);
     if (target < 0) throw new Error(`startApplicationAt: unknown or unsupported step "${step}"`);
 
@@ -40,6 +42,7 @@ async function startApplicationAt(page, step, { captureValidations = true } = {}
         await info.navigateToMyInformation();
         if (captureValidations) await info.captureFieldValidations({ stepName: 'My information' });
         await info.completeRequiredFields();
+        if (veteran) await info.fillUniformedServices({ affiliation: 'I am a U.S. service member or veteran', status: 'Veteran' });
         await info.saveAndContinue();
     }
     if (target > 1) {

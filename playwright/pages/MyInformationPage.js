@@ -318,7 +318,8 @@ class MyInformationPage extends BasePage {
         await combobox.scrollIntoViewIfNeeded();
         await combobox.click();
         const option = this.option(optionText);
-        const label = (await option.innerText()).trim();
+        // An already-selected option shows a check mark on a second line ("Army\n✓").
+        const label = (await option.innerText()).split('\n')[0].trim();
         await option.click();
         return label;
     }
