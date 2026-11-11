@@ -74,6 +74,8 @@ class AZResidencyPage extends BasePage {
             parentAzSinceMonth: '#group-DOM_PAR_DT-month',
             parentAzSinceYear: '#group-DOM_PAR_DT-year',
             parentTaxState: '#group-selectStateParentFiledTax',
+            // Shown when "Are you currently enrolled at another college or university?" is Yes.
+            currentlyEnrolledAt: 'role=textbox[name="Where are you currently enrolled?"]',
             supportTotalError: 'text=Total must be equal to 100%',
             requiredFieldError: 'text=This is a required field.',
             continueButton: 'button[type="submit"][form="page-form"]',
@@ -225,6 +227,25 @@ class AZResidencyPage extends BasePage {
     }
 
     /**
+     * Choose `preferred` if the dropdown offers it, otherwise its first option.
+     * @param {string} selector
+     * @param {string} [preferred] - e.g. "Arizona"
+     * @returns {Promise<string>} the label chosen
+     */
+    async chooseOrFirst(selector, preferred) {
+        if (!preferred) return this.choose(selector);
+        await this.closeOpenList();
+        const box = this.page.locator(selector);
+        await box.scrollIntoViewIfNeeded();
+        await box.click();
+        await this.page.locator(this.selectors.option).first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        const offered = (await this.page.locator(this.selectors.option).allInnerTexts())
+            .map((t) => t.replace(/\s*✓\s*$/, '').trim());
+        await this.closeOpenList();
+        return this.choose(selector, offered.includes(preferred) ? preferred : undefined);
+    }
+
+    /**
      * Some lists stay open after a pick and ignore Escape; close any open list
      * (Escape, then a click on the page heading).
      * @returns {Promise<void>}
@@ -362,12 +383,16 @@ class AZResidencyPage extends BasePage {
     }
 
     /**
-     * Fill any Yes/No group or dropdown that's still empty: No for questions, the first
-     * option for dropdowns. Repeats while new follow-ups appear. Returns what it filled.
+     * Fill any Yes/No group or dropdown that's still empty: No (or Yes) for questions,
+     * the preferred option (or the first one) for dropdowns. Repeats while new follow-ups
+     * appear. Returns what it filled.
      * @param {number} [maxRounds]
+     * @param {{ answer?: boolean, preferredOption?: string }} [options]
+     *   answer: true answers Yes (default No); preferredOption: picked in any dropdown
+     *   that offers it, e.g. "Arizona"
      * @returns {Promise<string[]>}
      */
-    async answerRemainingQuestions(maxRounds = 4) {
+    async answerRemainingQuestions(maxRounds = 4, { answer = false, preferredOption } = {}) {
         /** @type {string[]} */
         const filled = [];
         for (let round = 0; round < maxRounds; round++) {
@@ -409,9 +434,9 @@ class AZResidencyPage extends BasePage {
             for (const item of todo) {
                 const target = `[data-autofill-key="${item.key}"]`;
                 if (item.kind === 'radio') {
-                    await this.radioIn(this.page.locator(target), 'No').click();
+                    await this.radioIn(this.page.locator(target), answer ? 'Yes' : 'No').click();
                 } else {
-                    await this.choose(target);
+                    await this.chooseOrFirst(target, preferredOption);
                 }
                 filled.push(item.id);
             }
@@ -426,7 +451,12 @@ class AZResidencyPage extends BasePage {
      * @param {{ isArizonaResident?: boolean, permanentState?: string,
      *           support?: { parent?: number, employment?: number, financialAid?: number, spouse?: number, other?: number },
      *           parentState?: string, answers?: Record<string, boolean>,
-     *           parentInfo?: Record<string, any> }} [data]
+     *           parentInfo?: Record<string, any>, defaultAnswer?: boolean, preferredOption?: string,
+     *           enrolledAt?: string }} [data]
+     *   enrolledAt: school typed into "Where are you currently enrolled?" when it appears
+     *   (default "Mesa Community College")
+     *   defaultAnswer / preferredOption: how the safety net answers anything left
+     *   (default No and the first option)
      * @returns {Promise<string[]>} ids filled by the safety net
      */
     async fillResidencyInformation(data = {}) {
@@ -443,7 +473,29 @@ class AZResidencyPage extends BasePage {
         for (const [key, yes] of Object.entries(data.answers || {})) {
             if (await this.isQuestionVisible(key)) await this.answer(key, yes);
         }
-        return this.answerRemainingQuestions();
+        const enrolledAt = this.page.locator(this.selectors.currentlyEnrolledAt);
+        if (await enrolledAt.isVisible().catch(() => false) && !(await enrolledAt.inputValue())) {
+            await enrolledAt.fill(data.enrolledAt || 'Mesa Community College');
+        }
+        return this.answerRemainingQuestions(6, { answer: data.defaultAnswer === true, preferredOption: data.preferredOption });
+    }
+
+    /**
+     * Arizona resident with every answer Yes: permanent home and parents' state Arizona,
+     * every question (including follow-ups they reveal) Yes, and Arizona in any dropdown
+     * that offers it (license state, tax state, ...). Parent support 100%.
+     * @returns {Promise<string[]>} ids filled by the safety net
+     */
+    async fillArizonaResidentAllYes() {
+        return this.fillResidencyInformation({
+            isArizonaResident: true,
+            permanentState: 'Arizona',
+            parentState: 'Arizona',
+            parentInfo: { relationship: 'Both', filedTaxes: true, taxState: 'Arizona', hasAzLicense: true, employedInAz: true },
+            answers: Object.fromEntries(Object.keys(QUESTIONS).map((key) => [key, true])),
+            defaultAnswer: true,
+            preferredOption: 'Arizona',
+        });
     }
 
     /**
