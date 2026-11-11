@@ -12,6 +12,7 @@
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
     "test:ui": "playwright test --ui",
+    "test:dup-identity": "playwright test tests/TC_15_DupAppCheckTest.spec.js -g \"same program and term\" --project=chromium --headed --retries=0",
     "report": "playwright show-report",
     "install:browsers": "playwright install",
     "lint": "eslint ."
