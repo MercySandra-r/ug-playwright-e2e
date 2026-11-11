@@ -108,15 +108,18 @@ test.describe('AZ Residency Page Tests', () => {
         await residencyPage.waitForQuestionHidden('employedLast12Months');
     });
 
-    test('Complete AZ residency form for AZ resident with AZ parent', async () => {
+    test('Complete AZ residency form: Arizona resident, every answer Yes', async () => {
         await freshPage();
-        await residencyPage.fillResidencyInformation({
-            isArizonaResident: true,
-            answers: { hasLicense: true, filedStateTaxes: true, employed: false },
-        });
+        const autoFilled = await residencyPage.fillArizonaResidentAllYes();
+        test.info().annotations.push({ type: 'follow-ups answered', description: JSON.stringify(autoFilled) });
+        expect(await residencyPage.getPermanentState()).toBe('Arizona');
+        expect(await residencyPage.getDropdownValue(residencyPage.selectors.parentState)).toBe('Arizona');
         expect(await residencyPage.getSupportTotal()).toBe(100);
+        for (const key of Object.keys(residencyPage.QUESTIONS)) {
+            if (await residencyPage.isQuestionVisible(key)) expect(await residencyPage.getAnswer(key), key).toBe('Yes');
+        }
         // Every question is now answered: a second pass finds nothing left.
-        expect(await residencyPage.answerRemainingQuestions()).toEqual([]);
+        expect(await residencyPage.answerRemainingQuestions(4, { answer: true, preferredOption: 'Arizona' })).toEqual([]);
     });
 
     test('Save and continue to next section', async () => {

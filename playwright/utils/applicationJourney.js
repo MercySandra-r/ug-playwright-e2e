@@ -74,8 +74,8 @@ async function startApplicationAt(page, step, { captureValidations = true } = {}
         const residency = new AZResidencyPage(page);
         residency.applicationId = applicationId;
         if (captureValidations) await residency.captureFieldValidations({ stepName: 'Arizona residency' });
-        // Out-of-state defaults: California, parents in California, every question No.
-        await residency.fillResidencyInformation({ isArizonaResident: false });
+        // Arizona resident: Arizona for every state, every question Yes.
+        await residency.fillArizonaResidentAllYes();
         await residency.saveAndContinue();
     }
     return applicationId;
