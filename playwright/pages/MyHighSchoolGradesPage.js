@@ -666,12 +666,14 @@ class MyHighSchoolGradesPage extends BasePage {
     }
 
     /**
-     * Continue to step 5, Arizona residency.
-     * @returns {Promise<void>}
+     * Continue to step 5: Arizona residency, or Review for non-residents.
+     * @returns {Promise<'arizona-residency'|'review'>} where the app went
      */
     async saveAndContinue() {
         await this.clickContinue();
-        await this.page.waitForURL(/\/ug-app\/\d+\/arizona-residency/, { timeout: this.navigationTimeout });
+        // Step 5 is Arizona residency, except for non-residents, who go straight to Review.
+        await this.page.waitForURL(/\/ug-app\/\d+\/(arizona-residency|review)/, { timeout: this.navigationTimeout });
+        return /\/review/.test(this.page.url()) ? 'review' : 'arizona-residency';
     }
 }
 

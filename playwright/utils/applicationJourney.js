@@ -25,7 +25,10 @@ const STEPS = ['my-information', 'my-program', 'my-schools', 'my-high-school-gra
  * @param {import('@playwright/test').Page} page
  * @param {'my-information'|'my-program'|'my-schools'|'my-high-school-grades'|'arizona-residency'|'review'} step
  * @param {{ captureValidations?: boolean, veteran?: boolean, spouseOfServiceMember?: boolean,
- *           graduationDate?: string }} [options]
+ *           graduationDate?: string, applicant?: Applicant }} [options]
+ *   applicant: who the applicant is (birthday, visa, race, uniformed services, high school);
+ *   see the Applicant typedef. Defaults: born June 15 2000, permanent resident, no race,
+ *   no uniformed services, Tempe High School (Arizona).
  *   graduationDate: high-school graduation date on My schools, "Month YYYY" (default
  *   "May 2026"). A future date changes the grades step (see MyHighSchoolGradesPage).
  *   veteran: on My information answer uniformed services as "I am a U.S. service member or
@@ -34,19 +37,21 @@ const STEPS = ['my-information', 'my-program', 'my-schools', 'my-high-school-gra
  *   veteran" (Arizona residency then asks which describes the service member)
  * @returns {Promise<string>} the application ID
  */
-async function startApplicationAt(page, step, { captureValidations = true, veteran = false, spouseOfServiceMember = false, graduationDate = 'May 2026' } = {}) {
+async function startApplicationAt(page, step, { captureValidations = true, veteran = false, spouseOfServiceMember = false, graduationDate = 'May 2026', applicant = {} } = {}) {
     const target = STEPS.indexOf(step);
     if (target < 0) throw new Error(`startApplicationAt: unknown or unsupported step "${step}"`);
 
     await signUpVerifiedAccount(page, { mode: 'online', degreeType: 'pursue' });
-    const applicationId = await new PreAppDashboardPage(page).startApplication({ captureValidations });
+    const applicationId = await new PreAppDashboardPage(page).startApplication({ captureValidations, birth: applicant.birth });
 
     if (target > 0) {
         const info = new MyInformationPage(page);
         info.applicationId = applicationId;
         await info.navigateToMyInformation();
         if (captureValidations) await info.captureFieldValidations({ stepName: 'My information' });
-        await info.completeRequiredFields();
+        await info.completeRequiredFields(applicant.visaType ? { visaType: applicant.visaType } : {});
+        if (applicant.races) await info.selectEthnicityAndRace({ races: applicant.races, raceOrigins: applicant.raceOrigins || {} });
+        if (applicant.uniformed) await info.fillUniformedServices(applicant.uniformed);
         if (veteran) await info.fillUniformedServices({ affiliation: 'I am a U.S. service member or veteran', status: 'Veteran' });
         if (spouseOfServiceMember) await info.fillUniformedServices({ affiliation: 'I am the spouse/dependent of a U.S. service member or veteran' });
         await info.saveAndContinue();
@@ -63,7 +68,10 @@ async function startApplicationAt(page, step, { captureValidations = true, veter
         const schools = new MySchoolsPage(page);
         schools.applicationId = applicationId;
         if (captureValidations) await schools.captureFieldValidations({ stepName: 'My schools' });
-        await schools.addHighSchool({ country: 'United States', state: 'Arizona', city: 'Tempe', name: 'Tempe High School', graduationDate });
+        // A given high school replaces the default entirely (no name: the first one listed for the city).
+        await schools.addHighSchool(applicant.highSchool
+            ? { country: 'United States', graduationDate, ...applicant.highSchool }
+            : { country: 'United States', state: 'Arizona', city: 'Tempe', name: 'Tempe High School', graduationDate });
         await schools.markNoCollegeAttended();
         await schools.acknowledgeTranscripts();
         await schools.saveAndContinue();
@@ -77,7 +85,9 @@ async function startApplicationAt(page, step, { captureValidations = true, veter
         await grades.chooseSelfReporting(); // Yes, or the senior-year card for future graduates
         if (captureValidations) await grades.captureFieldValidations({ stepName: 'My high school grades (self-report Yes)' });
         await grades.useDefaultSelfReportedGrades();
-        await grades.saveAndContinue();
+        const next = await grades.saveAndContinue();
+        // Non-residents skip Arizona residency and go straight to Review.
+        if (next === 'review') return applicationId;
     }
     if (target > 4) {
         const residency = new AZResidencyPage(page);
@@ -89,6 +99,18 @@ async function startApplicationAt(page, step, { captureValidations = true, veter
     }
     return applicationId;
 }
+
+/**
+ * Who the applicant is, for scenarios that depend on earlier answers.
+ * @typedef {Object} Applicant
+ * @property {{ month: string, day: string, year: string }} [birth] - pre-app birthday
+ * @property {string} [visaType] - My information visa (non-citizen path), e.g. "Student (F-1)"
+ * @property {string[]} [races] - e.g. ["American Indian/Alaska Native"]
+ * @property {Record<string, string>} [raceOrigins] - e.g. { "American Indian/Alaska Native": "Ak-Chin" }
+ * @property {{ affiliation?: string, status?: string }} [uniformed] - uniformed services answer
+ * @property {{ country?: string, state?: string, city?: string, name?: string }} [highSchool]
+ *   - high school on My schools (name: first listed when omitted)
+ */
 
 /**
  * Sign in to an existing account and return its application ID (for reuse/debug runs).
