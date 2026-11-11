@@ -6,6 +6,15 @@ const BasePage = require('./BasePage');
 const SUBJECTS = ['English', 'Math', 'Science', 'Social Science', 'Language', 'Fine Arts/CTE', 'Electives'];
 
 /**
+ * Grade-reporting cards shown instead of the Yes/No question when the high-school
+ * graduation date is in the future (2026-11-11).
+ */
+const REPORT_CARDS = {
+    seniorOnly: 'Self-report senior year grades only',
+    allGrades: 'Self-report all high school grades',
+};
+
+/**
  * Page Object for step 4 of the application wizard: "My high school grades"
  * (/ug-app/<applicationId>/my-high-school-grades).
  *
@@ -20,6 +29,13 @@ const SUBJECTS = ['English', 'Math', 'Science', 'Social Science', 'Language', 'F
  *          academic year, course name, duration, course level, then one grade per term
  *          (Semester = 2 grades, ...), "Save course". Saved courses list per subject
  *          with Edit / Delete. No minimum number of courses is enforced.
+ *
+ * Future graduation date (My schools): no Yes/No question; two cards instead (REPORT_CARDS):
+ *   "Self-report senior year grades only" - course academic year locked to Senior/12
+ *   "Self-report all high school grades"  - academic year Freshman/9 ... Senior/12
+ * Both show Overall academics (all three required) and need at least one senior-year
+ * course ("Please enter at least one course for senior year."). Electives only offers
+ * "Other (specify)", which asks for the course name (#new_custom_course-name).
  *
  * POM rule for this page: every element is declared here. Fixed elements are named in
  * `this.selectors`; elements that depend on data (a subject tab, a course row or its
@@ -73,9 +89,16 @@ class MyHighSchoolGradesPage extends BasePage {
 
             continueButton: 'button[type="submit"][form="page-form"]',
             gradeReportingError: 'text=Please select an option for grade reporting',
+
+            // Future graduates: report cards, senior-year requirement, custom course name
+            seniorOnlyCard: 'role=radio[name=/^Self-report senior year grades only/]',
+            allGradesCard: 'role=radio[name=/^Self-report all high school grades/]',
+            seniorCourseRequiredError: 'text=Please enter at least one course for senior year.',
+            customCourseName: '#new_custom_course-name',
         };
 
         this.SUBJECTS = SUBJECTS;
+        this.REPORT_CARDS = REPORT_CARDS;
     }
 
     // ------------------------------------------------------------------ locators that depend on data
@@ -314,6 +337,83 @@ class MyHighSchoolGradesPage extends BasePage {
         await this.answerSelfReport(false);
     }
 
+    // ------------------------------------------------------------------ future graduates: report cards
+
+    /**
+     * Whether the Yes/No "self-report" question is shown (graduation date in the past).
+     * @returns {Promise<boolean>}
+     */
+    async isSelfReportQuestionShown() {
+        return this.page.locator(this.selectors.selfReportGroup).isVisible().catch(() => false);
+    }
+
+    /**
+     * Whether the two report cards are shown (graduation date in the future).
+     * @returns {Promise<boolean>}
+     */
+    async areReportCardsShown() {
+        return (await this.page.locator(this.selectors.seniorOnlyCard).isVisible().catch(() => false))
+            && this.page.locator(this.selectors.allGradesCard).isVisible().catch(() => false);
+    }
+
+    /**
+     * Choose a report card and wait for Overall academics.
+     * @param {keyof REPORT_CARDS} card
+     * @returns {Promise<void>}
+     */
+    async chooseReportCard(card) {
+        const radio = this.page.locator(card === 'seniorOnly' ? this.selectors.seniorOnlyCard : this.selectors.allGradesCard);
+        await radio.click();
+        await expect(radio).toHaveAttribute('aria-checked', 'true', { timeout: this.assertionTimeout });
+        await this.page.locator(this.selectors.unweightedGpa).waitFor({ state: 'visible', timeout: this.assertionTimeout });
+    }
+
+    /**
+     * Start self-reporting whichever way the step asks: "Yes" to the question, or the
+     * senior-year card for future graduates.
+     * @returns {Promise<void>}
+     */
+    async chooseSelfReporting() {
+        await this.page.locator(this.selectors.selfReportGroup).or(this.page.locator(this.selectors.seniorOnlyCard)).first()
+            .waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        if (await this.isSelfReportQuestionShown()) await this.answerSelfReport(true);
+        else await this.chooseReportCard('seniorOnly');
+    }
+
+    /**
+     * The course form's academic year: its value, and whether it can be changed.
+     * @returns {Promise<{ value: string, locked: boolean }>}
+     */
+    async getAcademicYearState() {
+        const box = this.page.locator(this.selectors.academicYear);
+        return { value: await box.inputValue(), locked: !(await box.isEnabled()) };
+    }
+
+    /**
+     * Add `perSubject` different courses in every subject tab (Electives: "Other (specify)"
+     * with custom names). The academic year is left as it is when locked (Senior/12),
+     * otherwise `academicYear` is chosen.
+     * @param {{ perSubject?: number, academicYear?: string, grade?: string }} [options]
+     * @returns {Promise<Array<{ subject: string, name: string, grades: string[] }>>}
+     */
+    async addCoursesForEverySubject({ perSubject = 2, academicYear = 'Senior/12', grade = 'A' } = {}) {
+        /** @type {Array<{ subject: string, name: string, grades: string[] }>} */
+        const added = [];
+        for (const subject of SUBJECTS) {
+            await this.selectSubject(subject);
+            const names = await this.getDropdownOptions(this.selectors.courseName);
+            for (let i = 0; i < perSubject; i++) {
+                const custom = names.length === 1 && /specify/i.test(names[0]);
+                added.push(await this.addCourse({
+                    subject, academicYear, grade,
+                    name: custom ? names[0] : names[i],
+                    customName: custom ? `${subject} Course ${i + 1}` : undefined,
+                }));
+            }
+        }
+        return added;
+    }
+
     // ------------------------------------------------------------------ overall academics
 
     /**
@@ -390,14 +490,23 @@ class MyHighSchoolGradesPage extends BasePage {
      * Fill the "Add a course" form for the current subject and save it.
      * Unspecified dropdowns take their first option; grades default to "A".
      * @param {{ subject?: string, academicYear?: string, name?: string, duration?: string,
-     *           level?: string, grades?: string[], grade?: string }} [data]
+     *           level?: string, grades?: string[], grade?: string, customName?: string }} [data]
+     *   customName: course name typed when the course is "Other (specify)"
      * @returns {Promise<{ subject: string, name: string, grades: string[] }>}
      */
     async addCourse(data = {}) {
         const subject = data.subject || 'English';
         await this.selectSubject(subject);
-        await this.choose(this.selectors.academicYear, data.academicYear);
-        const name = await this.choose(this.selectors.courseName, data.name);
+        // Locked to Senior/12 for "senior year grades only": leave it.
+        if (await this.page.locator(this.selectors.academicYear).isEnabled()) {
+            await this.choose(this.selectors.academicYear, data.academicYear);
+        }
+        let name = await this.choose(this.selectors.courseName, data.name);
+        if (await this.page.locator(this.selectors.customCourseName).isVisible().catch(() => false)) {
+            // "Other (specify)": the saved row shows the name typed here.
+            name = data.customName || `${subject} Course`;
+            await this.page.locator(this.selectors.customCourseName).fill(name);
+        }
         await this.choose(this.selectors.duration, data.duration || 'Semester');
         await this.choose(this.selectors.courseLevel, data.level || 'High School');
 
@@ -511,7 +620,7 @@ class MyHighSchoolGradesPage extends BasePage {
             await this.answerSelfReport(false);
             return;
         }
-        await this.answerSelfReport(true);
+        await this.chooseSelfReporting();
         await this.enterAcademicDetails({
             unweightedGPA: data.unweightedGPA ?? '3.50',
             gpaScale: data.gpaScale ?? '4',

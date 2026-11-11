@@ -146,3 +146,98 @@ test.describe('My High School Grades Page Tests', () => {
         await new AZResidencyPage(page).verifyPageLoaded();
     });
 });
+
+/**
+ * My high school grades for a FUTURE graduate (graduation date next May on My schools):
+ * no Yes/No question; two cards instead, "Self-report senior year grades only" and
+ * "Self-report all high school grades". Senior-year courses are entered for every subject.
+ *
+ * One fresh applicant per run, taken through steps 1-3 with a future graduation date; or set
+ * GRADES_FUTURE_TEST_EMAIL / GRADES_FUTURE_TEST_PASSWORD to such an account on step 4.
+ * The last test saves the step and continues to Arizona residency.
+ */
+test.describe('My High School Grades Page Tests (future graduate)', () => {
+    test.describe.configure({ mode: 'serial', timeout: 120000 });
+
+    /** @type {import('@playwright/test').BrowserContext} */
+    let context;
+    /** @type {import('@playwright/test').Page} */
+    let page;
+    /** @type {MyHighSchoolGradesPage} */
+    let gradesPage;
+
+    test.beforeAll(async ({ browser }, testInfo) => {
+        testInfo.setTimeout(480000);
+        context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+        page = await context.newPage();
+        gradesPage = new MyHighSchoolGradesPage(page);
+        gradesPage.applicationId = process.env.GRADES_FUTURE_TEST_EMAIL && process.env.GRADES_FUTURE_TEST_PASSWORD
+            ? await resumeApplication(page, process.env.GRADES_FUTURE_TEST_EMAIL, process.env.GRADES_FUTURE_TEST_PASSWORD)
+            : await startApplicationAt(page, 'my-high-school-grades', { graduationDate: `May ${new Date().getFullYear() + 1}` });
+    });
+
+    test.afterAll(async () => {
+        await context?.close();
+    });
+
+    const freshPage = () => gradesPage.navigateToMyHighSchoolGrades();
+
+    test('Future graduation date: report cards instead of the Yes/No question', async () => {
+        await freshPage();
+        expect(await gradesPage.isSelfReportQuestionShown()).toBe(false);
+        expect(await gradesPage.areReportCardsShown()).toBe(true);
+        await gradesPage.clickContinue();
+        await gradesPage.verifyErrorMessage('Please select an option for grade reporting');
+    });
+
+    test('Each card asks for overall academics, all required', async () => {
+        for (const card of /** @type {Array<'seniorOnly'|'allGrades'>} */ (['seniorOnly', 'allGrades'])) {
+            await freshPage();
+            await gradesPage.chooseReportCard(card);
+            await gradesPage.verifyOverallAcademicsShown();
+            const errors = await gradesPage.captureFieldValidations({ stepName: `Grades: ${gradesPage.REPORT_CARDS[card]}, nothing entered` });
+            expect(errors.filter((e) => e.message === 'This is a required field.'), card).toHaveLength(3);
+        }
+    });
+
+    test('Academic year: locked to Senior/12 for senior grades, any year for all grades', async () => {
+        await freshPage();
+        await gradesPage.chooseReportCard('seniorOnly');
+        await gradesPage.enterAcademicDetails({ unweightedGPA: '3.50' });
+        expect(await gradesPage.getAcademicYearState()).toEqual({ value: 'Senior/12', locked: true });
+
+        await freshPage();
+        await gradesPage.chooseReportCard('allGrades');
+        await gradesPage.enterAcademicDetails({ unweightedGPA: '3.50' });
+        expect((await gradesPage.getAcademicYearState()).locked).toBe(false);
+        expect(await gradesPage.getDropdownOptions(gradesPage.selectors.academicYear))
+            .toEqual(['Freshman/9', 'Sophomore/10', 'Junior/11', 'Senior/12']);
+    });
+
+    test('At least one senior-year course is required', async () => {
+        await freshPage();
+        await gradesPage.chooseReportCard('seniorOnly');
+        await gradesPage.enterAcademicDetails({ unweightedGPA: '3.50' });
+        await gradesPage.clickContinue();
+        await gradesPage.verifyErrorMessage('Please enter at least one course for senior year.');
+    });
+
+    test('Senior year grades: two courses in every subject, then continue', async () => {
+        test.setTimeout(900000);
+        await freshPage();
+        await gradesPage.chooseReportCard('seniorOnly');
+        await gradesPage.enterAcademicDetails({ unweightedGPA: '3.50' });
+        const added = await gradesPage.addCoursesForEverySubject({ perSubject: 2 });
+        test.info().annotations.push({ type: 'courses added', description: JSON.stringify(added.map((c) => `${c.subject}: ${c.name}`)) });
+        expect(added).toHaveLength(gradesPage.SUBJECTS.length * 2);
+
+        for (const subject of gradesPage.SUBJECTS) {
+            const expected = added.filter((c) => c.subject === subject).map((c) => c.name);
+            const saved = (await gradesPage.getCourses(subject)).map((c) => c.name);
+            expect(saved, subject).toEqual(expect.arrayContaining(expected));
+            expect(saved, subject).toHaveLength(2);
+        }
+        await gradesPage.saveAndContinue();
+        await new AZResidencyPage(page).verifyPageLoaded();
+    });
+});

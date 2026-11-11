@@ -24,14 +24,17 @@ const STEPS = ['my-information', 'my-program', 'my-schools', 'my-high-school-gra
  *
  * @param {import('@playwright/test').Page} page
  * @param {'my-information'|'my-program'|'my-schools'|'my-high-school-grades'|'arizona-residency'|'review'} step
- * @param {{ captureValidations?: boolean, veteran?: boolean, spouseOfServiceMember?: boolean }} [options]
+ * @param {{ captureValidations?: boolean, veteran?: boolean, spouseOfServiceMember?: boolean,
+ *           graduationDate?: string }} [options]
+ *   graduationDate: high-school graduation date on My schools, "Month YYYY" (default
+ *   "May 2026"). A future date changes the grades step (see MyHighSchoolGradesPage).
  *   veteran: on My information answer uniformed services as "I am a U.S. service member or
  *   veteran" with status Veteran (Arizona residency then asks the veteran questions)
  *   spouseOfServiceMember: answer "I am the spouse/dependent of a U.S. service member or
  *   veteran" (Arizona residency then asks which describes the service member)
  * @returns {Promise<string>} the application ID
  */
-async function startApplicationAt(page, step, { captureValidations = true, veteran = false, spouseOfServiceMember = false } = {}) {
+async function startApplicationAt(page, step, { captureValidations = true, veteran = false, spouseOfServiceMember = false, graduationDate = 'May 2026' } = {}) {
     const target = STEPS.indexOf(step);
     if (target < 0) throw new Error(`startApplicationAt: unknown or unsupported step "${step}"`);
 
@@ -60,7 +63,7 @@ async function startApplicationAt(page, step, { captureValidations = true, veter
         const schools = new MySchoolsPage(page);
         schools.applicationId = applicationId;
         if (captureValidations) await schools.captureFieldValidations({ stepName: 'My schools' });
-        await schools.addHighSchool({ country: 'United States', state: 'Arizona', city: 'Tempe', name: 'Tempe High School', graduationDate: 'May 2026' });
+        await schools.addHighSchool({ country: 'United States', state: 'Arizona', city: 'Tempe', name: 'Tempe High School', graduationDate });
         await schools.markNoCollegeAttended();
         await schools.acknowledgeTranscripts();
         await schools.saveAndContinue();
@@ -71,7 +74,7 @@ async function startApplicationAt(page, step, { captureValidations = true, veter
         if (captureValidations) await grades.captureFieldValidations({ stepName: 'My high school grades' });
         // Self-report: Yes, then capture what that path makes mandatory before filling it
         // (GPA 3.50 on a 4 scale, A-F grading, one English course).
-        await grades.answerSelfReport(true);
+        await grades.chooseSelfReporting(); // Yes, or the senior-year card for future graduates
         if (captureValidations) await grades.captureFieldValidations({ stepName: 'My high school grades (self-report Yes)' });
         await grades.useDefaultSelfReportedGrades();
         await grades.saveAndContinue();
