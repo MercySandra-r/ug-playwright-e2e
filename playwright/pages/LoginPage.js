@@ -22,6 +22,7 @@ class LoginPage extends BasePage {
             passwordInput: 'role=textbox[name="Password"s]',
             signInButton: 'role=button[name="Sign in"s]',
             backToOptionsLink: 'role=link[name="Back to other sign in options"]',
+            forgotPasswordLink: 'role=link[name="Forgot password?"]',
             // IdP landing option; hands off to ASU web login (weblogin.asu.edu)
             asuriteButton: 'role=button[name="Sign In with ASURITE ID"]',
 
@@ -101,6 +102,18 @@ class LoginPage extends BasePage {
     }
 
     /**
+     * Click "Forgot password?" on the email sign-in form.
+     * @returns {Promise<import('./ForgotPasswordPage')>} the reset page, on its email step
+     */
+    async openForgotPassword() {
+        const ForgotPasswordPage = require('./ForgotPasswordPage');
+        await this.page.locator(this.selectors.forgotPasswordLink).click();
+        const forgot = new ForgotPasswordPage(this.page);
+        await forgot.waitForEmailStep();
+        return forgot;
+    }
+
+    /**
      * Click "Sign In with ASURITE ID". It lives on the IdP landing page, so step back
      * from the email form first if needed.
      * @returns {Promise<void>}
@@ -122,6 +135,15 @@ class LoginPage extends BasePage {
         const signInHeading = await this.page.locator(this.selectors.asuriteSignInHeading).isVisible();
         const asuriteUserIdField = await this.page.locator(this.selectors.asuriteUserIdInput).isVisible();
         return signInHeading && asuriteUserIdField;
+    }
+
+    /**
+     * Is the IdP sign-in options page (login.asu.edu/login) shown?
+     * @returns {Promise<boolean>}
+     */
+    async isSignInOptionsPageDisplayed() {
+        await this.page.waitForURL(/login\.asu\.edu\/login/, { timeout: this.navigationTimeout });
+        return this.page.locator(this.selectors.asuriteButton).isVisible();
     }
 
     /**
