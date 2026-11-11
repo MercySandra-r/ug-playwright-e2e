@@ -148,7 +148,13 @@ test.describe('Forgot Password Tests', () => {
         test.setTimeout(180000);
         // A spare account that nothing else signs in to: its password changes on every run.
         // Never point this at TEST_EMAIL or another shared account.
-        const email = process.env.FORGOT_PASSWORD_TEST_EMAIL || 'ugnaaqaautomation1+asuqa0051@gmail.com';
+        // It must be a "+tag" address of the inbox the suite reads (GMAIL_TEST_ADDRESS), or the
+        // reset code can never be read and the test would wait on the code screen.
+        const email = process.env.FORGOT_PASSWORD_TEST_EMAIL || '';
+        const inbox = (process.env.GMAIL_TEST_ADDRESS || '').split('@')[0];
+        test.skip(!email, 'Set FORGOT_PASSWORD_TEST_EMAIL to a spare account (its password is changed on every run)');
+        test.skip(!inbox || email.split('+')[0] !== inbox,
+            `FORGOT_PASSWORD_TEST_EMAIL (${email}) is not on the inbox the suite reads (GMAIL_TEST_ADDRESS)`);
         // New each run, so the IdP can't reject it as a recently used password.
         const newPassword = `AsuQaReset${Date.now()}`;
 
