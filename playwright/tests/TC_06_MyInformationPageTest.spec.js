@@ -5,6 +5,7 @@ const { signUpVerifiedAccount } = require('../utils/authHelper');
 const LoginPage = require('../pages/LoginPage');
 const PreAppDashboardPage = require('../pages/PreAppDashboardPage');
 const MyInformationPage = require('../pages/MyInformationPage');
+const MyASUProgramPage = require('../pages/MyASUProgramPage');
 
 /**
  * My information (step 1 of the application wizard), against the live page.
@@ -15,6 +16,9 @@ const MyInformationPage = require('../pages/MyInformationPage');
  * Account creation is rate-limited per hour by the IdP; this suite creates one.
  *
  * Social Security Number fields are only checked for visibility, never filled.
+ *
+ * POM: every element comes from MyInformationPage (its selectors, locator methods and
+ * readFormValues()); this spec has no locators of its own.
  *
  * Debugging without creating accounts: set MYINFO_TEST_EMAIL and MYINFO_TEST_PASSWORD
  * to an account whose application has NOT finished step 1; beforeAll then signs in
@@ -60,23 +64,12 @@ test.describe('My Information Page Tests', () => {
     });
 
     test('Verify My Information page loads successfully', async () => {
-        await expect(page.locator(myInfoPage.selectors.heading)).toBeVisible();
-        await expect(page.getByRole('heading', { name: /^Former or alternate name\(s\)/ })).toBeVisible();
-        await expect(page.locator(myInfoPage.selectors.legalSexGroup)).toBeVisible();
-        await expect(page.locator(myInfoPage.selectors.primaryLanguage)).toBeVisible();
-        await expect(page.locator(myInfoPage.selectors.homeCountry)).toBeVisible();
-        await expect(page.getByRole('heading', { name: /^Ethnic\/racial background/ })).toBeVisible();
-        await expect(page.getByRole('radiogroup', { name: 'U.S. citizenship' })).toBeVisible();
-        await expect(page.getByRole('heading', { name: /^Parent or legal guardian/ })).toBeVisible();
-        await expect(page.getByRole('heading', { name: /^Previous ASU affiliation/ })).toBeVisible();
-        await expect(page.locator(myInfoPage.selectors.uniformedServices)).toBeVisible();
-        await expect(page.getByRole('radiogroup', { name: 'Education benefits' })).toBeVisible();
-        await expect(page.locator(myInfoPage.selectors.continueButton)).toBeVisible();
+        await myInfoPage.verifyAllSectionsVisible();
     });
 
     test('Update personal information (legal sex and primary language)', async () => {
         await myInfoPage.selectLegalSex('Female');
-        await expect(page.locator(myInfoPage.selectors.legalSexGroup).getByRole('radio', { name: 'Female', exact: true })).toBeChecked();
+        await expect(myInfoPage.radioIn(myInfoPage.selectors.legalSexGroup, 'Female')).toBeChecked();
 
         await myInfoPage.selectPrimaryLanguage('Spanish');
         await expect(page.locator(myInfoPage.selectors.primaryLanguage)).toHaveValue('Spanish');
@@ -97,47 +90,39 @@ test.describe('My Information Page Tests', () => {
 
     test('Contact information is managed in Profile', async () => {
         // Phone and SMS moved off this step; it points applicants to their profile.
-        await page.locator(myInfoPage.selectors.homeCountry).click();
-        await page.getByRole('option', { name: 'United States', exact: true }).click();
-        await expect(page.getByText('Phone numbers and SMS preferences').first()).toBeVisible();
-        await expect(page.getByRole('link', { name: 'profile' }).last()).toHaveAttribute('href', '/profile');
+        await myInfoPage.verifyContactInfoPointsToProfile();
     });
 
     test('Update address information', async () => {
-        await myInfoPage.fillAddressInformation({
-            country: 'United States', line1: '1151 S Forest Ave', line2: 'Apt 2', city: 'Tempe', state: 'Arizona', zip: '85281',
-        });
-        await expect(page.locator(myInfoPage.selectors.homeCountry)).toHaveValue('United States');
-        await expect(page.locator(myInfoPage.selectors.addressLine1)).toHaveValue('1151 S Forest Ave');
-        await expect(page.locator(myInfoPage.selectors.addressLine2)).toHaveValue('Apt 2');
-        await expect(page.locator(myInfoPage.selectors.city)).toHaveValue('Tempe');
-        await expect(page.locator(myInfoPage.selectors.state)).toHaveValue('Arizona');
-        await expect(page.locator(myInfoPage.selectors.zipCode)).toHaveValue('85281');
+        const address = { country: 'United States', line1: '1151 S Forest Ave', line2: 'Apt 2', city: 'Tempe', state: 'Arizona', zip: '85281' };
+        await myInfoPage.fillAddressInformation(address);
+        expect((await myInfoPage.readFormValues()).address).toEqual(address);
     });
 
     test('Update ethnicity and race information', async () => {
-        await myInfoPage.selectEthnicityAndRace({ hispanicLatino: 'No', races: ['Asian', 'White'] });
-        await expect(page.getByRole('radiogroup', { name: 'Are you Hispanic/Latino? (Optional)' })
-            .getByRole('radio', { name: 'No', exact: true })).toBeChecked();
-        const raceField = page.locator(myInfoPage.selectors.race).locator('xpath=ancestor::*[contains(@class,"combobox") or @data-slot][1]/..');
-        await expect(raceField).toContainText('Asian');
-        await expect(raceField).toContainText('White');
+        const { raceOrigins, primaryRace } = await myInfoPage.selectEthnicityAndRace({ hispanicLatino: 'No', races: ['Asian', 'White'] });
+        expect(await myInfoPage.readFormValues()).toMatchObject({
+            hispanicLatino: 'No',
+            races: expect.arrayContaining(['Asian', 'White']),
+            raceOrigins,
+            primaryRace,
+        });
     });
 
     test('Citizenship: U.S. citizen is asked for country of birth and SSN', async () => {
-        await page.getByRole('radio', { name: 'I am a U.S. citizen', exact: true }).click();
+        await myInfoPage.chooseCitizenship(true);
         await expect(page.locator(myInfoPage.selectors.birthCountry)).toBeVisible();
-        // Required for citizens; checked for presence only, never filled.
-        await expect(page.getByRole('heading', { name: /^Social Security Number/ })).toBeVisible();
+        // Required for citizens; checked for presence only, never filled here.
+        await expect(page.locator(myInfoPage.selectors.ssnHeading)).toBeVisible();
     });
 
     test('Citizenship: non-citizen is asked for visa type and countries', async () => {
         const { visaType } = await myInfoPage.selectCitizenshipStatus({ isUsCitizen: false, countryOfCitizenship: 'Canada' });
         expect(visaType).toBeTruthy();
-        await expect(page.getByRole('combobox', { name: 'What type of visa will you be holding?' })).toHaveValue(/** @type {string} */ (visaType));
-        await expect(page.locator(myInfoPage.selectors.citizenshipCountry)).toHaveValue('Canada');
-        await expect(page.locator(myInfoPage.selectors.birthCountry)).toHaveValue('Canada');
-        await expect(page.getByText('Social Security Number (if applicable)')).toBeVisible();
+        expect(await myInfoPage.readFormValues()).toMatchObject({
+            citizenship: 'I am not a U.S. citizen', visaType, countryOfCitizenship: 'Canada', countryOfBirth: 'Canada',
+        });
+        await expect(page.locator(myInfoPage.selectors.ssnOptionalLabel)).toBeVisible();
     });
 
     test('Update previous ASU affiliation', async () => {
@@ -153,12 +138,12 @@ test.describe('My Information Page Tests', () => {
     test('Education benefits: Yes asks for a benefit provider', async () => {
         const provider = await myInfoPage.applyPartnerBenefits({ usesBenefits: true });
         expect(provider).toBeTruthy();
-        await expect(page.getByRole('combobox', { name: /Select your benefit provider/ })).toHaveValue(/** @type {string} */ (provider));
+        await expect(page.locator(myInfoPage.selectors.benefitProvider)).toHaveValue(/** @type {string} */ (provider));
     });
 
     test('Add parent or legal guardian', async () => {
         await myInfoPage.addParentInformation({ firstName: 'Pat', lastName: 'Guardian', isLiving: true });
-        await expect(page.getByText(/Pat\s+Guardian/).first()).toBeVisible();
+        expect((await myInfoPage.readFormValues()).guardians).toContain('Pat Guardian');
     });
 
     test('Floating help opens', async () => {
@@ -167,44 +152,36 @@ test.describe('My Information Page Tests', () => {
 
     test('End to end: fill every field, save and continue, values persist', async () => {
         test.setTimeout(240000);
-        const sel = myInfoPage.selectors;
         const entered = await myInfoPage.completeAllFields();
         test.info().annotations.push({ type: 'entered', description: JSON.stringify(entered) });
 
         await myInfoPage.saveAndContinue();
-        await expect(page.getByRole('heading', { name: 'My ASU program', level: 1 })).toBeVisible();
+        await new MyASUProgramPage(page).verifyPageLoaded();
 
         // Reopen step 1: everything entered must have been saved.
         await myInfoPage.navigateToMyInformation();
-        const { formerName, address, guardian } = entered;
-        expect(await myInfoPage.isFormerNameDisplayed(`${formerName.firstName} ${formerName.lastName}`)).toBe(true);
-        await expect(page.locator(sel.legalSexGroup).getByRole('radio', { name: entered.legalSex, exact: true })).toBeChecked();
-        await expect(page.locator(sel.primaryLanguage)).toHaveValue(entered.primaryLanguage);
-        await expect(page.locator(sel.homeCountry)).toHaveValue(address.country);
-        await expect(page.locator(sel.addressLine1)).toHaveValue(address.line1);
-        await expect(page.locator(sel.addressLine2)).toHaveValue(address.line2);
-        await expect(page.locator(sel.city)).toHaveValue(address.city);
-        await expect(page.locator(sel.state)).toHaveValue(address.state);
-        await expect(page.locator(sel.zipCode)).toHaveValue(address.zip);
-        await expect(page.getByRole('radiogroup', { name: 'Are you Hispanic/Latino? (Optional)' })
-            .getByRole('radio', { name: entered.hispanicLatino, exact: true })).toBeChecked();
-        const raceField = page.locator(sel.race).locator('xpath=ancestor::*[contains(@class,"base-select")][1]');
-        for (const race of entered.races) await expect(raceField).toContainText(race);
-        for (const [race, origin] of Object.entries(entered.raceOrigins)) {
-            await expect(page.getByRole('combobox', { name: new RegExp(`^Select ${race} origin`) })).toHaveValue(origin);
-        }
-        if (entered.primaryRace) {
-            await expect(page.getByRole('combobox', { name: /^Please select one of the chosen ethnicities/ })).toHaveValue(entered.primaryRace);
-        }
-        await expect(page.getByRole('radio', { name: 'I am not a U.S. citizen', exact: true })).toBeChecked();
-        await expect(page.getByRole('combobox', { name: 'What type of visa will you be holding?' })).toHaveValue(entered.visaType);
-        await expect(page.locator(sel.citizenshipCountry)).toHaveValue(entered.countryOfCitizenship);
-        await expect(page.locator(sel.birthCountry)).toHaveValue(entered.countryOfBirth);
-        await expect(page.getByText(new RegExp(`${guardian.firstName}\\s+${guardian.lastName}`)).first()).toBeVisible();
-        for (const key of entered.asuAffiliate.affiliations) await expect(page.locator(sel.affiliation[key])).toBeChecked();
-        await expect(page.locator(sel.asuAffiliateId)).toHaveValue(entered.asuAffiliate.affiliateId);
-        await expect(page.locator(sel.uniformedServices)).toHaveValue(entered.militaryStatus);
-        await expect(page.getByRole('radiogroup', { name: 'Education benefits' }).getByRole('radio', { name: 'Yes', exact: true })).toBeChecked();
-        await expect(page.getByRole('combobox', { name: /Select your benefit provider/ })).toHaveValue(entered.benefitProvider);
+        const saved = await myInfoPage.readFormValues();
+        test.info().annotations.push({ type: 'saved', description: JSON.stringify(saved) });
+        const { formerName, guardian, address } = entered;
+        expect(saved).toMatchObject({
+            formerNames: expect.arrayContaining([`${formerName.firstName} ${formerName.lastName}`]),
+            legalSex: entered.legalSex,
+            primaryLanguage: entered.primaryLanguage,
+            address: { country: address.country, line1: address.line1, line2: address.line2, city: address.city, state: address.state, zip: address.zip },
+            hispanicLatino: entered.hispanicLatino,
+            races: expect.arrayContaining(entered.races),
+            raceOrigins: entered.raceOrigins,
+            primaryRace: entered.primaryRace,
+            citizenship: 'I am not a U.S. citizen',
+            visaType: entered.visaType,
+            countryOfCitizenship: entered.countryOfCitizenship,
+            countryOfBirth: entered.countryOfBirth,
+            guardians: expect.arrayContaining([`${guardian.firstName} ${guardian.lastName}`]),
+            affiliations: entered.asuAffiliate.affiliations,
+            affiliateId: entered.asuAffiliate.affiliateId,
+            militaryStatus: entered.militaryStatus,
+            educationBenefits: 'Yes',
+            benefitProvider: entered.benefitProvider,
+        });
     });
 });
