@@ -79,22 +79,27 @@ async function startApplicationAt(page, step, { captureValidations = true, veter
     if (target > 3) {
         const grades = new MyHighSchoolGradesPage(page);
         grades.applicationId = applicationId;
-        if (captureValidations) await grades.captureFieldValidations({ stepName: 'My high school grades' });
-        // Self-report: Yes, then capture what that path makes mandatory before filling it
-        // (GPA 3.50 on a 4 scale, A-F grading, one English course).
-        await grades.chooseSelfReporting(); // Yes, or the senior-year card for future graduates
-        if (captureValidations) await grades.captureFieldValidations({ stepName: 'My high school grades (self-report Yes)' });
-        await grades.useDefaultSelfReportedGrades();
+        // Non-residents (e.g. JN visa) are told the step isn't necessary: nothing to fill.
+        if (!(await grades.isStepNotNecessary())) {
+            if (captureValidations) await grades.captureFieldValidations({ stepName: 'My high school grades' });
+            // Self-report: Yes, then capture what that path makes mandatory before filling it
+            // (GPA 3.50 on a 4 scale, A-F grading, one English course).
+            await grades.chooseSelfReporting(); // Yes, or the senior-year card for future graduates
+            if (captureValidations) await grades.captureFieldValidations({ stepName: 'My high school grades (self-report Yes)' });
+            await grades.useDefaultSelfReportedGrades();
+        }
         const next = await grades.saveAndContinue();
-        // Non-residents skip Arizona residency and go straight to Review.
         if (next === 'review') return applicationId;
     }
     if (target > 4) {
         const residency = new AZResidencyPage(page);
         residency.applicationId = applicationId;
-        if (captureValidations) await residency.captureFieldValidations({ stepName: 'Arizona residency' });
-        // Arizona resident: Arizona for every state, every question Yes.
-        await residency.fillArizonaResidentAllYes();
+        // Non-residents are told the step isn't necessary: nothing to fill.
+        if (!(await residency.isStepNotNecessary())) {
+            if (captureValidations) await residency.captureFieldValidations({ stepName: 'Arizona residency' });
+            // Arizona resident: Arizona for every state, every question Yes.
+            await residency.fillArizonaResidentAllYes();
+        }
         await residency.saveAndContinue();
     }
     return applicationId;

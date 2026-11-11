@@ -95,6 +95,8 @@ class MyHighSchoolGradesPage extends BasePage {
             allGradesCard: 'role=radio[name=/^Self-report all high school grades/]',
             seniorCourseRequiredError: 'text=Please enter at least one course for senior year.',
             customCourseName: '#new_custom_course-name',
+            // Non-residents (e.g. JN visa): the step has nothing to fill, only Continue.
+            notNecessaryNotice: 'text=/not a resident of the United States\. Therefore, this page is not necessary/',
         };
 
         this.SUBJECTS = SUBJECTS;
@@ -345,6 +347,19 @@ class MyHighSchoolGradesPage extends BasePage {
      */
     async isSelfReportQuestionShown() {
         return this.page.locator(this.selectors.selfReportGroup).isVisible().catch(() => false);
+    }
+
+    /**
+     * Non-residents see "...you are not a resident of the United States. Therefore, this
+     * page is not necessary. Please continue to the next step." and nothing to fill.
+     * Waits briefly for the step to render either the notice or its questions.
+     * @returns {Promise<boolean>}
+     */
+    async isStepNotNecessary() {
+        const notice = this.page.locator(this.selectors.notNecessaryNotice);
+        await notice.or(this.page.locator(this.selectors.selfReportGroup)).or(this.page.locator(this.selectors.seniorOnlyCard))
+            .first().waitFor({ state: 'visible', timeout: this.navigationTimeout }).catch(() => {});
+        return notice.isVisible();
     }
 
     /**

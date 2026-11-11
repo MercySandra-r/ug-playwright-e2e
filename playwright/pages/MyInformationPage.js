@@ -823,7 +823,9 @@ class MyInformationPage extends BasePage {
             const none = !data.militaryStatus || /^none$/i.test(String(data.militaryStatus));
             await this.selectMilitaryAffiliation(none ? this.NO_UNIFORMED_SERVICES : data.militaryStatus);
         }
-        if (data.partnerBenefits && data.partnerBenefits.hasPartnerBenefits !== undefined) {
+        // Not asked for every visa (e.g. Student (F-1) replaces it with I-20 questions).
+        if (data.partnerBenefits && data.partnerBenefits.hasPartnerBenefits !== undefined
+            && await this.page.locator(this.selectors.educationBenefitsGroup).isVisible()) {
             await this.applyPartnerBenefits({ usesBenefits: !!data.partnerBenefits.hasPartnerBenefits, provider: data.partnerBenefits.provider });
         }
     }
