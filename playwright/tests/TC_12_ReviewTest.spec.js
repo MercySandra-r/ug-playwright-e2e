@@ -2,6 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { startApplicationAt, resumeApplication } = require('../utils/applicationJourney');
 const ReviewPage = require('../pages/ReviewPage');
+const MySchoolsPage = require('../pages/MySchoolsPage');
 
 /**
  * Review (step 6 of the application wizard), against the live page.
@@ -18,6 +19,9 @@ const ReviewPage = require('../pages/ReviewPage');
  *
  * Debugging without creating accounts: set REVIEW_TEST_EMAIL and REVIEW_TEST_PASSWORD to
  * an account whose application is on Review (and not submitted).
+ *
+ * POM: every element comes from ReviewPage (its selectors, sectionButton() and read-back
+ * methods); this spec has no locators of its own.
  */
 test.describe('Review Page Tests', () => {
     test.describe.configure({ mode: 'serial', timeout: 120000 });
@@ -55,8 +59,8 @@ test.describe('Review Page Tests', () => {
         await freshPage();
         // Refuses to click unless the certification is unticked, so nothing is submitted.
         const errors = await reviewPage.captureSubmitValidations();
+        // captureSubmitValidations throws if the page leaves Review.
         expect(errors.length, 'Submit with nothing certified should flag at least one field').toBeGreaterThan(0);
-        await expect(page).toHaveURL(/\/review/);
     });
 
     test('Verify Profile section details', async () => {
@@ -104,7 +108,7 @@ test.describe('Review Page Tests', () => {
     test('Edit a section opens its step', async () => {
         await freshPage();
         await reviewPage.clickEditSection('My schools');
-        await expect(page.getByRole('heading', { name: 'My schools', level: 1 })).toBeVisible();
+        await new MySchoolsPage(page).verifyPageLoaded();
     });
 
     test('Verify Application Affidavit section', async () => {
@@ -131,16 +135,15 @@ test.describe('Review Page Tests', () => {
     test('Select payment option (Pay now / Pay later)', async () => {
         await freshPage();
         await reviewPage.selectPaymentMethod('Visa'); // old card-brand names map to "Pay now"
-        await expect(page.locator(reviewPage.selectors.payNow)).toHaveAttribute('aria-checked', 'true');
+        expect(await reviewPage.getSelectedPaymentOption()).toBe('Pay now');
         await reviewPage.selectPaymentMethod('Pay later');
-        await expect(page.locator(reviewPage.selectors.payLater)).toHaveAttribute('aria-checked', 'true');
-        await expect(page.locator(reviewPage.selectors.payNow)).toHaveAttribute('aria-checked', 'false');
+        expect(await reviewPage.getSelectedPaymentOption()).toBe('Pay later');
     });
 
     test('Submit application (Pay later)', async () => {
         test.skip(!allowSubmit, 'Submits the application; set REVIEW_ALLOW_SUBMIT=1 to run');
         await freshPage();
         await reviewPage.submitApplication({ certify: true, paymentOption: 'later' });
-        await page.waitForURL((u) => !/\/review/.test(u.pathname), { timeout: 60000 });
+        await reviewPage.waitForSubmitted();
     });
 });

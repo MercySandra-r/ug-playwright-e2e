@@ -28,6 +28,11 @@ const SECTIONS = {
  *
  * submitApplication() is IRREVERSIBLE (it submits the application). Tests gate it
  * behind REVIEW_ALLOW_SUBMIT=1. This page object never enters card details.
+ *
+ * POM rule for this page: every element is declared here. Fixed elements are named in
+ * `this.selectors`; a section's disclosure button (it depends on the section name) comes
+ * from sectionButton(). Specs use these names and the read-back methods, never their
+ * own locators.
  */
 class ReviewPage extends BasePage {
     /**
@@ -38,10 +43,20 @@ class ReviewPage extends BasePage {
 
         this.selectors = {
             heading: 'role=heading[name="Review"][level=1]',
+            introHeading: 'role=heading[name="Review and submit your application"]',
+            // Inside a section's disclosure button.
+            sectionEditButton: 'role=button[name="Edit"s]',
             affidavitHeading: 'role=heading[name="Application affidavit"]',
+            affidavitSubHeadings: [
+                'role=heading[name="Submitting Official Transcripts (For Degree-Seeking Students)"]',
+                'role=heading[name="Academic Integrity"]',
+                'role=heading[name="Prohibition Against Discrimination, Harassment and Retaliation"]',
+            ],
             certifyCheckbox: 'role=checkbox[name=/certify that all information is correct and complete/]',
             feeHeading: 'role=heading[name="Pay your application fee"]',
+            feeAmount: 'role=heading[name=/^\\$\\d+(\\.\\d{2})?$/]',
             paymentGroup: 'role=radiogroup[name="Choose a payment option"]',
+            radio: 'role=radio',
             payNow: 'role=radio[name="Pay now (Visa, Mastercard, Discover or American Express)"]',
             payLater: 'role=radio[name="Pay later"]',
             submitButton: 'role=button[name="Submit application"]',
@@ -76,7 +91,7 @@ class ReviewPage extends BasePage {
      * @returns {Promise<void>}
      */
     async validateReview() {
-        await expect(this.page.getByRole('heading', { name: 'Review and submit your application' })).toBeVisible();
+        await expect(this.page.locator(this.selectors.introHeading)).toBeVisible({ timeout: this.assertionTimeout });
         for (const name of Object.keys(SECTIONS)) {
             await expect(this.sectionButton(name)).toBeVisible();
         }
@@ -177,7 +192,7 @@ class ReviewPage extends BasePage {
      */
     async clickEditSection(name) {
         await this.expandSection(name);
-        await this.sectionButton(name).getByRole('button', { name: 'Edit', exact: true }).click();
+        await this.sectionButton(name).locator(this.selectors.sectionEditButton).click();
         const slug = SECTIONS[/** @type {keyof typeof SECTIONS} */ (name)];
         await this.page.waitForURL(new RegExp(slug.replace(/\//g, '\\/')), { timeout: this.navigationTimeout });
     }
@@ -190,9 +205,8 @@ class ReviewPage extends BasePage {
      */
     async verifyApplicationAffidavit() {
         await expect(this.page.locator(this.selectors.affidavitHeading)).toBeVisible();
-        for (const h of ['Submitting Official Transcripts (For Degree-Seeking Students)', 'Academic Integrity',
-            'Prohibition Against Discrimination, Harassment and Retaliation']) {
-            await expect(this.page.getByRole('heading', { name: h })).toBeVisible();
+        for (const selector of this.selectors.affidavitSubHeadings) {
+            await expect(this.page.locator(selector), selector).toBeVisible();
         }
         await expect(this.page.locator(this.selectors.certifyCheckbox)).toBeVisible();
     }
@@ -235,8 +249,8 @@ class ReviewPage extends BasePage {
      */
     async verifyApplicationFeeSection() {
         await expect(this.page.locator(this.selectors.feeHeading)).toBeVisible();
-        const amount = (await this.page.getByRole('heading', { name: /^\$\d+(\.\d{2})?$/ }).first().innerText()).trim();
-        const options = (await this.page.locator(this.selectors.paymentGroup).getByRole('radio').allInnerTexts())
+        const amount = (await this.page.locator(this.selectors.feeAmount).first().innerText()).trim();
+        const options = (await this.page.locator(this.selectors.paymentGroup).locator(this.selectors.radio).allInnerTexts())
             .map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean);
         return { amount, options: [...new Set(options)] };
     }
@@ -253,6 +267,16 @@ class ReviewPage extends BasePage {
         const radio = this.page.locator(later ? this.selectors.payLater : this.selectors.payNow);
         await radio.click();
         await expect(radio).toHaveAttribute('aria-checked', 'true', { timeout: this.assertionTimeout });
+    }
+
+    /**
+     * The payment option currently chosen.
+     * @returns {Promise<'Pay now'|'Pay later'|undefined>}
+     */
+    async getSelectedPaymentOption() {
+        if ((await this.page.locator(this.selectors.payNow).getAttribute('aria-checked')) === 'true') return 'Pay now';
+        if ((await this.page.locator(this.selectors.payLater).getAttribute('aria-checked')) === 'true') return 'Pay later';
+        return undefined;
     }
 
     /**
@@ -330,6 +354,15 @@ class ReviewPage extends BasePage {
         if (paymentOption) await this.selectPaymentMethod(paymentOption);
         this.logger.warn('Submitting the application (irreversible)');
         await this.page.locator(this.selectors.submitButton).click();
+    }
+
+    /**
+     * After submitApplication(): wait until the app leaves Review (submission accepted).
+     * @param {number} [timeoutMs]
+     * @returns {Promise<void>}
+     */
+    async waitForSubmitted(timeoutMs = 60000) {
+        await this.page.waitForURL((u) => !/\/review/.test(u.pathname), { timeout: timeoutMs });
     }
 }
 
