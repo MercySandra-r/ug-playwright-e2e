@@ -11,8 +11,7 @@ const { logger } = require('./testLogger');
  *   artifacts/accounts/accounts.xlsx   one row per account (open this)
  *   artifacts/accounts/accounts.json   the same rows; the source the sheet is rebuilt from
  *
- * Columns: email, created (local date-time), created by (test title), application IDs,
- * notes. Passwords are never written. artifacts/ is git-ignored.
+ * Columns: email, created on (local date and time), application IDs, notes. Passwords are never written. artifacts/ is git-ignored.
  *
  * The JSON is updated under a lock (parallel workers), then the sheet is rebuilt from it.
  * If the sheet is open in Excel the rebuild is skipped with a warning; the next account
@@ -26,8 +25,7 @@ const LOCK_DIR = path.join(DIR, 'accounts.lock');
 /**
  * @typedef {Object} AccountRow
  * @property {string} email
- * @property {string} created - local date-time, or '' when unknown
- * @property {string} createdBy - test title (or script) that signed the account up
+ * @property {string} created - local date and time, or '' when unknown
  * @property {string[]} applicationIds
  * @property {string} notes
  */
@@ -74,20 +72,10 @@ function readRows() {
     return fs.existsSync(JSON_FILE) ? JSON.parse(fs.readFileSync(JSON_FILE, 'utf8')) : [];
 }
 
-/** Title of the running Playwright test, or '' outside a test (scripts, global setup). */
-function currentTestTitle() {
-    try {
-        const { test } = require('@playwright/test');
-        return test.info().titlePath.slice(1).join(' › ');
-    } catch {
-        return '';
-    }
-}
-
 /** @param {Date} d */
 function localStamp(d) {
     const p = (/** @type {number} */ n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
 /**
@@ -103,7 +91,7 @@ async function upsert(email, change) {
             let row = all.find((r) => r.email === email);
             const isNew = !row;
             if (!row) {
-                row = { email, created: '', createdBy: '', applicationIds: [], notes: '' };
+                row = { email, created: '', applicationIds: [], notes: '' };
                 all.push(row);
             }
             change(row, isNew);
@@ -127,8 +115,7 @@ async function writeSheet(rows) {
     const sheet = workbook.addWorksheet('Accounts');
     sheet.columns = [
         { header: 'Email', key: 'email', width: 46 },
-        { header: 'Created', key: 'created', width: 18 },
-        { header: 'Created by', key: 'createdBy', width: 70 },
+        { header: 'Created on', key: 'created', width: 22 },
         { header: 'Application IDs', key: 'applicationIds', width: 22 },
         { header: 'Notes', key: 'notes', width: 60 },
     ];
@@ -154,7 +141,6 @@ async function recordAccount(page, email, notes = '') {
     signedIn.set(page, email);
     await upsert(email, (row) => {
         row.created = localStamp(new Date());
-        row.createdBy = currentTestTitle() || path.basename(process.argv[1] || '');
         if (notes) row.notes = notes;
     });
 }
