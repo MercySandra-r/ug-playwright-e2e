@@ -19,7 +19,13 @@ const QUESTIONS = {
     parentFiledTaxes: { id: 'radio_isParentFiledTaxLastYear', label: 'Did or will your parent(s) or legal guardian(s) file a state income tax return for the 2025 tax year?' },
     parentHasAzLicense: { id: 'radio_isParentHavingLicenseInAz', label: 'Does either parent or legal guardian have a current Arizona driver license?' },
     parentEmployedInAz: { id: 'radio_isParentEmployedInAz', label: 'Is either parent or legal guardian employed in Arizona?' },
+    // Veterans only (uniformed services "I am a U.S. service member or veteran", status Veteran).
+    registeredToVote: { id: 'radio_isRegisteredToVote', label: 'Are you registered to vote?' },
 };
+
+/** "Which character of service is noted on your DD-214?" options, as listed (2026-11-11). */
+const DD214_CHARACTER_OF_SERVICE = ['Under Honorable Conditions (General)', 'Under Other Than Honorable Conditions',
+    'Bad Conduct', 'Dishonorable', 'Uncharacterized', 'Honorable'];
 
 /** Financial-support inputs (percent of support, must total 100). */
 const SUPPORT = {
@@ -47,6 +53,11 @@ const SUPPORT = {
  * Because follow-ups appear based on answers, answerRemainingQuestions() fills any
  * Yes/No group or dropdown still empty (No / first option) and logs what it did.
  * The old document-upload API is gone: the step has no uploads.
+ *
+ * Veterans (My information: "I am a U.S. service member or veteran", status Veteran) also
+ * get: "Which character of service is noted on your DD-214?" (dropdown), "When were you
+ * discharged or released from active duty?" (month + year) and "Are you registered to
+ * vote?" (Yes/No). See fillVeteranDetails() / getVeteranDetails().
  *
  * POM rule for this page: every element is declared here. Fixed elements are named in
  * `this.selectors`; elements that depend on data (a question's radio group, a radio,
@@ -76,12 +87,19 @@ class AZResidencyPage extends BasePage {
             parentTaxState: '#group-selectStateParentFiledTax',
             // Shown when "Are you currently enrolled at another college or university?" is Yes.
             currentlyEnrolledAt: 'role=textbox[name="Where are you currently enrolled?"]',
+
+            // Veterans only
+            veteranIntro: 'text=You indicated that you are a veteran of the US military.',
+            dd214CharacterOfService: '#group-selectService',
+            dischargeMonth: '#group-MILEXITDT-month',
+            dischargeYear: '#group-MILEXITDT-year',
             supportTotalError: 'text=Total must be equal to 100%',
             requiredFieldError: 'text=This is a required field.',
             continueButton: 'button[type="submit"][form="page-form"]',
         };
         this.QUESTIONS = QUESTIONS;
         this.SUPPORT = SUPPORT;
+        this.DD214_CHARACTER_OF_SERVICE = DD214_CHARACTER_OF_SERVICE;
     }
 
     // ------------------------------------------------------------------ locators that depend on data
@@ -190,6 +208,45 @@ class AZResidencyPage extends BasePage {
         return this.page.locator(this.selectors.supportTotalError).isVisible();
     }
 
+    // ------------------------------------------------------------------ veterans
+
+    /**
+     * Whether the veteran questions (DD-214, discharge date, voter registration) are shown.
+     * @returns {Promise<boolean>}
+     */
+    async isVeteranSectionShown() {
+        return this.page.locator(this.selectors.dd214CharacterOfService).isVisible().catch(() => false);
+    }
+
+    /**
+     * Answer the veteran questions.
+     * @param {{ characterOfService?: string, discharged?: { month: string, year: string },
+     *           registeredToVote?: boolean }} [data] - defaults: Honorable, May 2020, Yes
+     * @returns {Promise<{ characterOfService: string, discharged: { month: string, year: string }, registeredToVote: 'Yes'|'No' }>}
+     */
+    async fillVeteranDetails({ characterOfService = 'Honorable', discharged = { month: 'May', year: '2020' }, registeredToVote = true } = {}) {
+        await this.choose(this.selectors.dd214CharacterOfService, characterOfService);
+        await this.choose(this.selectors.dischargeMonth, discharged.month);
+        await this.choose(this.selectors.dischargeYear, discharged.year);
+        await this.answer('registeredToVote', registeredToVote);
+        return { characterOfService, discharged, registeredToVote: registeredToVote ? 'Yes' : 'No' };
+    }
+
+    /**
+     * The veteran answers as shown.
+     * @returns {Promise<{ characterOfService: string, discharged: { month: string, year: string }, registeredToVote: 'Yes'|'No'|undefined }>}
+     */
+    async getVeteranDetails() {
+        return {
+            characterOfService: await this.getDropdownValue(this.selectors.dd214CharacterOfService),
+            discharged: {
+                month: await this.getDropdownValue(this.selectors.dischargeMonth),
+                year: await this.getDropdownValue(this.selectors.dischargeYear),
+            },
+            registeredToVote: await this.getAnswer('registeredToVote'),
+        };
+    }
+
     /**
      * Parents in Arizona reveal the parent block (relationship, date, parent questions).
      * @returns {Promise<void>}
@@ -224,6 +281,21 @@ class AZResidencyPage extends BasePage {
         await this.option(label).click();
         await this.closeOpenList();
         return label;
+    }
+
+    /**
+     * Option labels of one of the page's dropdowns (closes it again).
+     * @param {string} selector
+     * @returns {Promise<string[]>}
+     */
+    async getDropdownOptionsOf(selector) {
+        await this.closeOpenList();
+        await this.page.locator(selector).click();
+        const options = this.page.locator(this.selectors.option);
+        await options.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        const labels = (await options.allInnerTexts()).map((t) => t.replace(/\s*✓\s*$/, '').trim()).filter(Boolean);
+        await this.closeOpenList();
+        return labels;
     }
 
     /**
@@ -452,7 +524,10 @@ class AZResidencyPage extends BasePage {
      *           support?: { parent?: number, employment?: number, financialAid?: number, spouse?: number, other?: number },
      *           parentState?: string, answers?: Record<string, boolean>,
      *           parentInfo?: Record<string, any>, defaultAnswer?: boolean, preferredOption?: string,
-     *           enrolledAt?: string }} [data]
+     *           enrolledAt?: string,
+     *           veteran?: { characterOfService?: string, discharged?: { month: string, year: string }, registeredToVote?: boolean } }} [data]
+     *   veteran: answers for the veteran questions when they are shown (defaults: Honorable,
+     *   May 2020, registered to vote = defaultAnswer)
      *   enrolledAt: school typed into "Where are you currently enrolled?" when it appears
      *   (default "Mesa Community College")
      *   defaultAnswer / preferredOption: how the safety net answers anything left
@@ -472,6 +547,9 @@ class AZResidencyPage extends BasePage {
         }
         for (const [key, yes] of Object.entries(data.answers || {})) {
             if (await this.isQuestionVisible(key)) await this.answer(key, yes);
+        }
+        if (await this.isVeteranSectionShown()) {
+            await this.fillVeteranDetails({ registeredToVote: data.defaultAnswer === true, ...(data.veteran || {}) });
         }
         const enrolledAt = this.page.locator(this.selectors.currentlyEnrolledAt);
         if (await enrolledAt.isVisible().catch(() => false) && !(await enrolledAt.inputValue())) {
