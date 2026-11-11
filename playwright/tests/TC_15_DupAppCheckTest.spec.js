@@ -36,17 +36,20 @@ test.describe('Duplicate Application Check (new account, same SSN)', () => {
             firstName: process.env.DUP_CHECK_FIRST_NAME || 'Mercy',
             lastName: process.env.DUP_CHECK_LAST_NAME || 'Sandra R',
             birth: { month, day, year },
+            captureValidations: true,
         });
 
         const info = new MyInformationPage(page);
         info.applicationId = applicationId;
         await info.verifyPageLoaded();
+        await info.captureFieldValidations({ stepName: 'My information' });
         await info.completeRequiredFields({ usCitizenship: 'Yes', countryOfBirth: 'United States' }); // SSN from TEST_SSN
         await info.saveAndContinue();
 
         const programPage = new MyASUProgramPage(page);
         programPage.applicationId = applicationId;
         await programPage.verifyPageLoaded();
+        await programPage.captureFieldValidations({ stepName: 'My program' });
         await programPage.selectProgram({ program, degreeType: 'Bachelor', startTerm: term });
         await programPage.clickContinue();
         await page.waitForTimeout(5000);

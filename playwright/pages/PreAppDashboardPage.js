@@ -563,7 +563,9 @@ class PreAppDashboardPage extends BasePage {
      * Answers "No" to SMS so nothing is texted to the test number.
      * @param {{ firstName?: string, lastName?: string,
      *           birth?: { month: string, day: string, year: string },
-     *           phone?: string, mode?: 'online'|'in-person' }} [data]
+     *           phone?: string, mode?: 'online'|'in-person', captureValidations?: boolean }} [data]
+     *   captureValidations: click Start new application on the empty form first and record the
+     *   field validations (see BasePage.captureFieldValidations)
      * @returns {Promise<string>} the new application's ID
      */
     async startApplication(data = {}) {
@@ -573,6 +575,7 @@ class PreAppDashboardPage extends BasePage {
             birth = { month: 'June', day: '15', year: '2000' },
             phone = '2025551234',
             mode = 'online',
+            captureValidations = false,
         } = data;
 
         if (!/\/dashboard/.test(this.page.url())) {
@@ -591,6 +594,11 @@ class PreAppDashboardPage extends BasePage {
         }
 
         await firstNameBox.waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        const startButton = this.page.getByRole('button', { name: 'Start new application' });
+        if (captureValidations) {
+            // Click Start new application on the empty form first and record what it flags.
+            await this.captureFieldValidations({ stepName: 'Start new application', button: startButton });
+        }
         await firstNameBox.fill(firstName);
         await this.page.getByRole('textbox', { name: 'Last name', exact: true }).fill(lastName);
         for (const [box, value] of /** @type {Array<[string, string]>} */ ([['Month', birth.month], ['Day', birth.day], ['Year', birth.year]])) {
@@ -605,7 +613,7 @@ class PreAppDashboardPage extends BasePage {
             await sms.getByRole('radio', { name: 'No', exact: true }).click();
         }
 
-        await this.page.getByRole('button', { name: 'Start new application' }).click();
+        await startButton.click();
         await this.handleBriteVerifyPopup('submit');
         await this.page.waitForURL(/\/ug-app\/\d+\//, { timeout: 45000 });
         const match = this.page.url().match(/\/ug-app\/(\d+)\//);
