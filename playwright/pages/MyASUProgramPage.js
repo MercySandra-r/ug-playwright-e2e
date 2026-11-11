@@ -2,6 +2,16 @@
 const { expect } = require('@playwright/test');
 const BasePage = require('./BasePage');
 
+/**
+ * Answers to the Nursing - RN/BSN question "Are you currently pursuing or have you
+ * completed a registered nurse associate degree program?" (2026-11-11).
+ */
+const RN_PATHWAYS = {
+    enrolled: 'I am admitted or currently enrolled in an associate degree program for nursing',
+    completed: 'I completed an associate degree program for nursing',
+    none: 'None of these apply to me',
+};
+
 /** Labels of the "I want to.." options. */
 const INTENT = {
     degree: 'pursue a degree',
@@ -34,6 +44,16 @@ const INTENT = {
  *
  * Choices are NOT saved when the dialog's "Save choice" is clicked: they live in the page
  * until Continue. Reloading or navigating away before Continue drops them.
+ *
+ * Nursing - RN/BSN, BSN (needs a backup program) adds a required question under the
+ * selection, "Are you currently pursuing or have you completed a registered nurse associate
+ * degree program?" (RN_PATHWAYS):
+ *  - enrolled: Institution name (required), Employer (optional)
+ *  - completed: State licensed to practice as an RN (required), Institution name
+ *    (required), RN license number (optional), Employer (optional)
+ *  - none: a notice that the program is only for licensed RNs / associate nursing
+ *    students; Continue stays on My program
+ * See answerRnPathway(), getRnFollowUps(), fillRnDetails(), readRnDetails().
  *
  * POM rule for this page: every element is declared here. Fixed elements are named in
  * `this.selectors`; elements that depend on data (a program card, an option or radio by
@@ -101,7 +121,17 @@ class MyASUProgramPage extends BasePage {
             // person (name, birthday, SSN) has already applied for that start date.
             duplicateStartDateError: 'text=You have already submitted an application for your chosen start date.',
             updateTermButton: 'role=button[name="Update term"]',
+
+            // Nursing - RN/BSN question and its follow-ups
+            rnPathway: '#currently_pursuing',
+            rnInstitutionName: '#institution_name',
+            rnInstitutionLabel: 'label[for="institution_name"]',
+            rnLicenseState: '#state_select',
+            rnLicenseNumber: '#rn_license_number',
+            rnEmployer: '#employer',
+            rnNotEligibleNotice: 'text=The program you selected is only available to:',
         };
+        this.RN_PATHWAYS = RN_PATHWAYS;
     }
 
     // ------------------------------------------------------------------ locators that depend on data
@@ -639,6 +669,140 @@ class MyASUProgramPage extends BasePage {
     async isInterestSelected(name) {
         const box = this.interestCheckbox(name);
         return (await box.getAttribute('aria-checked')) === 'true' || (await box.isChecked().catch(() => false));
+    }
+
+    // ------------------------------------------------------------------ Nursing - RN/BSN
+
+    /**
+     * Whether the Nursing RN question is shown (only after choosing Nursing - RN/BSN).
+     * @returns {Promise<boolean>}
+     */
+    async isRnPathwayQuestionShown() {
+        return this.page.locator(this.selectors.rnPathway).isVisible().catch(() => false);
+    }
+
+    /**
+     * Options of a dropdown on this page (closes it again).
+     * @param {string} selector
+     * @returns {Promise<string[]>}
+     */
+    async getDropdownOptions(selector) {
+        await this.page.locator(selector).click();
+        const options = this.page.locator(this.selectors.option);
+        await options.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        const labels = (await options.allInnerTexts()).map((t) => t.replace(/\s*✓\s*$/, '').trim()).filter(Boolean);
+        await this.page.keyboard.press('Escape');
+        return labels;
+    }
+
+    /**
+     * Answer the Nursing RN question.
+     * @param {keyof RN_PATHWAYS} pathway
+     * @returns {Promise<void>}
+     */
+    async answerRnPathway(pathway) {
+        await this.page.locator(this.selectors.rnPathway).click();
+        await this.option(RN_PATHWAYS[pathway]).click();
+        await this.page.waitForTimeout(500); // follow-ups render after the choice
+    }
+
+    /**
+     * Follow-up fields shown for the current answer, by name, in page order.
+     * @returns {Promise<string[]>} subset of licenseState, institutionName, licenseNumber, employer, notEligibleNotice
+     */
+    async getRnFollowUps() {
+        const s = this.selectors;
+        /** @type {Array<[string, string]>} */
+        const named = [['licenseState', s.rnLicenseState], ['institutionName', s.rnInstitutionName],
+            ['licenseNumber', s.rnLicenseNumber], ['employer', s.rnEmployer], ['notEligibleNotice', s.rnNotEligibleNotice]];
+        const shown = [];
+        for (const [name, selector] of named) {
+            if (await this.page.locator(selector).first().isVisible().catch(() => false)) shown.push(name);
+        }
+        return shown;
+    }
+
+    /**
+     * The institution field's label (it differs: "...where you're pursuing..." for enrolled,
+     * "...where you earned..." for completed).
+     * @returns {Promise<string>}
+     */
+    async getRnInstitutionLabel() {
+        return (await this.page.locator(this.selectors.rnInstitutionLabel).first().innerText()).replace(/\s+/g, ' ').trim();
+    }
+
+    /**
+     * Answer the Nursing RN question and fill the follow-ups it shows.
+     * @param {{ pathway: keyof RN_PATHWAYS, licenseState?: string, institution?: string,
+     *           licenseNumber?: string, employer?: string }} data
+     * @returns {Promise<Record<string, string>>} what was entered
+     */
+    async fillRnDetails({ pathway, licenseState, institution, licenseNumber, employer }) {
+        await this.answerRnPathway(pathway);
+        const shown = await this.getRnFollowUps();
+        const s = this.selectors;
+        /** @type {Record<string, string>} */
+        const entered = { pathway: RN_PATHWAYS[pathway] };
+        if (shown.includes('licenseState') && licenseState) {
+            await this.page.locator(s.rnLicenseState).click();
+            await this.option(licenseState).click();
+            entered.licenseState = licenseState;
+        }
+        if (shown.includes('institutionName') && institution !== undefined) {
+            await this.page.locator(s.rnInstitutionName).fill(institution);
+            entered.institution = institution;
+        }
+        if (shown.includes('licenseNumber') && licenseNumber !== undefined) {
+            await this.page.locator(s.rnLicenseNumber).fill(licenseNumber);
+            entered.licenseNumber = licenseNumber;
+        }
+        if (shown.includes('employer') && employer !== undefined) {
+            await this.page.locator(s.rnEmployer).fill(employer);
+            entered.employer = employer;
+        }
+        return entered;
+    }
+
+    /**
+     * The Nursing RN answers as shown (fields not shown are left out).
+     * @returns {Promise<Record<string, string>>}
+     */
+    async readRnDetails() {
+        const s = this.selectors;
+        /** @param {string} selector */
+        const value = async (selector) => ((await this.page.locator(selector).first().isVisible().catch(() => false))
+            ? this.page.locator(selector).first().inputValue() : undefined);
+        /** @type {Record<string, string>} */
+        const out = {};
+        /** @type {Array<[string, string]>} */
+        const fields = [['pathway', s.rnPathway], ['licenseState', s.rnLicenseState], ['institution', s.rnInstitutionName],
+            ['licenseNumber', s.rnLicenseNumber], ['employer', s.rnEmployer]];
+        for (const [name, selector] of fields) {
+            const v = await value(selector);
+            if (v !== undefined) out[name] = v;
+        }
+        return out;
+    }
+
+    /**
+     * Click Continue while something is still missing and capture the field messages.
+     * Keeps the page (no reload: unsaved program choices would be lost); throws if the step
+     * moves on instead.
+     * @param {string} stepName - name for the log and report
+     * @returns {Promise<Array<{ field: string, message: string }>>}
+     */
+    async continueExpectingValidation(stepName) {
+        return this.captureFieldValidations({ stepName, reload: false });
+    }
+
+    /**
+     * Click Continue and confirm the step does not move on.
+     * @returns {Promise<void>}
+     */
+    async verifyContinueBlocked() {
+        await this.clickContinue();
+        await this.page.waitForTimeout(2000);
+        await expect(this.page).toHaveURL(/\/my-program/);
     }
 
     // ------------------------------------------------------------------ calendar, messages, footer
