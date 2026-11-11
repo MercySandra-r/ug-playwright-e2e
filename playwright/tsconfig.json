@@ -1,4 +1,6 @@
 {
+  // Type-checks the framework's JavaScript (checkJs, strict). Run: npx tsc --noEmit -p .
+  // Editors use this file too, so there is no separate jsconfig.json.
   "compilerOptions": {
     "target": "es2019",
     "module": "commonjs",
@@ -9,11 +11,9 @@
     "strict": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
     "baseUrl": ".",
     "noEmit": true,
-    "paths": {
-      "@playwright/test": ["node_modules/@playwright/test"]
-    },
     "typeRoots": [
       "./node_modules/@types",
       "./types"
@@ -26,9 +26,13 @@
   ],
   "exclude": [
     "node_modules",
-    "**/*.spec.js",
-    "**/*.test.js",
-    "**/test/**/*.js",
-    "**/tests/**/*.js"
+    // Generated output: bundled report viewer, run artifacts, debug files.
+    "reports",
+    "test-results",
+    "artifacts",
+    // Flow specs TC_17-TC_27 (F1-F11) still call page-object methods from before the
+    // site changed and need rebuilding; they are left out until then.
+    "tests/TC_1?_F*",
+    "tests/TC_2?_F*"
   ]
 }
