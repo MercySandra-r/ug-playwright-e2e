@@ -28,6 +28,11 @@ const BasePage = require('./BasePage');
  *   is required.
  *
  * Dropdowns are custom comboboxes with a "Search..." box; options are role=option.
+ *
+ * POM rule for this page: every element is declared here. Fixed elements are named in
+ * `this.selectors`; elements that depend on data (a saved row, a saved-schools table,
+ * date fields after a label, an option by label) come from the locator methods below.
+ * Specs use these names and the read-back methods, never their own locators.
  */
 class MySchoolsPage extends BasePage {
     /**
@@ -38,6 +43,28 @@ class MySchoolsPage extends BasePage {
 
         this.selectors = {
             heading: 'role=heading[name="My schools"][level=1]',
+            highSchoolHeading: 'role=heading[name=/^Current or most recent high school/]',
+            collegesHeading: 'role=heading[name=/^Colleges and universities/]',
+            transcriptHeading: 'role=heading[name="Transcript policy"]',
+
+            // Dropdown parts
+            option: 'role=option',
+            dropdownSearch: 'input[placeholder="Search..."]',
+            radio: 'role=radio',
+            // From a date label ("Date first attended") to its month and year dropdowns.
+            monthAfterLabel: 'xpath=following::*[@role="combobox"][1]',
+            yearAfterLabel: 'xpath=following::*[@role="combobox"][2]',
+
+            // Saved-schools tables (High school / Institutions)
+            table: 'role=table',
+            row: 'role=row',
+            savedNameCells: 'tbody tr td:first-child, [role="rowgroup"]:nth-of-type(2) [role="row"] > [role="cell"]:first-child',
+            rowEditButton: 'role=button[name="Edit"s]',
+            rowDeleteLink: 'role=link[name=/^delete (school|institution)$/]',
+            dialog: 'role=dialog',
+            alertDialog: 'role=alertdialog',
+            confirmDeleteButton: 'role=button[name=/^(delete|remove|yes|confirm)/i]',
+            dialogBackButton: 'role=button[name="Back"s]',
 
             // High school
             hsCountry: '#high_school_country_select',
@@ -68,10 +95,13 @@ class MySchoolsPage extends BasePage {
             saveInstitutionButton: 'role=button[name="Save institution"]',
             addInstitutionButton: 'role=button[name="Add a school"]',
             eligibilityHeading: 'role=heading[name=/Previous post-secondary \\(college\\/university\\) eligibility/]',
+            // The eligibility Yes/No group has no name; it is the first radio group after its heading.
+            eligibilityGroupAfterHeading: 'xpath=following::*[@role="radiogroup"][1]',
 
             // Transcript policy
             transcriptsLink: 'role=link[name="Which transcripts do I need to send?"]',
             transcriptAck: 'role=checkbox[name=/I acknowledge that I will need to submit official transcripts/]',
+            acknowledgementCheckboxes: 'role=checkbox[name=/^I (acknowledge|understand)/]',
 
             // Footer / validation
             continueButton: 'button[type="submit"][form="page-form"]',
@@ -81,6 +111,70 @@ class MySchoolsPage extends BasePage {
         /** Month names as the graduation/attendance dropdowns list them. */
         this.MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
             'August', 'September', 'October', 'November', 'December'];
+    }
+
+    // ------------------------------------------------------------------ locators that depend on data
+
+    /**
+     * An open list's option by exact label (or the first option when none given).
+     * @param {string} [label]
+     * @returns {import('@playwright/test').Locator}
+     */
+    option(label) {
+        return label
+            ? this.page.getByRole('option', { name: label, exact: true }).first()
+            : this.page.locator(this.selectors.option).first();
+    }
+
+    /**
+     * A radio by exact label inside a scope.
+     * @param {import('@playwright/test').Locator} scope
+     * @param {string} label
+     * @returns {import('@playwright/test').Locator}
+     */
+    radioIn(scope, label) {
+        return scope.getByRole('radio', { name: label, exact: true });
+    }
+
+    /**
+     * Month and year dropdowns that follow a date label ("Date first attended", ...).
+     * @param {string} label
+     * @returns {{ month: import('@playwright/test').Locator, year: import('@playwright/test').Locator }}
+     */
+    dateFieldsAfter(label) {
+        // The high-school section precedes the college form (which reuses these labels).
+        const p = this.page.getByText(label, { exact: true }).first();
+        return {
+            month: p.locator(this.selectors.monthAfterLabel),
+            year: p.locator(this.selectors.yearAfterLabel),
+        };
+    }
+
+    /**
+     * A saved-schools table, identified by its column header.
+     * @param {string} header - "High school" or "Institutions"
+     * @returns {import('@playwright/test').Locator}
+     */
+    savedTable(header) {
+        return this.page.locator(this.selectors.table)
+            .filter({ has: this.page.getByRole('columnheader', { name: header, exact: true }) });
+    }
+
+    /**
+     * Row of a saved school/institution.
+     * @param {string} name
+     * @returns {import('@playwright/test').Locator}
+     */
+    savedRow(name) {
+        return this.page.locator(this.selectors.row).filter({ has: this.page.getByRole('cell', { name, exact: true }) });
+    }
+
+    /**
+     * The "Transcript Requirements" dialog.
+     * @returns {import('@playwright/test').Locator}
+     */
+    transcriptDialog() {
+        return this.page.locator(this.selectors.dialog).filter({ hasText: 'Transcript Requirements' });
     }
 
     // ------------------------------------------------------------------ navigation
@@ -107,10 +201,10 @@ class MySchoolsPage extends BasePage {
      * @returns {Promise<void>}
      */
     async validateMySchools() {
-        await expect(this.page.getByRole('heading', { name: /^Current or most recent high school/ })).toBeVisible();
-        await expect(this.page.getByRole('heading', { name: /^Colleges and universities/ })).toBeVisible();
-        await expect(this.page.getByRole('heading', { name: 'Transcript policy' })).toBeVisible();
-        await expect(this.page.locator(this.selectors.transcriptAck)).toBeVisible();
+        const s = this.selectors;
+        for (const selector of [s.highSchoolHeading, s.hsCountry, s.collegesHeading, s.attendedCollegeGroup, s.transcriptHeading, s.transcriptAck]) {
+            await expect(this.page.locator(selector).first(), selector).toBeVisible({ timeout: this.assertionTimeout });
+        }
     }
 
     // ------------------------------------------------------------------ dropdown helpers
@@ -122,8 +216,9 @@ class MySchoolsPage extends BasePage {
      */
     async getDropdownOptions(selector) {
         await this.page.locator(selector).click();
-        await this.page.getByRole('option').first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
-        const labels = (await this.page.getByRole('option').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean);
+        const options = this.page.locator(this.selectors.option);
+        await options.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        const labels = (await options.allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean);
         await this.page.keyboard.press('Escape');
         return labels;
     }
@@ -139,11 +234,11 @@ class MySchoolsPage extends BasePage {
         const box = typeof selector === 'string' ? this.page.locator(selector) : selector;
         await box.scrollIntoViewIfNeeded();
         await box.click();
-        await this.page.getByRole('option').first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
-        const label = value || (await this.page.getByRole('option').first().innerText()).trim();
-        const search = this.page.getByPlaceholder('Search...');
+        await this.option().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        const label = value || (await this.option().innerText()).trim();
+        const search = this.page.locator(this.selectors.dropdownSearch);
         if (await search.isVisible().catch(() => false)) await search.fill(label);
-        await this.page.getByRole('option', { name: label, exact: true }).first().click();
+        await this.option(label).click();
         return label;
     }
 
@@ -163,20 +258,6 @@ class MySchoolsPage extends BasePage {
     }
 
     // ------------------------------------------------------------------ high school
-
-    /**
-     * Month and year dropdowns that follow a date label ("Date first attended", ...).
-     * @param {string} label
-     * @returns {{ month: import('@playwright/test').Locator, year: import('@playwright/test').Locator }}
-     */
-    dateFieldsAfter(label) {
-        // The high-school section precedes the college form (which reuses these labels).
-        const p = this.page.getByText(label, { exact: true }).first();
-        return {
-            month: p.locator('xpath=following::*[@role="combobox"][1]'),
-            year: p.locator('xpath=following::*[@role="combobox"][2]'),
-        };
-    }
 
     /**
      * Fill the high-school form (does not save).
@@ -251,19 +332,10 @@ class MySchoolsPage extends BasePage {
      * @returns {Promise<string[]>}
      */
     async savedRows(header) {
-        const table = this.page.getByRole('table').filter({ has: this.page.getByRole('columnheader', { name: header, exact: true }) });
+        const table = this.savedTable(header);
         if (!(await table.count())) return [];
-        const cells = table.locator('tbody tr td:first-child, [role="rowgroup"]:nth-of-type(2) [role="row"] > [role="cell"]:first-child');
+        const cells = table.locator(this.selectors.savedNameCells);
         return [...new Set((await cells.allInnerTexts()).map((t) => t.trim()).filter(Boolean))];
-    }
-
-    /**
-     * Row of a saved school/institution.
-     * @param {string} name
-     * @returns {import('@playwright/test').Locator}
-     */
-    savedRow(name) {
-        return this.page.getByRole('row').filter({ has: this.page.getByRole('cell', { name, exact: true }) });
     }
 
     /**
@@ -274,7 +346,7 @@ class MySchoolsPage extends BasePage {
      * @returns {Promise<void>}
      */
     async editSchool(currentName, updates) {
-        await this.savedRow(currentName).getByRole('button', { name: 'Edit', exact: true }).click();
+        await this.savedRow(currentName).locator(this.selectors.rowEditButton).click();
         await this.page.locator(this.selectors.hsName).waitFor({ state: 'visible', timeout: this.assertionTimeout });
         if (updates.state) await this.choose(this.selectors.hsState, updates.state);
         if (updates.city) await this.choose(this.selectors.hsCity, updates.city);
@@ -294,9 +366,9 @@ class MySchoolsPage extends BasePage {
      * @returns {Promise<void>}
      */
     async removeSchool(name) {
-        await this.savedRow(name).getByRole('link', { name: /^delete (school|institution)$/ }).click();
-        const confirm = this.page.getByRole('dialog').or(this.page.getByRole('alertdialog')).first()
-            .getByRole('button', { name: /^(delete|remove|yes|confirm)/i });
+        await this.savedRow(name).locator(this.selectors.rowDeleteLink).click();
+        const confirm = this.page.locator(this.selectors.dialog).or(this.page.locator(this.selectors.alertDialog)).first()
+            .locator(this.selectors.confirmDeleteButton);
         if (await confirm.first().waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false)) {
             await confirm.first().click();
         }
@@ -340,8 +412,7 @@ class MySchoolsPage extends BasePage {
      * @returns {Promise<void>}
      */
     async answerAttendedCollege(attended) {
-        await this.page.locator(this.selectors.attendedCollegeGroup)
-            .getByRole('radio', { name: attended ? 'Yes' : 'No', exact: true }).click();
+        await this.radioIn(this.page.locator(this.selectors.attendedCollegeGroup), attended ? 'Yes' : 'No').click();
     }
 
     /**
@@ -358,8 +429,8 @@ class MySchoolsPage extends BasePage {
      * @returns {Promise<void>}
      */
     async answerCollegeEligibility(eligible = true) {
-        const group = this.page.locator(this.selectors.eligibilityHeading).locator('xpath=following::*[@role="radiogroup"][1]');
-        await group.getByRole('radio', { name: eligible ? 'Yes' : 'No', exact: true }).click();
+        const group = this.page.locator(this.selectors.eligibilityHeading).locator(this.selectors.eligibilityGroupAfterHeading);
+        await this.radioIn(group, eligible ? 'Yes' : 'No').click();
     }
 
     /**
@@ -431,7 +502,7 @@ class MySchoolsPage extends BasePage {
      * @returns {Promise<number>} how many were ticked
      */
     async acknowledgeNDGVUSCheckboxes() {
-        const boxes = this.page.getByRole('checkbox', { name: /^I (acknowledge|understand)/ });
+        const boxes = this.page.locator(this.selectors.acknowledgementCheckboxes);
         let ticked = 0;
         for (let i = 0; i < await boxes.count(); i++) {
             const box = boxes.nth(i);
@@ -449,7 +520,7 @@ class MySchoolsPage extends BasePage {
      */
     async openTranscriptRequirements() {
         await this.page.locator(this.selectors.transcriptsLink).click();
-        const dialog = this.page.getByRole('dialog').filter({ hasText: 'Transcript Requirements' });
+        const dialog = this.transcriptDialog();
         await dialog.waitFor({ state: 'visible', timeout: this.assertionTimeout });
         return (await dialog.innerText()).replace(/\s+/g, ' ').trim();
     }
@@ -458,8 +529,8 @@ class MySchoolsPage extends BasePage {
      * @returns {Promise<void>}
      */
     async closeDialog() {
-        const dialog = this.page.getByRole('dialog').first();
-        await dialog.getByRole('button', { name: 'Back', exact: true }).click();
+        const dialog = this.page.locator(this.selectors.dialog).first();
+        await dialog.locator(this.selectors.dialogBackButton).click();
         await dialog.waitFor({ state: 'hidden', timeout: this.assertionTimeout });
     }
 
@@ -481,6 +552,23 @@ class MySchoolsPage extends BasePage {
      */
     async verifyErrorMessage(expectedMessage = 'This is a required field.') {
         await expect(this.page.getByText(expectedMessage).first()).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page).toHaveURL(/\/my-schools/);
+    }
+
+    /**
+     * Continue with a filled but unsaved school: the page asks for "Save school" and stays.
+     * @returns {Promise<void>}
+     */
+    async verifySaveSchoolReminder() {
+        await expect(this.page.locator(this.selectors.saveSchoolReminder)).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page).toHaveURL(/\/my-schools/);
+    }
+
+    /**
+     * @returns {Promise<string|undefined>} the high-school country currently chosen
+     */
+    async getHighSchoolCountry() {
+        return this.page.locator(this.selectors.hsCountry).inputValue();
     }
 
     /**

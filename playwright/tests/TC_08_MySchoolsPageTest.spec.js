@@ -2,6 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { startApplicationAt, resumeApplication } = require('../utils/applicationJourney');
 const MySchoolsPage = require('../pages/MySchoolsPage');
+const MyHighSchoolGradesPage = require('../pages/MyHighSchoolGradesPage');
 
 /**
  * My schools (step 3 of the application wizard), against the live page.
@@ -13,6 +14,9 @@ const MySchoolsPage = require('../pages/MySchoolsPage');
  *
  * Debugging without creating accounts: set MYSCHOOLS_TEST_EMAIL and
  * MYSCHOOLS_TEST_PASSWORD to an account whose application is on step 3.
+ *
+ * POM: every element comes from MySchoolsPage (its selectors, locator methods and
+ * read-back methods); this spec has no locators of its own.
  */
 test.describe('My Schools Page Tests', () => {
     test.describe.configure({ mode: 'serial', timeout: 120000 });
@@ -46,21 +50,18 @@ test.describe('My Schools Page Tests', () => {
         await freshPage();
         await schoolsPage.clickContinue();
         await schoolsPage.verifyErrorMessage('This is a required field.');
-        await expect(page).toHaveURL(/\/my-schools/);
     });
 
     test('Verify My Schools page loads successfully', async () => {
         await freshPage();
         await schoolsPage.validateMySchools();
-        await expect(page.locator(schoolsPage.selectors.hsCountry)).toBeVisible();
-        await expect(page.locator(schoolsPage.selectors.attendedCollegeGroup)).toBeVisible();
     });
 
     test('Select random high school country', async () => {
         await freshPage();
         const country = await schoolsPage.selectRandomHighSchoolCountry();
         expect(country).toBeTruthy();
-        await expect(page.locator(schoolsPage.selectors.hsCountry)).toHaveValue(country);
+        expect(await schoolsPage.getHighSchoolCountry()).toBe(country);
     });
 
     test('Verify school search functionality', async () => {
@@ -79,8 +80,7 @@ test.describe('My Schools Page Tests', () => {
         await schoolsPage.markNoCollegeAttended();
         await schoolsPage.acknowledgeTranscripts();
         await schoolsPage.clickContinue();
-        await expect(page.locator(schoolsPage.selectors.saveSchoolReminder)).toBeVisible();
-        await expect(page).toHaveURL(/\/my-schools/);
+        await schoolsPage.verifySaveSchoolReminder();
     });
 
     test('Add and validate a graduating school', async () => {
@@ -129,6 +129,6 @@ test.describe('My Schools Page Tests', () => {
         await schoolsPage.markNoCollegeAttended();
         await schoolsPage.acknowledgeTranscripts();
         await schoolsPage.saveAndContinue();
-        await expect(page.getByRole('heading', { name: 'My high school grades', level: 1 })).toBeVisible();
+        await new MyHighSchoolGradesPage(page).verifyPageLoaded();
     });
 });
