@@ -24,8 +24,8 @@ class GoogleDriveUtils {
      * @param {string[]} [options.scopes] - OAuth2 scopes
      */
     constructor({
-        credentialsPath = path.join(process.cwd(), 'credentials.json'),
-        tokenPath = path.join(process.cwd(), 'token.json'),
+        credentialsPath = path.join(process.cwd(), 'credentials', 'credentials.json'),
+        tokenPath = path.join(process.cwd(), 'credentials', 'token.json'),
         scopes = ['https://www.googleapis.com/auth/drive.file']
     } = {}) {
         this.credentialsPath = credentialsPath;
@@ -113,7 +113,7 @@ class GoogleDriveUtils {
                 });
                 
                 logger.info(`Authorize this app by visiting this URL: ${authUrl}`);
-                throw new Error('Please authorize the application by visiting the URL above and save the token to token.json');
+                throw new Error('Please authorize the application by visiting the URL above and save the token to credentials/token.json');
             }
         }
     }

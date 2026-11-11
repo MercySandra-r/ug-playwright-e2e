@@ -1,5 +1,7 @@
 # Secrets / local env — never commit
 .env
+# Google OAuth client files and cached tokens live in credentials/ (never commit)
+credentials/
 credentials.json
 token.json
 gmail-token.json

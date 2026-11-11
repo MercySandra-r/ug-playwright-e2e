@@ -90,7 +90,7 @@ A utility class for interacting with Google Drive to upload and manage files.
 2. Create a new project or select an existing one
 3. Enable the Google Drive API
 4. Create OAuth 2.0 credentials (OAuth client ID)
-5. Download the credentials JSON file as `credentials.json` in your project root
+5. Download the credentials JSON file as `credentials/credentials.json` (the `credentials/` folder is git-ignored)
 
 **Example Usage:**
 ```javascript
@@ -98,8 +98,8 @@ const GoogleDriveUtils = require('./integrations/googleDriveUtils');
 
 async function example() {
   const drive = new GoogleDriveUtils({
-    credentialsPath: './credentials.json',
-    tokenPath: './token.json'
+    credentialsPath: './credentials/credentials.json',
+    tokenPath: './credentials/token.json'
   });
   
   await drive.initialize();
@@ -134,7 +134,7 @@ SLACK_BOT_TOKEN=xoxb-your-token
 SLACK_DEFAULT_CHANNEL=test-results
 
 # Google Drive
-GOOGLE_APPLICATION_CREDENTIALS=./credentials.json
+GOOGLE_APPLICATION_CREDENTIALS=./credentials/credentials.json
 ```
 
 ### Dependencies

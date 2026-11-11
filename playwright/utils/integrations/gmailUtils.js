@@ -10,7 +10,8 @@ const { authenticate } = require('@google-cloud/local-auth');
  * during automated sign-up.
  *
  * Auth follows the same pattern as GoogleDriveUtils: a Google OAuth *desktop/web*
- * client `credentials.json`, with the authorized-user token cached in `token.json`.
+ * client `credentials/credentials.json`, with the authorized-user token cached in
+ * `credentials/gmail-token.json`. The credentials/ folder is git-ignored.
  * The only difference is the scope: `gmail.readonly`.
  *
  * Because the token is scope-bound, Gmail and Drive need SEPARATE token files.
@@ -31,8 +32,8 @@ class GmailUtils {
      * @param {string[]} [options.scopes] - OAuth2 scopes (default: gmail.readonly).
      */
     constructor({
-        credentialsPath = process.env.GMAIL_CREDENTIALS_PATH || path.join(process.cwd(), 'credentials.json'),
-        tokenPath = process.env.GMAIL_TOKEN_PATH || path.join(process.cwd(), 'gmail-token.json'),
+        credentialsPath = process.env.GMAIL_CREDENTIALS_PATH || path.join(process.cwd(), 'credentials', 'credentials.json'),
+        tokenPath = process.env.GMAIL_TOKEN_PATH || path.join(process.cwd(), 'credentials', 'gmail-token.json'),
         scopes = ['https://www.googleapis.com/auth/gmail.readonly'],
     } = {}) {
         this.credentialsPath = credentialsPath;
