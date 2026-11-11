@@ -24,6 +24,11 @@ const NEXT_STEPS = [
  *    (opens /ug-app/<id>/preview)
  *  - Need help: 866-277-6589, enrollmentonline@asu.edu, after hours 855-278-5080
  * Submitted applications redirect their wizard steps and Review here.
+ *
+ * POM rule for this page: every element is declared here. Fixed elements are named in
+ * `this.selectors`; elements that depend on data (a next-step heading, a summary line,
+ * a help link, an application card) come from the locator methods below. Specs use
+ * these names and the read-back methods, never their own locators.
  */
 class PostAppSubmissionDashboardPage extends BasePage {
     /**
@@ -45,8 +50,78 @@ class PostAppSubmissionDashboardPage extends BasePage {
             summaryHeading: 'role=heading[name="Application summary"]',
             previewLink: 'role=link[name="Review what you submitted"]',
             helpRegion: 'role=region[name="Need help?"]',
+            payFeeStepHeading: 'role=heading[name="Pay application fee"][level=3]',
+            link: 'role=link',
+
+            // Main dashboard (/dashboard)
+            anyH1: 'role=heading[level=1]',
+            inProgressHeading: 'role=heading[name="In-progress applications"]',
+            showSubmittedButton: 'role=button[name="View previously submitted applications"]',
+            visibleLine: 'p:visible',
+            // From a line inside an application card to the card itself.
+            submittedCardFromLine: 'xpath=ancestor::*[.//button[normalize-space()="View application"] and contains(normalize-space(.), "Application ID")][1]',
+            draftCardFromLine: 'xpath=ancestor::*[.//button[normalize-space()="Continue"] and contains(normalize-space(.), "Application ID")][1]',
+            viewApplicationButton: 'role=button[name="View application"]',
+            continueButton: 'role=button[name="Continue"s]',
+            startNewApplicationButton: 'role=button[name="Start a new application"]',
+            continueWithNewButton: 'role=button[name="Continue with new application"]',
+            newApplicationModal: 'role=alertdialog',
+            degreeYesRadio: 'role=radio[name="Yes, I want to pursue an associate or bachelor\'s degree."]',
+
+            // Profile menu
+            profileMenuButton: 'role=button[name="Profile menu"]',
+            profileMenu: 'role=menu',
+            profileMenuEntries: 'a, button, [role="menuitem"]',
+            signOutItem: 'text="Sign out"',
         };
         this.NEXT_STEPS = NEXT_STEPS;
+    }
+
+    // ------------------------------------------------------------------ locators that depend on data
+
+    /**
+     * A visible paragraph whose text matches, e.g. /^\s*Program:/.
+     * @param {RegExp} text
+     * @returns {import('@playwright/test').Locator}
+     */
+    line(text) {
+        return this.page.locator(this.selectors.visibleLine, { hasText: text });
+    }
+
+    /**
+     * One of the four "Next steps" headings.
+     * @param {string} step - one of NEXT_STEPS
+     * @returns {import('@playwright/test').Locator}
+     */
+    nextStepHeading(step) {
+        return this.page.getByRole('heading', { name: step, level: 3 });
+    }
+
+    /**
+     * A phone or email link in "Need help?" (accessible name "Link to <value>").
+     * @param {string} value - e.g. "866-277-6589"
+     * @returns {import('@playwright/test').Locator}
+     */
+    helpLink(value) {
+        return this.page.locator(this.selectors.helpRegion).getByRole('link', { name: `Link to ${value}` });
+    }
+
+    /**
+     * The QTR reminder alert.
+     * @param {string} [text]
+     * @returns {import('@playwright/test').Locator}
+     */
+    qtrAlert(text = 'Qualified Tuition Reduction (QTR) Reminder') {
+        return this.page.locator(this.selectors.qtrAlert).filter({ hasText: text });
+    }
+
+    /**
+     * A radio in the new-application modal (learning mode).
+     * @param {string} label - e.g. "Online"
+     * @returns {import('@playwright/test').Locator}
+     */
+    modalRadio(label) {
+        return this.page.locator(this.selectors.newApplicationModal).getByRole('radio', { name: label, exact: true });
     }
 
     // ------------------------------------------------------------------ navigation
@@ -77,9 +152,9 @@ class PostAppSubmissionDashboardPage extends BasePage {
      * @returns {Promise<void>}
      */
     async revealSubmittedApplications() {
-        await this.page.getByRole('heading', { level: 1 }).first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        await this.page.locator(this.selectors.anyH1).first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
         await this.settle();
-        const reveal = this.page.getByRole('button', { name: 'View previously submitted applications' });
+        const reveal = this.page.locator(this.selectors.showSubmittedButton);
         if (await reveal.isVisible().catch(() => false)) await reveal.click();
     }
 
@@ -91,10 +166,10 @@ class PostAppSubmissionDashboardPage extends BasePage {
      */
     async submittedCard(id) {
         await this.revealSubmittedApplications();
-        const submitted = this.page.locator('p:visible', { hasText: /^\s*Submitted on / });
+        const submitted = this.line(/^\s*Submitted on /);
         await submitted.first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
         // The card is the nearest ancestor holding both its button and the Application ID.
-        const cards = submitted.locator('xpath=ancestor::*[.//button[normalize-space()="View application"] and contains(normalize-space(.), "Application ID")][1]');
+        const cards = submitted.locator(this.selectors.submittedCardFromLine);
         // Card text runs together ("...5020364Submitted on..."), so use (?!\d), not \b.
         return id ? cards.filter({ hasText: new RegExp(`Application ID:\\s*${id}(?!\\d)`) }).first() : cards.first();
     }
@@ -105,12 +180,11 @@ class PostAppSubmissionDashboardPage extends BasePage {
      */
     async getDraftApplicationId() {
         await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
-        await this.page.getByRole('heading', { level: 1 }).first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        await this.page.locator(this.selectors.anyH1).first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
         await this.settle();
-        const heading = this.page.getByRole('heading', { name: 'In-progress applications' });
+        const heading = this.page.locator(this.selectors.inProgressHeading);
         if (!(await heading.isVisible().catch(() => false))) return undefined;
-        const card = this.page.locator('p:visible', { hasText: /^\s*Continue your application/ }).first()
-            .locator('xpath=ancestor::*[.//button[normalize-space()="Continue"] and contains(normalize-space(.), "Application ID")][1]');
+        const card = this.line(/^\s*Continue your application/).first().locator(this.selectors.draftCardFromLine);
         return ((await card.innerText()).match(/Application ID:\s*(\d+)/) || [])[1];
     }
 
@@ -124,19 +198,18 @@ class PostAppSubmissionDashboardPage extends BasePage {
     async startOrResumeNewApplication({ mode = 'Online' } = {}) {
         const draftId = await this.getDraftApplicationId();
         if (draftId) {
-            const card = this.page.locator('p:visible', { hasText: new RegExp(`Application ID:\\s*${draftId}(?!\\d)`) }).first()
-                .locator('xpath=ancestor::*[.//button[normalize-space()="Continue"] and contains(normalize-space(.), "Application ID")][1]');
-            await card.getByRole('button', { name: 'Continue', exact: true }).click();
+            const card = this.line(new RegExp(`Application ID:\\s*${draftId}(?!\\d)`)).first().locator(this.selectors.draftCardFromLine);
+            await card.locator(this.selectors.continueButton).click();
             await this.page.waitForURL(/\/ug-app\/\d+\//, { timeout: this.navigationTimeout });
             return { applicationId: draftId, resumed: true };
         }
-        await this.page.getByRole('button', { name: 'Start a new application' }).click();
-        await this.page.getByRole('button', { name: 'Continue with new application' }).click();
-        const modal = this.page.getByRole('alertdialog');
+        await this.page.locator(this.selectors.startNewApplicationButton).click();
+        await this.page.locator(this.selectors.continueWithNewButton).click();
+        const modal = this.page.locator(this.selectors.newApplicationModal);
         await modal.waitFor({ state: 'visible', timeout: this.navigationTimeout });
-        await modal.getByRole('radio', { name: mode, exact: true }).click();
-        await modal.getByRole('radio', { name: "Yes, I want to pursue an associate or bachelor's degree." }).click();
-        await modal.getByRole('button', { name: 'Continue', exact: true }).click();
+        await this.modalRadio(mode).click();
+        await modal.locator(this.selectors.degreeYesRadio).click();
+        await modal.locator(this.selectors.continueButton).click();
         await this.page.waitForURL(/\/ug-app\/\d+\//, { timeout: this.navigationTimeout });
         const m = this.page.url().match(/\/ug-app\/(\d+)\//);
         return { applicationId: m ? m[1] : '', resumed: false };
@@ -147,10 +220,10 @@ class PostAppSubmissionDashboardPage extends BasePage {
      * @returns {Promise<string[]>}
      */
     async getProfileMenuItems() {
-        await this.page.getByRole('button', { name: 'Profile menu' }).click();
-        const menu = this.page.getByRole('menu');
+        await this.page.locator(this.selectors.profileMenuButton).click();
+        const menu = this.page.locator(this.selectors.profileMenu);
         await menu.waitFor({ state: 'visible', timeout: this.assertionTimeout });
-        const items = (await menu.locator('a, button, [role="menuitem"]').allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean);
+        const items = (await menu.locator(this.selectors.profileMenuEntries).allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean);
         await this.page.keyboard.press('Escape');
         return [...new Set(items)];
     }
@@ -160,8 +233,8 @@ class PostAppSubmissionDashboardPage extends BasePage {
      * @returns {Promise<void>}
      */
     async signOut() {
-        await this.page.getByRole('button', { name: 'Profile menu' }).click();
-        await this.page.getByRole('menu').getByText('Sign out', { exact: true }).click();
+        await this.page.locator(this.selectors.profileMenuButton).click();
+        await this.page.locator(this.selectors.profileMenu).locator(this.selectors.signOutItem).click();
         await this.page.waitForURL((u) => !/\/dashboard|\/ug-app\//.test(u.pathname), { timeout: this.navigationTimeout });
         await this.settle();
     }
@@ -183,13 +256,12 @@ class PostAppSubmissionDashboardPage extends BasePage {
         if (!onNextSteps()) {
             this.logger.warn(`Direct link to Next steps landed on ${this.page.url()}; using "View application"`);
             const card = await this.submittedCard(id);
-            await card.getByRole('button', { name: 'View application' }).click();
+            await card.locator(this.selectors.viewApplicationButton).click();
             await this.page.waitForURL(/\/ug-app\/\d+\/dashboard/, { timeout: this.navigationTimeout });
         }
         await this.verifyPageLoaded();
         // The heading renders before the content; wait for the summary to be filled in.
-        await expect(this.page.locator('p:visible', { hasText: /^\s*Program:\s*\S/ }).first())
-            .toBeVisible({ timeout: this.navigationTimeout });
+        await expect(this.line(/^\s*Program:\s*\S/).first()).toBeVisible({ timeout: this.navigationTimeout });
         await expect(this.page.locator(this.selectors.previewLink)).toBeVisible({ timeout: this.navigationTimeout });
     }
 
@@ -208,7 +280,7 @@ class PostAppSubmissionDashboardPage extends BasePage {
     async validatePostDashboard() {
         await expect(this.page.locator(this.selectors.congratulations)).toBeVisible();
         for (const step of NEXT_STEPS) {
-            await expect(this.page.getByRole('heading', { name: step, level: 3 })).toBeVisible();
+            await expect(this.nextStepHeading(step)).toBeVisible();
         }
         await expect(this.page.locator(this.selectors.summaryHeading)).toBeVisible();
         await expect(this.page.locator(this.selectors.helpRegion)).toBeVisible();
@@ -221,7 +293,7 @@ class PostAppSubmissionDashboardPage extends BasePage {
      */
     async getApplicationSummary() {
         const read = async (/** @type {string} */ label) => {
-            const text = await this.page.locator('p:visible', { hasText: new RegExp(`^\\s*${label}:`) }).first().innerText();
+            const text = await this.line(new RegExp(`^\\s*${label}:`)).first().innerText();
             return text.replace(new RegExp(`^\\s*${label}:\\s*`), '').trim();
         };
         return {
@@ -252,7 +324,7 @@ class PostAppSubmissionDashboardPage extends BasePage {
      * @returns {Promise<'unpaid'|'paid or waived'>}
      */
     async getFeeStatus() {
-        const step = this.page.getByRole('heading', { name: 'Pay application fee', level: 3 });
+        const step = this.page.locator(this.selectors.payFeeStepHeading);
         return (await step.isVisible().catch(() => false)) ? 'unpaid' : 'paid or waived';
     }
 
@@ -263,8 +335,7 @@ class PostAppSubmissionDashboardPage extends BasePage {
      * @returns {Promise<void>}
      */
     async verifyPhoneNumber(expectedPhone = '866-277-6589') {
-        const link = this.page.locator(this.selectors.helpRegion).getByRole('link', { name: `Link to ${expectedPhone}` });
-        await expect(link).toHaveAttribute('href', `tel:${expectedPhone}`);
+        await expect(this.helpLink(expectedPhone)).toHaveAttribute('href', `tel:${expectedPhone}`);
     }
 
     /**
@@ -272,8 +343,7 @@ class PostAppSubmissionDashboardPage extends BasePage {
      * @returns {Promise<void>}
      */
     async verifyEmailAddress(expectedEmail = 'enrollmentonline@asu.edu') {
-        const link = this.page.locator(this.selectors.helpRegion).getByRole('link', { name: `Link to ${expectedEmail}` });
-        await expect(link).toHaveAttribute('href', `mailto:${expectedEmail}`);
+        await expect(this.helpLink(expectedEmail)).toHaveAttribute('href', `mailto:${expectedEmail}`);
     }
 
     // ------------------------------------------------------------------ QTR alert
@@ -283,8 +353,7 @@ class PostAppSubmissionDashboardPage extends BasePage {
      * @returns {Promise<boolean>}
      */
     async checkQtrAlertPresenceForAZOnline() {
-        const alert = this.page.locator(this.selectors.qtrAlert).filter({ hasText: 'Qualified Tuition Reduction (QTR) Reminder' });
-        return alert.isVisible().catch(() => false);
+        return this.qtrAlert().isVisible().catch(() => false);
     }
 
     /**
@@ -300,7 +369,7 @@ class PostAppSubmissionDashboardPage extends BasePage {
      */
     async closeQtrAlert() {
         await this.page.locator(this.selectors.closeAlert).click();
-        await expect(this.page.locator(this.selectors.qtrAlert).filter({ hasText: 'QTR' })).toBeHidden({ timeout: this.assertionTimeout });
+        await expect(this.qtrAlert('QTR')).toBeHidden({ timeout: this.assertionTimeout });
     }
 
     // ------------------------------------------------------------------ links
@@ -349,7 +418,25 @@ class PostAppSubmissionDashboardPage extends BasePage {
     async clickPreviewLink() {
         await this.page.locator(this.selectors.previewLink).click();
         await this.page.waitForURL(/\/ug-app\/\d+\/preview/, { timeout: this.navigationTimeout });
-        await expect(this.page.getByRole('heading', { name: 'Preview Submitted Application' })).toBeVisible({ timeout: this.navigationTimeout });
+        const PreviewPage = require('./PreviewPage');
+        await new PreviewPage(this.page).verifyPageLoaded();
+    }
+
+    /**
+     * The summary and help panel are shown (used for the phone-size check).
+     * @returns {Promise<void>}
+     */
+    async verifySummaryAndHelpVisible() {
+        await expect(this.page.locator(this.selectors.summaryHeading)).toBeVisible({ timeout: this.assertionTimeout });
+        await expect(this.page.locator(this.selectors.helpRegion)).toBeVisible({ timeout: this.assertionTimeout });
+    }
+
+    /**
+     * Basic accessibility of Next steps: one h1, no visible link without a name.
+     * @returns {Promise<{ h1Count: number, unnamedControls: number }>}
+     */
+    async getAccessibilitySummary() {
+        return this.getBasicAccessibility(this.selectors.link);
     }
 }
 
