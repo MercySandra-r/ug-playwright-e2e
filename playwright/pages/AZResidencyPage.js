@@ -21,6 +21,8 @@ const QUESTIONS = {
     parentEmployedInAz: { id: 'radio_isParentEmployedInAz', label: 'Is either parent or legal guardian employed in Arizona?' },
     // Veterans only (uniformed services "I am a U.S. service member or veteran", status Veteran).
     registeredToVote: { id: 'radio_isRegisteredToVote', label: 'Are you registered to vote?' },
+    // Applicants under 24 with Arizona as permanent home.
+    claimedAsDependent: { id: 'radio_isTaxClaimedAsDependent', label: 'Were you claimed as a dependent for income tax purposes by a parent or legal guardian for 2025 or 2024?' },
     // Spouse/dependent of a veteran only.
     chapter30or33: { id: 'radio_isEligibleFor30or33ChapterBenefits', label: 'Are you eligible for Chapter 30 or Chapter 33 benefits?' },
 };
@@ -95,6 +97,9 @@ class AZResidencyPage extends BasePage {
             dropdownSearch: 'input[placeholder="Search..."]',
             permanentState: '#permanent',
             parentState: '#group-stateParentLives',
+            // Active military ("Where are you currently stationed?"). APP BUG: it reuses the
+            // license-state id, so match it by its label too.
+            stationedState: 'role=combobox[name=/^Where are you currently stationed\\?/]',
             parentRelationship: '#group-selectParentRelationship',
             parentAzSinceMonth: '#group-DOM_PAR_DT-month',
             parentAzSinceYear: '#group-DOM_PAR_DT-year',
@@ -228,6 +233,38 @@ class AZResidencyPage extends BasePage {
      */
     async isSupportTotalErrorShown() {
         return this.page.locator(this.selectors.supportTotalError).isVisible();
+    }
+
+    // ------------------------------------------------------------------ which fields are shown
+
+    /**
+     * Named fields currently shown on the step, for comparing with the scenario sheet.
+     * Questions use their QUESTIONS key; dropdowns their selector name; the support table
+     * is "financialSupport". Anything unrecognised comes back as "#<id>".
+     * @returns {Promise<string[]>} sorted names
+     */
+    async getShownFields() {
+        const s = this.selectors;
+        /** @type {Record<string, string>} */
+        const byId = Object.fromEntries(Object.entries(QUESTIONS).map(([key, q]) => [q.id, key]));
+        /** @type {Array<[string, string]>} */
+        const named = [
+            ['permanentState', s.permanentState], ['parentState', s.parentState], ['stationedState', s.stationedState],
+            ['parentRelationship', s.parentRelationship], ['parentTaxState', s.parentTaxState],
+            ['dd214CharacterOfService', s.dd214CharacterOfService], ['dischargeDate', s.dischargeMonth],
+            ['registeredToVoteState', s.registeredToVoteState], ['serviceMemberType', s.serviceMemberType],
+            ['serviceMemberStationedState', s.serviceMemberStationedState], ['serviceMemberDischargeDate', s.serviceMemberDischargeMonth],
+            ['financialSupport', SUPPORT.parent],
+        ];
+        /** @type {Set<string>} */
+        const shown = new Set();
+        for (const [name, selector] of named) {
+            if (await this.page.locator(selector).first().isVisible().catch(() => false)) shown.add(name);
+        }
+        const groupIds = await this.page.evaluate(() => [...document.querySelectorAll('main [role="radiogroup"][id]')]
+            .filter((g) => g.getClientRects().length > 0).map((g) => g.id));
+        for (const id of groupIds) shown.add(byId[id] || `#${id}`);
+        return [...shown].sort();
     }
 
     // ------------------------------------------------------------------ spouses/dependents of service members
