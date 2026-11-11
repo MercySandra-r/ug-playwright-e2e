@@ -305,11 +305,22 @@ class PreAppDashboardPage extends BasePage {
     async fillContactInformation({ phoneNumber, phoneType = 'Mobile' }) {
         await this.fillPhone(phoneNumber);
         const mobile = this.page.locator(this.selectors.mobileGroup);
+        const isMobile = /mobile/i.test(phoneType);
         if (await mobile.waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false)) {
-            await this.radioIn(this.selectors.mobileGroup, /mobile/i.test(phoneType) ? 'Yes' : 'No').click();
+            // The phone section can re-render as it settles and drop the answer; re-click until it sticks.
+            const answer = this.radioIn(this.selectors.mobileGroup, isMobile ? 'Yes' : 'No');
+            for (let attempt = 0; attempt < 3; attempt++) {
+                await answer.click();
+                if (await expect(answer).toHaveAttribute('aria-checked', 'true', { timeout: 2000 }).then(() => true).catch(() => false)) break;
+            }
+            await expect(answer).toHaveAttribute('aria-checked', 'true', { timeout: this.assertionTimeout });
         }
-        if (await this.page.locator(this.selectors.smsGroup).isVisible().catch(() => false)) {
+        // The SMS question (and its terms) renders a moment after "mobile: Yes" and pushes
+        // the Start button down; wait for it so nothing shifts under the next click.
+        const sms = this.page.locator(this.selectors.smsGroup);
+        if (await sms.waitFor({ state: 'visible', timeout: isMobile ? 5000 : 1500 }).then(() => true).catch(() => false)) {
             await this.radioIn(this.selectors.smsGroup, 'No').click();
+            await expect(this.radioIn(this.selectors.smsGroup, 'No')).toHaveAttribute('aria-checked', 'true', { timeout: this.assertionTimeout });
         }
     }
 
@@ -471,13 +482,17 @@ class PreAppDashboardPage extends BasePage {
 
         const startButton = this.page.locator(this.selectors.startNewAppButton);
         if (captureValidations) {
-            // Click Start new application on the empty form first and record what it flags.
+            // Click Start new application on the empty form first and record what it flags,
+            // then reload: filling the form that just failed validation can lose answers
+            // (the phone section re-renders and drops the mobile/SMS choice).
             await this.captureFieldValidations({ stepName: 'Start new application', button: startButton });
+            await this.navigateToDashboard(mode);
         }
         await this.fillPersonalInformation({ firstName, preferredFirstName, middleName, lastName, suffix });
         await this.setDateOfBirth(birth);
         await this.fillContactInformation({ phoneNumber: phone, phoneType: 'Mobile' });
 
+        await startButton.scrollIntoViewIfNeeded();
         await startButton.click();
         await this.handleBriteVerifyPopup('submit');
         await this.page.waitForURL(/\/ug-app\/\d+\//, { timeout: 45000 });

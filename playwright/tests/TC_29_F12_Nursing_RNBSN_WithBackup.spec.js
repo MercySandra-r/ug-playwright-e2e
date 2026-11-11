@@ -14,9 +14,8 @@ const ReviewPage = require('../pages/ReviewPage');
  * selection, "Are you currently pursuing or have you completed a registered nurse
  * associate degree program?", whose answer decides the follow-up fields:
  *  - enrolled in an associate nursing program: institution (required), employer (optional)
- *  - completed one: RN license state, institution (required), license number (optional,
- *    digits only), employer (optional). The state isn't marked optional but an empty one
- *    isn't flagged either (2026-11-11).
+ *  - completed one: institution (required); RN license state, license number (digits
+ *    only) and employer are optional
  *  - none of these: the program is not available; Continue is blocked
  * Every answer is checked, then the applicant (a licensed RN in Arizona) continues through
  * schools, grades and residency to Review. Nothing is submitted.
@@ -93,6 +92,7 @@ test.describe('F12 Nursing - RN/BSN with backup program', () => {
     test('Enrolled in an associate nursing program: institution required, employer optional', async () => {
         await programPage.answerRnPathway('enrolled');
         expect(await programPage.getRnFollowUps()).toEqual(['institutionName', 'employer']);
+        expect(await programPage.getRnOptionalFields()).toEqual(['employer']);
         expect(await programPage.getRnInstitutionLabel()).toMatch(/^Institution name where you.re pursuing nursing associate degree/);
 
         // Employer alone is not enough: the institution is required.
@@ -104,9 +104,11 @@ test.describe('F12 Nursing - RN/BSN with backup program', () => {
         expect(await programPage.readRnDetails()).toEqual(entered);
     });
 
-    test('Completed an associate nursing program: institution required, license number digits only', async () => {
+    test('Completed an associate nursing program: only institution required, license number digits only', async () => {
         await programPage.answerRnPathway('completed');
         expect(await programPage.getRnFollowUps()).toEqual(['licenseState', 'institutionName', 'licenseNumber', 'employer']);
+        // Only the institution is required.
+        expect(await programPage.getRnOptionalFields()).toEqual(['licenseState', 'licenseNumber', 'employer']);
         expect(await programPage.getRnInstitutionLabel()).toMatch(/^Institution name where you earned nursing associate degree/);
 
         const states = await programPage.getDropdownOptions(programPage.selectors.rnLicenseState);

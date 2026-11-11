@@ -49,8 +49,10 @@ const INTENT = {
  * selection, "Are you currently pursuing or have you completed a registered nurse associate
  * degree program?" (RN_PATHWAYS):
  *  - enrolled: Institution name (required), Employer (optional)
- *  - completed: State licensed to practice as an RN (required), Institution name
- *    (required), RN license number (optional), Employer (optional)
+ *  - completed: Institution name (required); State licensed to practice as an RN,
+ *    RN license number (digits only) and Employer are optional
+ *  Each field has a visible label ending in "Optional" when it is optional; the license
+ *  state also has a hidden legacy label without it (getRnOptionalFields reads the visible one).
  *  - none: a notice that the program is only for licensed RNs / associate nursing
  *    students; Continue stays on My program
  * See answerRnPathway(), getRnFollowUps(), fillRnDetails(), readRnDetails().
@@ -126,6 +128,13 @@ class MyASUProgramPage extends BasePage {
             rnPathway: '#currently_pursuing',
             rnInstitutionName: '#institution_name',
             rnInstitutionLabel: 'label[for="institution_name"]',
+            // Visible labels only (the license state also has a hidden .d-none legacy label).
+            rnFieldLabels: {
+                licenseState: 'label[for="state_select"]:not(.d-none)',
+                institutionName: 'label[for="institution_name"]:not(.d-none)',
+                licenseNumber: 'label[for="rn_license_number"]:not(.d-none)',
+                employer: 'label[for="employer"]:not(.d-none)',
+            },
             rnLicenseState: '#state_select',
             rnLicenseNumber: '#rn_license_number',
             rnEmployer: '#employer',
@@ -729,6 +738,21 @@ class MyASUProgramPage extends BasePage {
      */
     async getRnInstitutionLabel() {
         return (await this.page.locator(this.selectors.rnInstitutionLabel).first().innerText()).replace(/\s+/g, ' ').trim();
+    }
+
+    /**
+     * Shown Nursing follow-ups whose visible label marks them "Optional", in page order.
+     * @returns {Promise<string[]>} subset of licenseState, institutionName, licenseNumber, employer
+     */
+    async getRnOptionalFields() {
+        /** @type {string[]} */
+        const optional = [];
+        for (const [name, selector] of Object.entries(this.selectors.rnFieldLabels)) {
+            const label = this.page.locator(selector).first();
+            if (!(await label.isVisible().catch(() => false))) continue;
+            if (/Optional/.test(await label.innerText())) optional.push(name);
+        }
+        return optional;
     }
 
     /**
