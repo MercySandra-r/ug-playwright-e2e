@@ -36,15 +36,17 @@ async function reserveFreshEmail(gmail, maxSkips = 20) {
  * Create a brand-new, email-verified account through the ASU IdP, reading the
  * verification email via the Gmail API, and return to the app authenticated.
  *
- * Addresses come from a persistent sequence (base+asuqa0001@gmail.com, 0002, ...).
- * If the IdP says the account already exists, the next number is tried.
+ * Addresses come from a persistent sequence (base+asuqa0001@gmail.com, 0002, ...) shared,
+ * under a lock, by every run from this checkout, so parallel terminals never get the same
+ * number. If the IdP still says the account already exists (a run from another checkout or
+ * machine took it), the next number is tried on the same sign-up form.
  *
  * @param {import('@playwright/test').Page} page
  * @param {Object} [opts]
  * @param {string} [opts.email] - Use this exact address (no sequence, no retry).
  * @param {string} [opts.password] - >=10 chars, mixed case + number.
  * @param {GmailUtils} [opts.gmail] - Reuse an initialized GmailUtils instance.
- * @param {number} [opts.maxAttempts] - Sign-up attempts on "already exists" (default 3).
+ * @param {number} [opts.maxAttempts] - Sign-up attempts on "already exists" (default 5).
  * @param {'in-person'|'online'|'random'} [opts.mode] - Learning mode chosen on the landing
  *   page before Continue (default 'online'). The app carries it into the new application.
  * @param {'pursue'|'individual'} [opts.degreeType] - Default 'pursue'.
@@ -54,14 +56,19 @@ async function signUpVerifiedAccount(page, opts = {}) {
     const mode = opts.mode || 'online';
     const degreeType = opts.degreeType || 'pursue';
     const password = opts.password || 'AsuQaTest1234!';
-    const maxAttempts = opts.email ? 1 : opts.maxAttempts || 3;
+    const maxAttempts = opts.email ? 1 : opts.maxAttempts || 5;
     const idp = new AsuIdpPage(page);
     const gmail = opts.gmail || new GmailUtils();
     if (!opts.gmail) await gmail.initialize();
 
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        await idp.startFromApp({ mode, degreeType });
-        await idp.openSignupFromIdp();
+        // After "already exists" the sign-up form is still up: reuse it. Going back to the
+        // landing page doesn't work, because it remembers the learning mode and no longer
+        // offers the choice.
+        if (attempt === 1 || !(await idp.isSignupFormShown())) {
+            await idp.startFromApp({ mode, degreeType });
+            await idp.openSignupFromIdp();
+        }
 
         // Reserve the address only once the sign-up form is up, so failures earlier
         // in the flow don't burn sequence numbers.

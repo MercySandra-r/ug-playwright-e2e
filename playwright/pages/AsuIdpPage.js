@@ -75,6 +75,10 @@ class AsuIdpPage extends BasePage {
     async startFromApp(opts = {}) {
         await this.page.goto('/', { timeout: this.navigationTimeout });
         if (opts.mode) {
+            // A return visit remembers the learning mode and hides the choice; start clean.
+            await this.page.context().clearCookies();
+            await this.page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+            await this.page.goto('/', { timeout: this.navigationTimeout });
             // Lazy require: LandingPage -> authHelper -> AsuIdpPage would otherwise be circular.
             const LandingPage = require('./LandingPage');
             const landing = new LandingPage(this.page);
@@ -101,6 +105,15 @@ class AsuIdpPage extends BasePage {
         await expect(this.page.locator(this.selectors.confirmPasswordInput)).toBeVisible({
             timeout: this.navigationTimeout,
         });
+    }
+
+    /**
+     * Is the "Sign up with email" form on screen (e.g. still there after a rejected sign-up)?
+     * @returns {Promise<boolean>}
+     */
+    async isSignupFormShown() {
+        return /login\.asu\.edu\/signup/.test(this.page.url())
+            && this.page.locator(this.selectors.confirmPasswordInput).isVisible();
     }
 
     /** From the IdP landing page, open "Sign In with Email". */
