@@ -57,6 +57,8 @@ class MyInformationPage extends BasePage {
             nameFormFirstName: 'role=textbox[name="First name"s]',
             nameFormLastName: 'role=textbox[name="Last name"s]',
             confirmDeleteBtn: 'role=dialog >> role=button[name=/^(delete|remove|yes|confirm)/i]',
+            // Shown (and "Add a former name" disabled) once 10 former names are saved.
+            formerNameLimitMessage: 'text=Reached maximum limit',
 
             // Legal sex
             legalSexGroup: '[data-cy="my-info-legal-sex-group"]',
@@ -71,6 +73,12 @@ class MyInformationPage extends BasePage {
             citizenshipCountry: 'role=combobox[name=/Country or territory of citizenship/]',
             visaType: 'role=combobox[name="What type of visa will you be holding?"]',
             uniformedServices: '#group_us_uniformed_services',
+            // Uniformed-services follow-ups (which ones show depends on the option chosen)
+            serviceStatusGroup: 'role=radiogroup[name=/^Choose the status that best applies to you/]',
+            serviceBranch: '#group_service_branch',
+            serviceBranchLabel: 'label[for="group_service_branch"]',
+            vaBenefitsGroup: 'role=radiogroup[name=/^I have applied or plan to apply for Department of Veterans Affairs educational benefits/]',
+            jstAuthorizeGroup: 'role=radiogroup[name=/^I authorize Arizona State University to request my Joint Service Transcript/]',
             dropdownSearch: 'input[placeholder="Search..."]',
             option: 'role=option',
 
@@ -104,6 +112,16 @@ class MyInformationPage extends BasePage {
             guardianForm: 'xpath=ancestor::*[.//button[normalize-space()="Save"]][1]',
             guardianSaveBtn: 'role=button[name="Save"s]',
             guardianNameCell: 'role=cell[name="Guardian name"s]',
+            guardianEmail: 'role=textbox[name="Email address (Optional)"]',
+            guardianPhone: 'role=textbox[name="Phone number (Optional)"]',
+
+            // BriteVerify "Information Verification Required" dialog (after Continue)
+            verifyDialog: 'role=alertdialog',
+            verifyRows: 'role=row',
+            verifyRowHeader: 'role=rowheader',
+            verifyCell: 'role=cell',
+            verifyGoBackButton: 'role=button[name="Go back and change"]',
+            verifySubmitButton: 'role=button[name="Submit"s]',
 
             // Previous ASU affiliation checkboxes (by input name)
             affiliation: {
@@ -200,6 +218,24 @@ class MyInformationPage extends BasePage {
      */
     formerNameLink(action, fullName) {
         return this.page.getByRole('link', { name: `${action} former name for ${fullName}` });
+    }
+
+    /**
+     * A saved guardian's Edit or Delete link.
+     * @param {'Edit'|'Delete'} action
+     * @param {string} fullName - "First Last"
+     * @returns {import('@playwright/test').Locator}
+     */
+    guardianLink(action, fullName) {
+        return this.page.getByRole('link', { name: `${action} guardian name for ${fullName}` });
+    }
+
+    /**
+     * The BriteVerify dialog ("... could not be verified ...").
+     * @returns {import('@playwright/test').Locator}
+     */
+    briteVerifyDialog() {
+        return this.page.locator(this.selectors.verifyDialog).filter({ hasText: /could not be verified/i });
     }
 
     /**
@@ -344,6 +380,32 @@ class MyInformationPage extends BasePage {
         return this.formerNameRow(fullName)
             .waitFor({ state: 'visible', timeout: timeoutMs })
             .then(() => true).catch(() => false);
+    }
+
+    /**
+     * Saved former names, in table order.
+     * @returns {Promise<string[]>}
+     */
+    async getFormerNames() {
+        return (await this.page.locator(this.selectors.formerNameCell).allInnerTexts()).map((t) => t.trim());
+    }
+
+    /**
+     * Whether "Add a former name" can be clicked (it is disabled at the 10-name limit).
+     * @returns {Promise<boolean>}
+     */
+    async canAddFormerName() {
+        const add = this.page.locator(this.selectors.addFormerNameBtn);
+        return (await add.isVisible().catch(() => false)) && add.isEnabled();
+    }
+
+    /**
+     * At the limit: "Add a former name" is disabled and "Reached maximum limit" shows.
+     * @returns {Promise<void>}
+     */
+    async verifyFormerNameLimitReached() {
+        await expect(this.page.locator(this.selectors.addFormerNameBtn)).toBeDisabled({ timeout: this.assertionTimeout });
+        await expect(this.page.locator(this.selectors.formerNameLimitMessage)).toBeVisible({ timeout: this.assertionTimeout });
     }
 
     /**
@@ -533,11 +595,13 @@ class MyInformationPage extends BasePage {
      * Once "Is this person living?" is answered the section also requires Relation,
      * Highest level of schooling completed, and "Did this guardian attend ASU?"
      * (email and phone stay optional). Dropdowns default to their first option.
+     * Email and phone are only checked by BriteVerify when the step is continued.
      * @param {{ firstName: string, lastName: string, isLiving?: boolean|string,
-     *           relation?: string, schooling?: string, attendedAsu?: boolean|string }} parent
+     *           relation?: string, schooling?: string, attendedAsu?: boolean|string,
+     *           email?: string, phone?: string }} parent - phone: US digits, e.g. "4809657788"
      * @returns {Promise<{ relation: string, schooling: string }>} the dropdown values used
      */
-    async addParentInformation({ firstName, lastName, isLiving = true, relation, schooling, attendedAsu = false }) {
+    async addParentInformation({ firstName, lastName, isLiving = true, relation, schooling, attendedAsu = false, email, phone }) {
         // The form is open by default; once a guardian is saved it is behind "Add additional parent or guardian".
         const first = this.page.locator(this.selectors.guardianFirstName);
         if (!(await first.isVisible().catch(() => false))) {
@@ -546,13 +610,50 @@ class MyInformationPage extends BasePage {
         await first.fill(firstName);
         await this.page.locator(this.selectors.guardianLastName).fill(lastName);
         await this.answerYesNo(this.selectors.guardianLivingGroup, MyInformationPage.toBool(isLiving) !== false);
+        if (email) await this.page.locator(this.selectors.guardianEmail).fill(email);
+        if (phone) {
+            // A formatted field: type the digits rather than fill().
+            const box = this.page.locator(this.selectors.guardianPhone);
+            await box.click();
+            await box.press('Control+A');
+            await box.press('Backspace');
+            await box.pressSequentially(phone, { delay: 30 });
+        }
 
         const usedRelation = await this.pickFromDropdown(this.page.locator(this.selectors.guardianRelation), relation);
         const usedSchooling = await this.pickFromDropdown(this.page.locator(this.selectors.guardianSchooling), schooling);
         await this.answerYesNo(this.selectors.guardianAttendedAsuGroup, !!MyInformationPage.toBool(attendedAsu));
 
         await first.locator(this.selectors.guardianForm).locator(this.selectors.guardianSaveBtn).click();
+        // Wait for the form to close and the row to appear; otherwise the next call could type
+        // into this still-closing form and rename the guardian just saved.
+        await expect(first).toBeHidden({ timeout: this.assertionTimeout });
+        await expect(this.page.locator(this.selectors.guardianNameCell).filter({ hasText: `${firstName} ${lastName}` }).first())
+            .toBeVisible({ timeout: this.assertionTimeout });
         return { relation: usedRelation, schooling: usedSchooling };
+    }
+
+    /**
+     * Delete a saved guardian, confirming if asked.
+     * @param {string} fullName - "First Last"
+     * @returns {Promise<void>}
+     */
+    async deleteGuardian(fullName) {
+        await this.guardianLink('Delete', fullName).click();
+        const confirm = this.page.locator(this.selectors.confirmDeleteBtn).first();
+        if (await confirm.waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false)) {
+            await confirm.click();
+        }
+        await expect(this.page.locator(this.selectors.guardianNameCell).filter({ hasText: new RegExp(`^\\s*${fullName}\\s*$`) }))
+            .toHaveCount(0, { timeout: this.assertionTimeout });
+    }
+
+    /**
+     * Saved guardians' names.
+     * @returns {Promise<string[]>}
+     */
+    async getGuardians() {
+        return (await this.page.locator(this.selectors.guardianNameCell).allInnerTexts()).map((t) => t.trim());
     }
 
     /**
@@ -586,6 +687,93 @@ class MyInformationPage extends BasePage {
      */
     async selectMilitaryAffiliation(option = this.NO_UNIFORMED_SERVICES) {
         await this.chooseFromDropdown(this.selectors.uniformedServices, option);
+    }
+
+    /**
+     * Options of a dropdown on this page (closes it again).
+     * @param {string} selector
+     * @returns {Promise<string[]>}
+     */
+    async getDropdownOptions(selector) {
+        await this.page.locator(selector).click();
+        const options = this.page.locator(this.selectors.option);
+        await options.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        const labels = (await options.allInnerTexts()).map((t) => t.replace(/\s*✓\s*$/, '').trim()).filter(Boolean);
+        await this.page.keyboard.press('Escape');
+        return labels;
+    }
+
+    /**
+     * Radio labels of one of the page's radio groups.
+     * @param {string} groupSelector
+     * @returns {Promise<string[]>}
+     */
+    async getRadioOptions(groupSelector) {
+        const radios = this.page.locator(groupSelector).getByRole('radio');
+        await radios.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        return (await radios.allInnerTexts()).map((t) => t.trim());
+    }
+
+    /**
+     * Follow-up fields shown under "Affiliation to U.S. Uniformed Services" for the
+     * current choice, by name, with the branch question's wording (it differs for a
+     * service member and a spouse/dependent).
+     * @returns {Promise<{ fields: string[], branchLabel: string|undefined }>}
+     */
+    async getUniformedServicesFollowUps() {
+        const s = this.selectors;
+        await this.page.waitForTimeout(500); // follow-ups render after the choice
+        /** @type {Array<[string, string]>} */
+        const named = [['serviceStatus', s.serviceStatusGroup], ['serviceBranch', s.serviceBranch],
+            ['vaBenefits', s.vaBenefitsGroup], ['jstAuthorize', s.jstAuthorizeGroup]];
+        const fields = [];
+        for (const [name, selector] of named) {
+            if (await this.page.locator(selector).first().isVisible().catch(() => false)) fields.push(name);
+        }
+        const branchLabel = fields.includes('serviceBranch')
+            ? await this.page.locator(s.serviceBranch).first().evaluate((el) => (el.getAttribute('aria-label')
+                || (el.id && document.querySelector(`label[for="${el.id}"]`)?.textContent)
+                || (el.getAttribute('aria-labelledby') || '').split(/\s+/).map((id) => document.getElementById(id)?.textContent || '').join(' ')
+                || '').replace(/\s+/g, ' ').trim())
+            : undefined;
+        return { fields, branchLabel };
+    }
+
+    /**
+     * Choose a uniformed-services affiliation and answer its mandatory follow-ups:
+     * status (first option unless given), branch (first unless given), VA benefits and
+     * Joint Service Transcript authorisation (No unless given). Only the follow-ups the
+     * choice shows are answered.
+     * @param {{ affiliation?: string, status?: string, branch?: string,
+     *           vaBenefits?: boolean, jstAuthorize?: boolean }} [data]
+     *   affiliation defaults to the first option ("I am a U.S. service member or veteran")
+     * @returns {Promise<{ affiliation: string, status?: string, branch?: string,
+     *           vaBenefits?: string, jstAuthorize?: string }>} what was chosen
+     */
+    async fillUniformedServices({ affiliation, status, branch, vaBenefits = false, jstAuthorize = false } = {}) {
+        const s = this.selectors;
+        const chosen = affiliation
+            ? (await this.chooseFromDropdown(s.uniformedServices, affiliation), affiliation)
+            : await this.chooseFirstDropdownOption(s.uniformedServices);
+        /** @type {{ affiliation: string, status?: string, branch?: string, vaBenefits?: string, jstAuthorize?: string }} */
+        const out = { affiliation: chosen };
+        const { fields } = await this.getUniformedServicesFollowUps();
+        if (fields.includes('serviceStatus')) {
+            out.status = status || (await this.getRadioOptions(s.serviceStatusGroup))[0];
+            await this.radioIn(s.serviceStatusGroup, out.status).click();
+        }
+        if (fields.includes('serviceBranch')) {
+            out.branch = await this.pickFromDropdown(this.page.locator(s.serviceBranch), branch);
+        }
+        if (fields.includes('vaBenefits')) {
+            await this.answerYesNo(s.vaBenefitsGroup, vaBenefits);
+            out.vaBenefits = vaBenefits ? 'Yes' : 'No';
+        }
+        if (fields.includes('jstAuthorize')) {
+            await this.answerYesNo(s.jstAuthorizeGroup, jstAuthorize);
+            out.jstAuthorize = jstAuthorize ? 'Yes' : 'No';
+        }
+        return out;
     }
 
     /**
@@ -663,11 +851,13 @@ class MyInformationPage extends BasePage {
      * Fill EVERY field on the step, optional ones included, in page order: a former name,
      * legal sex, language, full home address (with line 2), Hispanic/Latino and races,
      * non-citizen path (visa, citizenship and birth countries; the optional SSN stays
-     * empty), a parent/guardian (saved), ASU affiliation with an affiliate ID, uniformed
-     * services, and education benefits "Yes" with a provider.
+     * empty), a parent/guardian with email and phone (saved), ASU affiliation with an
+     * affiliate ID, uniformed services (the first option and its mandatory follow-ups), and
+     * education benefits "Yes" with a provider.
      * @param {Partial<typeof MyInformationPage.ALL_FIELDS>} [overrides]
      * @returns {Promise<typeof MyInformationPage.ALL_FIELDS & { visaType: string, benefitProvider: string,
-     *           raceOrigins: Record<string, string>, primaryRace: string|undefined }>}
+     *           raceOrigins: Record<string, string>, primaryRace: string|undefined,
+     *           uniformed: { affiliation: string, status?: string, branch?: string, vaBenefits?: string, jstAuthorize?: string } }>}
      *   what was entered, including the dropdown values picked by default
      */
     async completeAllFields(overrides = {}) {
@@ -683,13 +873,14 @@ class MyInformationPage extends BasePage {
         });
         const guardian = await this.addParentInformation(d.guardian);
         await this.addAsuAffiliateInfo(d.asuAffiliate);
-        await this.selectMilitaryAffiliation(d.militaryStatus);
+        const uniformed = await this.fillUniformedServices(d.uniformedServices);
         const benefitProvider = await this.applyPartnerBenefits({ usesBenefits: true, provider: d.benefitProvider || undefined });
         return {
             ...d,
             raceOrigins,
             primaryRace,
             guardian: { ...d.guardian, ...guardian },
+            uniformed,
             visaType: /** @type {string} */ (visaType),
             benefitProvider: /** @type {string} */ (benefitProvider),
         };
@@ -709,8 +900,9 @@ class MyInformationPage extends BasePage {
      *   primaryRace: string|undefined, citizenship: string|undefined, visaType: string|undefined,
      *   countryOfCitizenship: string|undefined, countryOfBirth: string|undefined,
      *   guardians: string[], affiliations: string[], affiliateId: string|undefined,
-     *   militaryStatus: string|undefined, educationBenefits: string|undefined,
-     *   benefitProvider: string|undefined }>}
+     *   militaryStatus: string|undefined, serviceStatus: string|undefined,
+     *   serviceBranch: string|undefined, vaBenefits: string|undefined, jstAuthorize: string|undefined,
+     *   educationBenefits: string|undefined, benefitProvider: string|undefined }>}
      */
     async readFormValues() {
         const s = this.selectors;
@@ -763,6 +955,10 @@ class MyInformationPage extends BasePage {
             affiliations,
             affiliateId: await value(s.asuAffiliateId),
             militaryStatus: await value(s.uniformedServices),
+            serviceStatus: await checkedIn(s.serviceStatusGroup),
+            serviceBranch: await value(s.serviceBranch),
+            vaBenefits: await checkedIn(s.vaBenefitsGroup),
+            jstAuthorize: await checkedIn(s.jstAuthorizeGroup),
             educationBenefits: await checkedIn(s.educationBenefitsGroup),
             benefitProvider: await value(s.benefitProvider),
         };
@@ -779,14 +975,12 @@ class MyInformationPage extends BasePage {
         await box.click();
         const options = this.page.locator(this.selectors.option);
         await options.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
-        /** @type {string[]} */
-        const selected = [];
-        for (let i = 0; i < await options.count(); i++) {
-            const o = options.nth(i);
-            const flags = await o.evaluate((el) => [el.getAttribute('aria-selected'), el.getAttribute('aria-checked'), el.getAttribute('data-state')]);
-            // A selected option renders a check mark on a second line ("Asian\n✓"); keep the label.
-            if (flags.includes('true') || flags.includes('checked')) selected.push((await o.innerText()).split('\n')[0].trim());
-        }
+        // Read the whole list in one pass: it re-renders while open, so per-option reads can miss.
+        // A selected option renders a check mark on a second line ("Asian\n✓"); keep the label.
+        const selected = await options.evaluateAll((els) => els
+            .filter((el) => el.getAttribute('aria-selected') === 'true' || el.getAttribute('aria-checked') === 'true'
+                || el.getAttribute('data-state') === 'checked')
+            .map((el) => ((el instanceof HTMLElement ? el.innerText : el.textContent) || '').split('\n')[0].trim()));
         await this.page.keyboard.press('Escape');
         return selected;
     }
@@ -799,7 +993,49 @@ class MyInformationPage extends BasePage {
      */
     async saveAndContinue() {
         await this.page.locator(this.selectors.continueButton).click();
-        await this.page.waitForURL(/\/ug-app\/\d+\/my-program/, { timeout: this.navigationTimeout });
+        // BriteVerify may question contact details (e.g. a guardian's phone); continuing
+        // as is is the normal path. Wait for whichever comes first.
+        const deadline = Date.now() + this.navigationTimeout;
+        while (!/\/my-program/.test(this.page.url()) && Date.now() < deadline) {
+            if (await this.briteVerifyDialog().isVisible().catch(() => false)) {
+                this.logger.info(`BriteVerify on Continue: ${JSON.stringify(await this.readVerificationItems())}; submitting as is`);
+                await this.briteVerifyDialog().locator(this.selectors.verifySubmitButton).click();
+            }
+            await this.page.waitForTimeout(500);
+        }
+        await this.page.waitForURL(/\/ug-app\/\d+\/my-program/, { timeout: 5000 });
+    }
+
+    /**
+     * Rows of the open BriteVerify dialog, e.g.
+     * [{ item: 'Additional parent / guardian phone', value: '+1 (500) 555-0123' }].
+     * @returns {Promise<Array<{ item: string, value: string }>>}
+     */
+    async readVerificationItems() {
+        const rows = this.briteVerifyDialog().locator(this.selectors.verifyRows);
+        /** @type {Array<{ item: string, value: string }>} */
+        const items = [];
+        for (let i = 0; i < await rows.count(); i++) {
+            const item = (await rows.nth(i).locator(this.selectors.verifyRowHeader).innerText().catch(() => '')).trim();
+            const value = (await rows.nth(i).locator(this.selectors.verifyCell).innerText().catch(() => '')).trim();
+            if (item) items.push({ item, value });
+        }
+        return items;
+    }
+
+    /**
+     * Click Continue expecting BriteVerify to question something: return what it lists,
+     * then "Go back and change" (nothing is saved; the page stays on My information).
+     * @returns {Promise<Array<{ item: string, value: string }>>}
+     */
+    async continueAndReadVerification() {
+        await this.page.locator(this.selectors.continueButton).click();
+        await this.briteVerifyDialog().waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        const items = await this.readVerificationItems();
+        await this.briteVerifyDialog().locator(this.selectors.verifyGoBackButton).click();
+        await this.briteVerifyDialog().waitFor({ state: 'hidden', timeout: this.assertionTimeout });
+        await expect(this.page).toHaveURL(/\/my-information/);
+        return items;
     }
 
     /**
@@ -855,13 +1091,17 @@ MyInformationPage.ALL_FIELDS = {
     visaType: '',
     countryOfCitizenship: 'Canada',
     countryOfBirth: 'Canada',
-    guardian: { firstName: 'Pat', lastName: 'Guardian', isLiving: true, attendedAsu: false },
+    // Valid contact details: the test inbox and ASU's public Admission Services number.
+    guardian: { firstName: 'Pat', lastName: 'Guardian', isLiving: true, attendedAsu: false,
+        email: 'ugnaaqaautomation1+guardian@gmail.com', phone: '4809657788' },
     asuAffiliate: {
         /** @type {Array<'undergradDegreeSeeking'|'nondegreeOrGraduate'|'globalLaunch'|'transferPathway'|'employee'|'summerProgram'|'other'|'neverAffiliated'>} */
         affiliations: ['summerProgram'],
         affiliateId: '1234567890',
     },
-    militaryStatus: 'None of these options apply to me',
+    // First option ("I am a U.S. service member or veteran"); its mandatory follow-ups take
+    // the first status and branch, and No for VA benefits and the Joint Service Transcript.
+    uniformedServices: { affiliation: '', status: '', branch: '', vaBenefits: false, jstAuthorize: false },
     benefitProvider: '',
 };
 
