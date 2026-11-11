@@ -269,19 +269,63 @@ class MyInformationPage extends BasePage {
 
     /**
      * Optional ethnicity questions.
-     * @param {{ hispanicLatino?: string|boolean, races?: string[] }} data
-     *   races use the dropdown's labels, e.g. "Asian", "White".
+     * @param {{ hispanicLatino?: string|boolean, races?: string[],
+     *           raceOrigins?: Record<string, string>, primaryRace?: string }} data
+     *   races use the dropdown's labels, e.g. "Asian", "White". raceOrigins: answer for a
+     *   race's "Select <race> origin" follow-up (first option when omitted). primaryRace:
+     *   which chosen race is primary when there are 2+, by its label in that list (an origin
+     *   such as "Asian Indian" for races that have one); defaults to the first race.
+     * @returns {Promise<{ raceOrigins: Record<string, string>, primaryRace: string|undefined }>}
      */
-    async selectEthnicityAndRace({ hispanicLatino, races = [] }) {
+    async selectEthnicityAndRace({ hispanicLatino, races = [], raceOrigins = {}, primaryRace }) {
         const hispanic = MyInformationPage.toBool(hispanicLatino);
         if (hispanic !== undefined) await this.answerYesNo('Are you Hispanic/Latino? (Optional)', hispanic);
+        /** @type {Record<string, string>} */
+        const origins = {};
+        let primary;
         if (races.length) {
             await this.page.locator(this.selectors.race).click();
             for (const race of races) {
                 await this.page.getByRole('option', { name: race, exact: true }).click();
             }
             await this.page.keyboard.press('Escape');
+
+            // Follow-ups the choice reveals (both required once shown):
+            //  - "Select <race> origin" for some races (e.g. Asian)
+            //  - with 2+ races, which one the applicant considers primary
+            for (const race of races) {
+                const escaped = race.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const origin = this.page.getByRole('combobox', { name: new RegExp(`^Select ${escaped} origin`) });
+                if (await origin.waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false)) {
+                    origins[race] = await this.pickFromDropdown(origin, raceOrigins[race]);
+                }
+            }
+            if (races.length > 1) {
+                const primaryBox = this.page.getByRole('combobox', { name: /^Please select one of the chosen ethnicities/ });
+                if (await primaryBox.waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false)) {
+                    // Its options name a race's origin when it has one ("Asian Indian", not "Asian").
+                    primary = await this.pickFromDropdown(primaryBox, primaryRace || origins[races[0]] || races[0]);
+                }
+            }
         }
+        return { raceOrigins: origins, primaryRace: primary };
+    }
+
+    /**
+     * Open a dropdown given as a locator and pick an option (exact label), or the first one.
+     * @param {import('@playwright/test').Locator} combobox
+     * @param {string} [optionText]
+     * @returns {Promise<string>} the chosen option's label
+     */
+    async pickFromDropdown(combobox, optionText) {
+        await combobox.scrollIntoViewIfNeeded();
+        await combobox.click();
+        const option = optionText
+            ? this.page.getByRole('option', { name: optionText, exact: true }).first()
+            : this.page.getByRole('option').first();
+        const label = (await option.innerText()).trim();
+        await option.click();
+        return label;
     }
 
     /**
@@ -366,7 +410,12 @@ class MyInformationPage extends BasePage {
      * @returns {Promise<{ relation: string, schooling: string }>} the dropdown values used
      */
     async addParentInformation({ firstName, lastName, isLiving = true, relation, schooling, attendedAsu = false }) {
-        await this.page.locator(this.selectors.guardianFirstName).fill(firstName);
+        // The form is open by default; once a guardian is saved it is behind "Add additional parent or guardian".
+        const first = this.page.locator(this.selectors.guardianFirstName);
+        if (!(await first.isVisible().catch(() => false))) {
+            await this.page.getByRole('button', { name: 'Add additional parent or guardian' }).click();
+        }
+        await first.fill(firstName);
         await this.page.locator(this.selectors.guardianLastName).fill(lastName);
         await this.answerYesNo('Is this person living?', MyInformationPage.toBool(isLiving) !== false);
 
@@ -494,6 +543,46 @@ class MyInformationPage extends BasePage {
         await this.addAsuAffiliateInfo(overrides.asuAffiliate || {});
     }
 
+    /**
+     * Fill EVERY field on the step, optional ones included, in page order: a former name,
+     * legal sex, language, full home address (with line 2), Hispanic/Latino and races,
+     * non-citizen path (visa, citizenship and birth countries; the optional SSN stays
+     * empty), a parent/guardian (saved), ASU affiliation with an affiliate ID, uniformed
+     * services, and education benefits "Yes" with a provider.
+     * @param {Partial<typeof MyInformationPage.ALL_FIELDS>} [overrides]
+     * @returns {Promise<typeof MyInformationPage.ALL_FIELDS & { visaType: string, benefitProvider: string,
+     *           raceOrigins: Record<string, string>, primaryRace: string|undefined }>}
+     *   what was entered, including the dropdown values picked by default
+     */
+    async completeAllFields(overrides = {}) {
+        const d = { ...MyInformationPage.ALL_FIELDS, ...overrides };
+        await this.addFormerName(d.formerName);
+        await this.selectLegalSex(d.legalSex);
+        await this.selectPrimaryLanguage(d.primaryLanguage);
+        await this.fillAddressInformation(d.address);
+        const { raceOrigins, primaryRace } = await this.selectEthnicityAndRace({ hispanicLatino: d.hispanicLatino, races: d.races });
+        const { visaType } = await this.selectCitizenshipStatus({
+            isUsCitizen: false, visaType: d.visaType || undefined,
+            countryOfCitizenship: d.countryOfCitizenship, countryOfBirth: d.countryOfBirth,
+        });
+        const guardian = await this.addParentInformation(d.guardian);
+        const never = this.page.locator(this.selectors.affiliation.neverAffiliated);
+        if (!d.asuAffiliate.affiliations.includes('neverAffiliated') && await never.isChecked()) {
+            await this.page.locator(`label[for="${await never.getAttribute('id')}"]`).click();
+        }
+        await this.addAsuAffiliateInfo(d.asuAffiliate);
+        await this.selectMilitaryAffiliation(d.militaryStatus);
+        const benefitProvider = await this.applyPartnerBenefits({ usesBenefits: true, provider: d.benefitProvider || undefined });
+        return {
+            ...d,
+            raceOrigins,
+            primaryRace,
+            guardian: { ...d.guardian, ...guardian },
+            visaType: /** @type {string} */ (visaType),
+            benefitProvider: /** @type {string} */ (benefitProvider),
+        };
+    }
+
     // ------------------------------------------------------------------ footer
 
     /**
@@ -543,5 +632,29 @@ class MyInformationPage extends BasePage {
         await this.page.keyboard.press('Escape');
     }
 }
+
+/**
+ * Default answers for completeAllFields(): one value for every field on the step.
+ * visaType / benefitProvider left empty mean "first option in the list".
+ */
+MyInformationPage.ALL_FIELDS = {
+    formerName: { firstName: 'Qa', lastName: 'Formername' },
+    legalSex: 'Female',
+    primaryLanguage: 'English',
+    address: { country: 'United States', line1: '1151 S Forest Ave', line2: 'Apt 101', city: 'Tempe', state: 'Arizona', zip: '85281' },
+    hispanicLatino: 'No',
+    races: ['Asian', 'White'],
+    visaType: '',
+    countryOfCitizenship: 'Canada',
+    countryOfBirth: 'Canada',
+    guardian: { firstName: 'Pat', lastName: 'Guardian', isLiving: true, attendedAsu: false },
+    asuAffiliate: {
+        /** @type {Array<'undergradDegreeSeeking'|'nondegreeOrGraduate'|'globalLaunch'|'transferPathway'|'employee'|'summerProgram'|'other'|'neverAffiliated'>} */
+        affiliations: ['summerProgram'],
+        affiliateId: '1234567890',
+    },
+    militaryStatus: 'None of these options apply to me',
+    benefitProvider: '',
+};
 
 module.exports = MyInformationPage;
