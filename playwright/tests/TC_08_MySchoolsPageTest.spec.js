@@ -8,8 +8,9 @@ const MyHighSchoolGradesPage = require('../pages/MyHighSchoolGradesPage');
  * My schools (step 3 of the application wizard), against the live page.
  *
  * One fresh account per run (beforeAll) taken through steps 1-2 to step 3. Serial:
- * tests 1-6 start from a fresh load; 7-12 continue the same page session, because
- * saved schools only persist once Continue is clicked. The last test continues.
+ * tests 1-6 start from a fresh load; 7-14 continue the same page session, because
+ * saved schools only persist once Continue is clicked. The step ends with five high
+ * schools and five colleges, is continued, and the last test checks all ten were kept.
  * Account creation is rate-limited per hour by the IdP; this suite creates one.
  *
  * Debugging without creating accounts: set MYSCHOOLS_TEST_EMAIL and
@@ -125,10 +126,35 @@ test.describe('My Schools Page Tests', () => {
         await schoolsPage.closeDialog();
     });
 
+    test('Add five high schools', async () => {
+        test.setTimeout(300000);
+        const added = await schoolsPage.addHighSchools(5, { country: 'United States', state: 'Arizona', city: 'Tempe' });
+        test.info().annotations.push({ type: 'high schools added', description: JSON.stringify(added) });
+        const saved = await schoolsPage.getSavedHighSchools();
+        expect(saved).toHaveLength(5);
+        expect(saved).toEqual(expect.arrayContaining(['Compadre High School', ...added]));
+    });
+
+    test('Add five colleges or universities', async () => {
+        test.setTimeout(300000);
+        // Mesa: its institution list matches the dropdown's search (Tempe's search drops some listed names).
+        const added = await schoolsPage.addColleges(5, { state: 'Arizona', city: 'Mesa' });
+        test.info().annotations.push({ type: 'institutions added', description: JSON.stringify(added) });
+        const saved = await schoolsPage.getSavedInstitutions();
+        expect(saved).toHaveLength(5);
+        expect(saved).toEqual(expect.arrayContaining(added));
+    });
+
     test('Save and continue to next section', async () => {
-        await schoolsPage.markNoCollegeAttended();
+        // Keep the five colleges: answer stays "Yes".
         await schoolsPage.acknowledgeTranscripts();
         await schoolsPage.saveAndContinue();
         await new MyHighSchoolGradesPage(page).verifyPageLoaded();
+    });
+
+    test('Five high schools and five colleges are kept after Continue', async () => {
+        await schoolsPage.navigateToMySchools();
+        expect(await schoolsPage.getSavedHighSchools()).toHaveLength(5);
+        expect(await schoolsPage.getSavedInstitutions()).toHaveLength(5);
     });
 });

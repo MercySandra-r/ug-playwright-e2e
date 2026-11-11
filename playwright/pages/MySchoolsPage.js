@@ -215,8 +215,16 @@ class MySchoolsPage extends BasePage {
      * @returns {Promise<string[]>}
      */
     async getDropdownOptions(selector) {
-        await this.page.locator(selector).click();
-        const options = this.page.locator(this.selectors.option);
+        // Close any list left open (e.g. the city list right after choosing a city), then
+        // read only this dropdown's own list (its aria-controls), not another one's options.
+        await this.page.keyboard.press('Escape');
+        await this.page.locator(this.selectors.option).first().waitFor({ state: 'hidden', timeout: this.assertionTimeout }).catch(() => {});
+        const box = this.page.locator(selector);
+        await box.click();
+        const listId = await box.getAttribute('aria-controls');
+        const options = listId
+            ? this.page.locator(`[id="${listId}"]`).locator(this.selectors.option)
+            : this.page.locator(this.selectors.option);
         await options.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
         const labels = (await options.allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean);
         await this.page.keyboard.press('Escape');
@@ -306,7 +314,10 @@ class MySchoolsPage extends BasePage {
     /**
      * Fill and save a high school (flow specs' entry point).
      * @param {{ country?: string, state?: string, city?: string, name?: string,
-     *           graduationDate?: string | { month: string, year: string } }} data
+     *           graduationDate?: string | { month: string, year: string },
+     *           firstAttended?: string | { month: string, year: string },
+     *           lastAttended?: string | { month: string, year: string } }} data
+     *   graduationDate is used for the current school, first/last attended for previous ones
      * @returns {Promise<{ country: string, state?: string, city?: string, name: string }>}
      */
     async addHighSchool(data) {
@@ -440,23 +451,33 @@ class MySchoolsPage extends BasePage {
      *           institution?: string, currentStudent?: boolean,
      *           firstAttended?: string | { month: string, year: string },
      *           lastAttended?: string | { month: string, year: string },
-     *           degreeAwarded?: string, eligible?: boolean }} [data]
+     *           degreeAwarded?: string, eligible?: boolean, excludeInstitutions?: string[] }} [data]
+     *   excludeInstitutions: with no institution given, pick the first listed one not in this list
      * @returns {Promise<{ institution: string }>}
      */
     async addCollegeOrUniversity(data = {}) {
         const {
             credits = 12, country = 'United States', state = 'Arizona', city = 'Mesa', institution,
             currentStudent = false, firstAttended = 'August 2024', lastAttended = 'May 2025',
-            degreeAwarded = 'No Degree Awarded', eligible = true,
+            degreeAwarded = 'No Degree Awarded', eligible = true, excludeInstitutions = [],
         } = data;
         await this.answerAttendedCollege(true);
         const add = this.page.locator(this.selectors.addInstitutionButton);
         if (await add.isVisible().catch(() => false)) await add.click();
-        await this.page.locator(this.selectors.semesterCredits).fill(String(credits));
+        const creditsBox = this.page.locator(this.selectors.semesterCredits);
+        if (await creditsBox.isVisible().catch(() => false)) await creditsBox.fill(String(credits));
         await this.choose(this.selectors.instCountry, country);
         await this.choose(this.selectors.instState, state);
         await this.choose(this.selectors.instCity, city);
-        const name = await this.choose(this.selectors.instName, institution);
+        let target = institution;
+        if (!target && excludeInstitutions.length) {
+            // The institution list reloads for the chosen city; read it once it has settled.
+            await this.settle(5000);
+            const listed = await this.getDropdownOptions(this.selectors.instName);
+            target = listed.find((n) => !excludeInstitutions.includes(n));
+            if (!target) throw new Error(`No institution listed for ${city}, ${state} beyond ${excludeInstitutions.length} already saved`);
+        }
+        const name = await this.choose(this.selectors.instName, target);
         if (currentStudent) await this.page.locator(this.selectors.currentStudent).click();
         const first = this.toMonthYear(firstAttended);
         if (first) {
@@ -481,6 +502,84 @@ class MySchoolsPage extends BasePage {
      */
     async getSavedInstitutions() {
         return this.savedRows('Institutions');
+    }
+
+    // ------------------------------------------------------------------ several schools at once
+
+    /**
+     * Open an empty high-school form (the first one is open by default; later ones are
+     * behind "Add a high school").
+     * @returns {Promise<void>}
+     */
+    async openHighSchoolForm() {
+        const add = this.page.locator(this.selectors.addHighSchoolButton);
+        const country = this.page.locator(this.selectors.hsCountry);
+        // A click right after a dialog closes can be swallowed; retry until the form shows.
+        for (let attempt = 0; attempt < 3 && !(await country.isVisible().catch(() => false)); attempt++) {
+            if (await add.isVisible().catch(() => false)) {
+                await add.scrollIntoViewIfNeeded();
+                await add.click();
+            }
+            await country.waitFor({ state: 'visible', timeout: 3000 }).catch(() => {});
+        }
+        await country.waitFor({ state: 'visible', timeout: this.assertionTimeout });
+    }
+
+    /**
+     * Add high schools until `total` are saved, choosing different schools from the
+     * site's list for the city and different attendance years for each. The first saved
+     * school is the current one (graduation date); the rest are previous schools.
+     * @param {number} total - e.g. 5
+     * @param {{ country?: string, state?: string, city?: string }} [where]
+     * @returns {Promise<string[]>} names of the schools this call added
+     */
+    async addHighSchools(total, { country = 'United States', state = 'Arizona', city = 'Tempe' } = {}) {
+        await this.openHighSchoolForm();
+        await this.choose(this.selectors.hsCountry, country);
+        await this.choose(this.selectors.hsState, state);
+        await this.choose(this.selectors.hsCity, city);
+        const listed = await this.getDropdownOptions(this.selectors.hsName);
+        /** @type {string[]} */
+        const added = [];
+        // Re-count before each addition (the table can render late), and stop at `total`.
+        for (let i = 0; (await this.getSavedHighSchools()).length < total; i++) {
+            const saved = await this.getSavedHighSchools();
+            const available = listed.filter((n) => !saved.includes(n));
+            if (!available.length) throw new Error(`No more high schools listed for ${city}, ${state}`);
+            const year = 2017 + i; // a different year range per previous school
+            await this.addHighSchool({
+                country, state, city, name: available[0],
+                graduationDate: 'May 2026',
+                firstAttended: { month: 'August', year: String(year) },
+                lastAttended: { month: 'May', year: String(year + 1) },
+            });
+            added.push(available[0]);
+        }
+        return added;
+    }
+
+    /**
+     * Answer Yes to the college question and add institutions until `total` are saved,
+     * choosing different institutions from the site's list and different dates for each.
+     * @param {number} total - e.g. 5
+     * @param {{ state?: string, city?: string }} [where]
+     * @returns {Promise<string[]>} names of the institutions this call added
+     */
+    async addColleges(total, { state = 'Arizona', city = 'Mesa' } = {}) {
+        /** @type {string[]} */
+        const added = [];
+        // Re-count before each addition (the table can render late), and stop at `total`.
+        for (let i = 0; (await this.getSavedInstitutions()).length < total; i++) {
+            const saved = await this.getSavedInstitutions();
+            const year = 2019 + i;
+            const { institution } = await this.addCollegeOrUniversity({
+                state, city, excludeInstitutions: [...saved, ...added, ''],
+                firstAttended: { month: 'August', year: String(year) },
+                lastAttended: { month: 'May', year: String(year + 1) },
+            });
+            added.push(institution);
+        }
+        return added;
     }
 
     // ------------------------------------------------------------------ transcripts
