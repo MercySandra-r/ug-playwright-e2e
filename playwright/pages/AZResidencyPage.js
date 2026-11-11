@@ -23,12 +23,168 @@ const QUESTIONS = {
     registeredToVote: { id: 'radio_isRegisteredToVote', label: 'Are you registered to vote?' },
     // Applicants under 24 with Arizona as permanent home.
     claimedAsDependent: { id: 'radio_isTaxClaimedAsDependent', label: 'Were you claimed as a dependent for income tax purposes by a parent or legal guardian for 2025 or 2024?' },
+    // Applicants whose race on My information is American Indian/Alaska Native.
+    nativeAmerican: { id: 'radio_isNativeAmerican', label: 'You indicated you are American Indian or Alaska Native. Do you have a tribal enrollment card or certificate of Indian blood?' },
+    // DACA applicants (Prop 308): the only question besides the permanent home.
+    graduatedArizonaHighSchool: { id: 'radio_isGraduateFromAZPublicSchool', label: 'Did you (or will you) graduate from an Arizona public or private high school, or homeschool equivalent, or obtain an Arizona high school equivalency diploma, e.g, GED?' },
     // Spouse/dependent of a veteran only.
     chapter30or33: { id: 'radio_isEligibleFor30or33ChapterBenefits', label: 'Are you eligible for Chapter 30 or Chapter 33 benefits?' },
 };
 
 /** "Which best describes the service member or veteran?" options (spouse/dependent, 2026-11-11). */
 const SERVICE_MEMBER_TYPES = ['Active Duty', 'Armed Forces Reserve', 'National Guard', 'Not Applicable', 'Veteran'];
+
+/**
+ * Which fields the step asks, by applicant scenario (from the "Arizona residency flows"
+ * sheet of the regression workbook). Names are getShownFields() names. Verified live
+ * 2026-11-11. Flows pick a scenario and compare with getShownFields(); TC_10 checks each.
+ *
+ *   asShown         before a permanent home state is chosen
+ *   homeArizona     after choosing Arizona as the permanent home
+ *   homeOtherState  after choosing another state
+ *   applicant / graduationDate: startApplicationAt options that produce the scenario
+ */
+const BASE_FIELDS = ['parentState', 'permanentState'];
+/** Added for an applicant under 24 without an Arizona high school whose home is Arizona. */
+const ARIZONA_HOME_DETAILS = [
+    'claimedAsDependent', 'employed', 'enrolledElsewhere', 'enrolledInAzCollege', 'filedStateTaxes',
+    'financialSupport', 'hasLicense', 'livedInAz12Months', 'married', 'ownsVehicle',
+];
+/** Asked of a veteran before anything else is answered. */
+const VETERAN_FIELDS = ['dd214CharacterOfService', 'dischargeDate', 'hasLicense', 'registeredToVote'];
+/** Asked of an applicant aged 24 or over with an Arizona high school, whatever the home state. */
+const ARIZONA_SCHOOL_ADULT_FIELDS = [
+    'employed', 'enrolledElsewhere', 'enrolledInAzCollege', 'filedStateTaxes', 'financialSupport',
+    'hasLicense', 'ownsVehicle', 'permanentState',
+];
+/** Asked of an applicant under 24 with an Arizona high school, whatever the home state. */
+const ARIZONA_SCHOOL_MINOR_FIELDS = [...ARIZONA_SCHOOL_ADULT_FIELDS, 'claimedAsDependent', 'parentState'];
+const AK_CHIN = { races: ['American Indian/Alaska Native'], raceOrigins: { 'American Indian/Alaska Native': 'Ak-Chin' } };
+const AGE_20 = { month: 'June', day: '15', year: String(new Date().getFullYear() - 20) };
+const CALIFORNIA_HIGH_SCHOOL = { state: 'California', city: 'Los Angeles' };
+
+/**
+ * @typedef {Object} ResidencyScenario
+ * @property {string} name
+ * @property {string} envKey - env variable holding the email of a reusable account on step 5
+ * @property {import('../utils/applicationJourney').Applicant} applicant
+ * @property {string} [graduationDate]
+ * @property {boolean} [notNecessary] - the step only shows the "not necessary" notice
+ * @property {string[]} asShown
+ * @property {string[]} homeArizona
+ * @property {string[]} homeOtherState
+ */
+/** @type {Record<string, ResidencyScenario>} */
+const RESIDENCY_SCENARIOS = {
+    // Sheet TC_01: not a U.S. resident. The step shows "this page is not necessary" and no
+    // fields (My high school grades shows the same notice). Online applicants use the JN
+    // visa: the app says Student (F-1) is not available for online study.
+    nonResident: {
+        name: 'Non-resident (JN visa)',
+        envKey: 'RESIDENCY_NONRESIDENT_TEST_EMAIL',
+        applicant: { birth: AGE_20, visaType: 'International attending ASU Online programs only (JN)' },
+        notNecessary: true,
+        asShown: [],
+        homeArizona: [],
+        homeOtherState: [],
+    },
+    // Sheet TC_02: no Arizona high school. Home outside Arizona asks nothing more.
+    noArizonaHighSchool: {
+        name: 'No Arizona high school, no military affiliation (age 20)',
+        envKey: 'RESIDENCY_NOAZ_BASE_TEST_EMAIL',
+        applicant: { birth: AGE_20, highSchool: CALIFORNIA_HIGH_SCHOOL },
+        asShown: BASE_FIELDS,
+        homeArizona: [...BASE_FIELDS, ...ARIZONA_HOME_DETAILS],
+        homeOtherState: BASE_FIELDS,
+    },
+    // Sheet TC_02, active military: also "Where are you currently stationed?"
+    noArizonaHighSchoolActiveDuty: {
+        name: 'No Arizona high school, active duty (age 20)',
+        envKey: 'RESIDENCY_NOAZ_ACTIVE_TEST_EMAIL',
+        applicant: {
+            birth: AGE_20, highSchool: CALIFORNIA_HIGH_SCHOOL,
+            uniformed: { affiliation: 'I am a U.S. service member or veteran', status: 'Active Duty' },
+        },
+        asShown: [...BASE_FIELDS, 'stationedState'],
+        homeArizona: [...BASE_FIELDS, 'stationedState', ...ARIZONA_HOME_DETAILS],
+        homeOtherState: [...BASE_FIELDS, 'stationedState'],
+    },
+    // Sheet TC_02, veteran: also driver's license, voter registration, DD-214 character of
+    // service and discharge date, whatever the home state.
+    noArizonaHighSchoolVeteran: {
+        name: 'No Arizona high school, veteran (age 20)',
+        envKey: 'RESIDENCY_NOAZ_VETERAN_TEST_EMAIL',
+        applicant: {
+            birth: AGE_20, highSchool: CALIFORNIA_HIGH_SCHOOL,
+            uniformed: { affiliation: 'I am a U.S. service member or veteran', status: 'Veteran' },
+        },
+        asShown: [...BASE_FIELDS, ...VETERAN_FIELDS],
+        homeArizona: [...new Set([...BASE_FIELDS, ...VETERAN_FIELDS, ...ARIZONA_HOME_DETAILS])],
+        homeOtherState: [...BASE_FIELDS, ...VETERAN_FIELDS],
+    },
+    // Sheet TC_02, spouse/dependent of a service member: also "Which of the following
+    // describes the service member?" (its answer then asks more).
+    noArizonaHighSchoolDependent: {
+        name: 'No Arizona high school, spouse/dependent of a service member (age 20)',
+        envKey: 'RESIDENCY_NOAZ_DEPENDENT_TEST_EMAIL',
+        applicant: {
+            birth: AGE_20, highSchool: CALIFORNIA_HIGH_SCHOOL,
+            uniformed: { affiliation: 'I am the spouse/dependent of a U.S. service member or veteran' },
+        },
+        asShown: [...BASE_FIELDS, 'serviceMemberType'],
+        homeArizona: [...BASE_FIELDS, 'serviceMemberType', ...ARIZONA_HOME_DETAILS],
+        homeOtherState: [...BASE_FIELDS, 'serviceMemberType'],
+    },
+    // Sheet TC_02, Native American (Ak-Chin): also the tribal enrollment question.
+    noArizonaHighSchoolNativeAmerican: {
+        name: 'No Arizona high school, Native American (age 20)',
+        envKey: 'RESIDENCY_NOAZ_NATIVE_TEST_EMAIL',
+        applicant: { birth: AGE_20, highSchool: CALIFORNIA_HIGH_SCHOOL, ...AK_CHIN },
+        asShown: [...BASE_FIELDS, 'nativeAmerican'],
+        homeArizona: [...BASE_FIELDS, 'nativeAmerican', ...ARIZONA_HOME_DETAILS],
+        homeOtherState: [...BASE_FIELDS, 'nativeAmerican'],
+    },
+    // Sheet TC_03: Arizona high school, under 24. The details are asked straight away,
+    // with the parent questions; home Arizona adds the 12-months and marriage questions.
+    arizonaHighSchool: {
+        name: 'Arizona high school (age 20)',
+        envKey: 'RESIDENCY_AZ_BASE_TEST_EMAIL',
+        applicant: { birth: AGE_20 },
+        asShown: ARIZONA_SCHOOL_MINOR_FIELDS,
+        homeArizona: [...ARIZONA_SCHOOL_MINOR_FIELDS, 'livedInAz12Months', 'married'],
+        homeOtherState: ARIZONA_SCHOOL_MINOR_FIELDS,
+    },
+    // Sheet TC_03, Native American (Ak-Chin): also the tribal enrollment question.
+    arizonaHighSchoolNativeAmerican: {
+        name: 'Arizona high school, Native American (age 20)',
+        envKey: 'RESIDENCY_AZ_NATIVE_TEST_EMAIL',
+        applicant: { birth: AGE_20, ...AK_CHIN },
+        asShown: [...ARIZONA_SCHOOL_MINOR_FIELDS, 'nativeAmerican'],
+        homeArizona: [...ARIZONA_SCHOOL_MINOR_FIELDS, 'nativeAmerican', 'livedInAz12Months', 'married'],
+        homeOtherState: [...ARIZONA_SCHOOL_MINOR_FIELDS, 'nativeAmerican'],
+    },
+    // Sheet TC_04, Prop 308: DACA with an Arizona high school. Only the graduation question
+    // and the permanent home, whatever the home state.
+    prop308: {
+        name: 'Prop 308: DACA with an Arizona high school (age 20)',
+        envKey: 'RESIDENCY_PROP308_TEST_EMAIL',
+        applicant: { birth: AGE_20, visaType: 'Deferred Action for Childhood Arrivals (DACA)' },
+        asShown: ['graduatedArizonaHighSchool', 'permanentState'],
+        homeArizona: ['graduatedArizonaHighSchool', 'permanentState'],
+        homeOtherState: ['graduatedArizonaHighSchool', 'permanentState'],
+    },
+    // Sheet TC_03: Arizona high school, aged 24 or over (no parent questions). Verified on a
+    // future graduate.
+    arizonaHighSchoolAdult: {
+        name: 'Arizona high school, aged 24 or over',
+        envKey: 'RESIDENCY_AZ_ADULT_TEST_EMAIL',
+        applicant: {},
+        graduationDate: `May ${new Date().getFullYear() + 1}`,
+        asShown: ARIZONA_SCHOOL_ADULT_FIELDS,
+        homeArizona: [...ARIZONA_SCHOOL_ADULT_FIELDS, 'livedInAz12Months', 'married'],
+        homeOtherState: ARIZONA_SCHOOL_ADULT_FIELDS,
+    },
+};
 
 /** "Which character of service is noted on your DD-214?" options, as listed (2026-11-11). */
 const DD214_CHARACTER_OF_SERVICE = ['Under Honorable Conditions (General)', 'Under Other Than Honorable Conditions',
@@ -96,6 +252,8 @@ class AZResidencyPage extends BasePage {
             option: 'role=option',
             dropdownSearch: 'input[placeholder="Search..."]',
             permanentState: '#permanent',
+            // Non-residents: nothing to fill, only Continue.
+            notNecessaryNotice: 'text=/not a resident of the United States. Therefore, this page is not necessary/',
             parentState: '#group-stateParentLives',
             // Active military ("Where are you currently stationed?"). APP BUG: it reuses the
             // license-state id, so match it by its label too.
@@ -236,6 +394,19 @@ class AZResidencyPage extends BasePage {
     }
 
     // ------------------------------------------------------------------ which fields are shown
+
+    /**
+     * Non-residents see "...you are not a resident of the United States. Therefore, this
+     * page is not necessary. Please continue to the next step." and no fields.
+     * Waits briefly for the step to render either the notice or the home-state dropdown.
+     * @returns {Promise<boolean>}
+     */
+    async isStepNotNecessary() {
+        const notice = this.page.locator(this.selectors.notNecessaryNotice);
+        await notice.or(this.page.locator(this.selectors.permanentState)).first()
+            .waitFor({ state: 'visible', timeout: this.navigationTimeout }).catch(() => {});
+        return notice.isVisible();
+    }
 
     /**
      * Named fields currently shown on the step, for comparing with the scenario sheet.
@@ -776,4 +947,5 @@ class AZResidencyPage extends BasePage {
     }
 }
 
+AZResidencyPage.RESIDENCY_SCENARIOS = RESIDENCY_SCENARIOS;
 module.exports = AZResidencyPage;

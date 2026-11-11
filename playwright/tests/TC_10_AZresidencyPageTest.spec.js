@@ -279,3 +279,68 @@ test.describe('AZ Residency Page Tests (spouse/dependent of a service member)', 
         await new ReviewPage(page).verifyPageLoaded();
     });
 });
+
+/**
+ * Which fields step 5 asks, per applicant scenario (the "Arizona residency flows" sheet).
+ * The scenarios and their expected fields live in AZResidencyPage.RESIDENCY_SCENARIOS, so
+ * flows can use the same data.
+ *
+ * These tests only read the step (they choose a home state but never save), so a
+ * scenario's account can be reused on every run: set the scenario's `envKey` to its email
+ * and RESIDENCY_SCENARIO_TEST_PASSWORD to the password. Without them each scenario creates
+ * one new account (the IdP limits sign-ups per hour, so prefer reuse).
+ */
+for (const scenario of Object.values(AZResidencyPage.RESIDENCY_SCENARIOS)) {
+    test.describe(`AZ Residency fields: ${scenario.name}`, () => {
+        test.describe.configure({ mode: 'serial', timeout: 120000 });
+
+        /** @type {import('@playwright/test').BrowserContext} */
+        let context;
+        /** @type {AZResidencyPage} */
+        let residencyPage;
+        const sorted = (/** @type {string[]} */ names) => [...names].sort();
+
+        test.beforeAll(async ({ browser }, testInfo) => {
+            testInfo.setTimeout(480000);
+            context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+            const page = await context.newPage();
+            residencyPage = new AZResidencyPage(page);
+            const email = process.env[scenario.envKey];
+            const password = process.env.RESIDENCY_SCENARIO_TEST_PASSWORD;
+            residencyPage.applicationId = email && password
+                ? await resumeApplication(page, email, password)
+                : await startApplicationAt(page, 'arizona-residency', {
+                    captureValidations: false, applicant: scenario.applicant,
+                    ...(scenario.graduationDate ? { graduationDate: scenario.graduationDate } : {}),
+                });
+        });
+
+        test.afterAll(async () => {
+            await context?.close();
+        });
+
+        test('Fields asked before a permanent home is chosen', async () => {
+            await residencyPage.navigateToAZResidency();
+            // Non-residents get a notice instead of questions
+            expect(await residencyPage.isStepNotNecessary()).toBe(!!scenario.notNecessary);
+            await expect.poll(() => residencyPage.getShownFields()).toEqual(sorted(scenario.asShown));
+        });
+
+        test('Permanent home Arizona', async () => {
+            test.skip(!!scenario.notNecessary, 'No home state is asked when the step is not necessary');
+            await residencyPage.navigateToAZResidency();
+            await residencyPage.selectPermanentState('Arizona');
+            await expect.poll(() => residencyPage.getShownFields()).toEqual(sorted(scenario.homeArizona));
+        });
+
+        test('Permanent home in another state', async () => {
+            test.skip(!!scenario.notNecessary, 'No home state is asked when the step is not necessary');
+            await residencyPage.navigateToAZResidency();
+            // Arizona first, so the test also proves the extra fields go away again.
+            await residencyPage.selectPermanentState('Arizona');
+            await expect.poll(() => residencyPage.getShownFields()).toEqual(sorted(scenario.homeArizona));
+            await residencyPage.selectPermanentState('California');
+            await expect.poll(() => residencyPage.getShownFields()).toEqual(sorted(scenario.homeOtherState));
+        });
+    });
+}
