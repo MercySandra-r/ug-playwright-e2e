@@ -40,14 +40,14 @@ without the app starting the OAuth hand-off. Always enter through the app
    fresh address per run from one inbox.
 2. **Create OAuth credentials** in Google Cloud Console:
    - New project → enable the **Gmail API**.
-   - Create an **OAuth client ID** of type **Desktop app** → download as `credentials.json`
+   - Create an **OAuth client ID** of type **Desktop app** → download it and save it as `credentials/credentials.json` (the `credentials/` folder is git-ignored)
      into `playwright/` (same pattern the Drive util already uses).
    - On the OAuth consent screen, add that Gmail address as a **test user** (or publish).
 3. **Configure `.env`** (see `.env.example`):
    ```
    GMAIL_TEST_ADDRESS=you@gmail.com
-   GMAIL_CREDENTIALS_PATH=credentials.json
-   GMAIL_TOKEN_PATH=gmail-token.json
+   GMAIL_CREDENTIALS_PATH=credentials/credentials.json
+   GMAIL_TOKEN_PATH=credentials/gmail-token.json
    ```
 4. **First authorized run** opens a browser consent screen once and caches the token to
    `gmail-token.json`. Run the reference test locally (headed) to trigger it:
