@@ -633,6 +633,11 @@ class MySchoolsPage extends BasePage {
         const dialog = this.page.locator(this.selectors.dialog).first();
         await dialog.locator(this.selectors.dialogBackButton).click();
         await dialog.waitFor({ state: 'hidden', timeout: this.assertionTimeout });
+        // While a dialog is up, and for a few seconds after it closes, the page behind it is
+        // hidden from role-based lookups, so the saved-schools tables read as empty. Wait
+        // until the page is reachable again (its title answers by role).
+        await this.page.getByRole('heading', { level: 1 }).first()
+            .waitFor({ state: 'visible', timeout: this.navigationTimeout });
     }
 
     /**

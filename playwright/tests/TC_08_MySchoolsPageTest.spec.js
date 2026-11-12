@@ -129,21 +129,27 @@ test.describe('My Schools Page Tests', () => {
 
     test('Add five high schools', async () => {
         test.setTimeout(300000);
+        // Whatever is saved already counts towards the five (normally Compadre High School from
+        // the tests above; nothing after a reload or when this test runs on its own, because
+        // schools only live in the page until Continue).
+        const before = await schoolsPage.getSavedHighSchools();
         const added = await schoolsPage.addHighSchools(5, { country: 'United States', state: 'Arizona', city: 'Tempe' });
         test.info().annotations.push({ type: 'high schools added', description: JSON.stringify(added) });
+        expect(added).toHaveLength(5 - before.length);
         const saved = await schoolsPage.getSavedHighSchools();
         expect(saved).toHaveLength(5);
-        expect(saved).toEqual(expect.arrayContaining(['Compadre High School', ...added]));
+        expect(saved).toEqual(expect.arrayContaining([...before, ...added]));
     });
 
     test('Add five colleges or universities', async () => {
         test.setTimeout(300000);
         // Mesa: its institution list matches the dropdown's search (Tempe's search drops some listed names).
+        const before = await schoolsPage.getSavedInstitutions();
         const added = await schoolsPage.addColleges(5, { state: 'Arizona', city: 'Mesa' });
         test.info().annotations.push({ type: 'institutions added', description: JSON.stringify(added) });
         const saved = await schoolsPage.getSavedInstitutions();
         expect(saved).toHaveLength(5);
-        expect(saved).toEqual(expect.arrayContaining(added));
+        expect(saved).toEqual(expect.arrayContaining([...before, ...added]));
     });
 
     // Saving uses the account up for this suite. With a reused account (MYSCHOOLS_TEST_EMAIL)
