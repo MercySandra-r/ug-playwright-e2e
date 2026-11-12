@@ -3,6 +3,7 @@ const { test, expect } = require('@playwright/test');
 const { startApplicationAt, resumeApplication } = require('../utils/applicationJourney');
 const ReviewPage = require('../pages/ReviewPage');
 const MySchoolsPage = require('../pages/MySchoolsPage');
+const { isSignupAddress } = require('../utils/inboxes');
 
 /**
  * Review (step 6 of the application wizard), against the live page.
@@ -67,7 +68,9 @@ test.describe('Review Page Tests', () => {
         await freshPage();
         expect(await reviewPage.getSectionValue('Profile', 'Legal name')).toBe('Qa Automation');
         expect(await reviewPage.getSectionValue('Profile', 'Date of birth')).toBe('2000-06-15');
-        expect(await reviewPage.getSectionValue('Profile', 'Email')).toMatch(/^ugnaaqaautomation1\+asuqa\d{4}@gmail\.com$/);
+        // The account's sign-up address: "<inbox>+asuqaNNNN@..." on any inbox configured in .env
+        const email = (await reviewPage.getSectionValue('Profile', 'Email')) || '';
+        expect(isSignupAddress(email), `Profile email "${email}" is a suite sign-up address`).toBe(true);
         expect(await reviewPage.getSectionValue('Profile', 'Phone')).toBe('+1 (202) 555-1234');
     });
 
