@@ -10,7 +10,7 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
  *
  *   Greater24        applicant older than 24 (born 25 years ago)
  *   US               U.S. citizen with a U.S. home address in Arizona (My information; the
- *                    SSN is typed from TEST_SSN in .env)
+ *                    SSN typed is a made-up one, new on every run)
  *   SpouseDependent  spouse/dependent of a U.S. service member or veteran (My information)
  *   FutureGrad       high school graduation date in the future (My schools)
  *   InstateSchool    an Arizona high school (Tempe High School)
@@ -27,8 +27,6 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
  * THIS FLOW ALWAYS SUBMITS the application (it cannot be undone), so every run leaves one
  * submitted application in QA. The last name is different on every run, so runs don't look
  * like the same person applying twice.
- *
- * Needs TEST_SSN in playwright/.env (the U.S. citizen path requires an SSN); skipped without.
  *
  * POM: every element comes from the page objects; this spec has no locators of its own.
  */
@@ -62,7 +60,6 @@ const fullName = `${testData.applicant.firstName} ${testData.applicant.lastName}
 
 test.describe('F1 Greater24 US Res SpouseDependent FutureGrad InstateSchool OOS ABOR', () => {
     test.describe.configure({ mode: 'serial', timeout: 180000 });
-    test.skip(!process.env.TEST_SSN, 'Set TEST_SSN (9 digits) in playwright/.env: the U.S. citizen path requires an SSN');
 
     /** @type {import('@playwright/test').BrowserContext} */
     let context;

@@ -1,6 +1,7 @@
 // @ts-check
 const { expect } = require('@playwright/test');
 const BasePage = require('./BasePage');
+const { syntheticSsn } = require('../utils/syntheticSsn');
 
 /**
  * Page Object for step 1 of the application wizard: "My information"
@@ -30,8 +31,10 @@ const BasePage = require('./BasePage');
  * Dropdowns are custom comboboxes: clicking opens a list with a "Search..." box, and
  * options are role=option. Stable ids (group_*) are used where the app provides them.
  *
- * Social Security Number: required when "I am a U.S. citizen" is chosen. It is filled
- * only from TEST_SSN, which the tester sets; see selectCitizenshipStatus().
+ * Social Security Number: required when "I am a U.S. citizen" is chosen. By default a
+ * made-up number from a never-issued range is typed (utils/syntheticSsn.js), new for each
+ * applicant; a spec can pass its own, as the duplicate-application check does with TEST_SSN.
+ * See selectCitizenshipStatus().
  */
 class MyInformationPage extends BasePage {
     /**
@@ -531,10 +534,11 @@ class MyInformationPage extends BasePage {
      * Answer U.S. citizenship.
      *
      * Citizen: also sets country of birth. The app then REQUIRES a Social Security
-     * Number (SSN + confirm). The SSN is filled ONLY from the TEST_SSN environment
-     * variable (or an explicit `ssn`), which the tester sets themselves for test data,
-     * e.g. TEST_SSN=111111111 for the duplicate-application check. It is never
-     * hard-coded; with no value the boxes are left empty and the step can't complete.
+     * Number (SSN + confirm). With no `ssn` given, a made-up number from a never-issued
+     * range is typed (utils/syntheticSsn.js), different for every applicant, so applicants
+     * don't trip the duplicate-application check on each other. The duplicate-application
+     * check itself passes `ssn: process.env.TEST_SSN`, which the tester sets. The number is
+     * never hard-coded, logged or stored.
      *
      * Not a citizen: sets the visa type (first option if none given). The visa then
      * reveals two required dropdowns, country of citizenship and country of birth, plus
@@ -544,16 +548,12 @@ class MyInformationPage extends BasePage {
      *           countryOfCitizenship?: string, visaType?: string, ssn?: string }} data
      * @returns {Promise<{ visaType?: string, ssnFilled?: boolean }>}
      */
-    async selectCitizenshipStatus({ isUsCitizen, countryOfBirth, countryOfCitizenship = 'Canada', visaType, ssn = process.env.TEST_SSN }) {
+    async selectCitizenshipStatus({ isUsCitizen, countryOfBirth, countryOfCitizenship = 'Canada', visaType, ssn }) {
         const citizen = !!MyInformationPage.toBool(isUsCitizen);
         await this.chooseCitizenship(citizen);
         if (citizen) {
             await this.chooseFromDropdown(this.selectors.birthCountry, countryOfBirth || 'United States');
-            const digits = (ssn || '').replace(/\D/g, '');
-            if (!digits) {
-                this.logger.warn('U.S. citizen selected: no TEST_SSN set, so the required SSN is left empty');
-                return { ssnFilled: false };
-            }
+            const digits = (ssn || syntheticSsn()).replace(/\D/g, '');
             await this.fillSocialSecurityNumber(digits);
             return { ssnFilled: true };
         }
@@ -571,14 +571,14 @@ class MyInformationPage extends BasePage {
     }
 
     /**
-     * Type a tester-provided test SSN into both boxes (SSN and confirm). Both inputs
-     * share the id social_security_number. Values come from TEST_SSN; see
-     * selectCitizenshipStatus(). The boxes format as XXX-XX-XXXX, so digits are typed.
-     * @param {string} digits - 9 digits, e.g. "111111111"
+     * Type a test SSN into both boxes (SSN and confirm). Both inputs share the id
+     * social_security_number. See selectCitizenshipStatus() for where the value comes from.
+     * The boxes format as XXX-XX-XXXX, so digits are typed.
+     * @param {string} digits - 9 digits
      * @returns {Promise<void>}
      */
     async fillSocialSecurityNumber(digits) {
-        if (!/^\d{9}$/.test(digits)) throw new Error('TEST_SSN must be 9 digits');
+        if (!/^\d{9}$/.test(digits)) throw new Error('The SSN must be 9 digits (check TEST_SSN in .env if this spec uses it)');
         const boxes = this.page.locator(this.selectors.ssnInputs);
         await boxes.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
         for (let i = 0; i < await boxes.count(); i++) {
@@ -800,7 +800,8 @@ class MyInformationPage extends BasePage {
     /**
      * Fill the step from flow-spec test data. Keys match the TC_17–TC_27 testData:
      * legalSex, primaryLanguage, address, hispanicLatino, races, usCitizenship,
-     * countryOfBirth, visaType, militaryStatus, partnerBenefits.hasPartnerBenefits.
+     * countryOfBirth, visaType, ssn (U.S. citizens; default a made-up number), militaryStatus,
+     * partnerBenefits.hasPartnerBenefits.
      * Sections whose key is absent are left alone.
      * @param {Record<string, any>} data
      * @returns {Promise<void>}
@@ -817,6 +818,7 @@ class MyInformationPage extends BasePage {
                 isUsCitizen: data.usCitizenship,
                 countryOfBirth: data.countryOfBirth,
                 visaType: data.visaType,
+                ssn: data.ssn,
             });
         }
         if (data.militaryStatus !== undefined) {
