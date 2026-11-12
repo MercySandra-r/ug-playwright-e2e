@@ -73,7 +73,11 @@ async function startApplicationAt(page, step, { captureValidations = true, veter
         program.applicationId = applicationId;
         if (captureValidations) await program.captureFieldValidations({ stepName: 'My program' });
         // Anthropology, BA has no higher admission requirements, so no backup is needed.
-        await program.selectProgram({ program: 'Anthropology, BA', degreeType: 'Bachelor' });
+        await program.selectProgram({
+            program: 'Anthropology, BA', degreeType: 'Bachelor',
+            // In person: the campus to attend (default: the first one offered).
+            ...(applicant.campus ? { location: applicant.campus } : {}),
+        });
         await program.saveAndContinue();
     }
     if (target > 2) {
@@ -124,6 +128,8 @@ async function startApplicationAt(page, step, { captureValidations = true, veter
  * @property {string} [firstName] - pre-app legal first name (default "Qa")
  * @property {string} [lastName] - pre-app legal last name (default "Automation")
  * @property {boolean} [usCitizen] - My information: U.S. citizen (needs TEST_SSN in .env)
+ * @property {string} [campus] - My program, in-person applicants: the campus location, e.g.
+ *   "Tempe" (default: the first one offered)
  * @property {string} [partnerBenefitsProvider] - My information: Education benefits = Yes with
  *   this provider, e.g. "Amazon DSP" (default: No)
  * @property {string} [visaType] - My information visa (non-citizen path), e.g. "Student (F-1)"
