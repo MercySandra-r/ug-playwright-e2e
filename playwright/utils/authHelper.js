@@ -4,7 +4,7 @@ const GmailUtils = require('./integrations/gmailUtils');
 const { nextSignupEmail } = require('./emailSequence');
 const { logger } = require('./testLogger');
 const { recordAccount, noteSignedIn } = require('./accountLog');
-const { getInboxes, pickInbox, markRateLimited, nextAvailableTime, inboxForEmail, gmailFor } = require('./inboxes');
+const { getInboxes, pickInbox, markRateLimited, describeInboxes, inboxForEmail, gmailFor } = require('./inboxes');
 
 /**
  * Has this inbox ever received mail for `email`? If so the address was already
@@ -69,8 +69,9 @@ async function signUpVerifiedAccount(page, opts = {}) {
     // A given address fixes the inbox; otherwise take the first inbox not on cool-down.
     let inbox = opts.email ? inboxForEmail(opts.email) || getInboxes()[0] : pickInbox();
     if (!inbox) {
-        throw new Error(`IdP sign-up rate limit: every configured inbox is cooling down (next one frees up at ${nextAvailableTime()}). ` +
-            'Wait, or add another inbox (GMAIL_TEST_ADDRESS_2, ... in .env).');
+        throw new Error('No sign-up attempted: the IdP has rate-limited every configured inbox, so there is none left to switch to. ' +
+            `Inboxes: ${describeInboxes()}. Wait for one to free up, add another inbox to .env (GMAIL_TEST_ADDRESS_3, ...), ` +
+            'or reuse existing accounts (the *_TEST_EMAIL variables) so fewer are created.');
     }
 
     // Each attempt starts from the app again (startFromApp clears the remembered learning
@@ -105,7 +106,7 @@ async function signUpVerifiedAccount(page, opts = {}) {
                 }
                 throw new Error(
                     `IdP sign-up rate limit hit for ${email}: "${formError}". ` +
-                    `Every configured inbox is now limited (next one frees up at ${nextAvailableTime()}).`
+                    `No inbox is left to switch to. Inboxes: ${describeInboxes()}.`
                 );
             }
             throw new Error(`IdP rejected sign-up for ${email}: "${formError}"`);

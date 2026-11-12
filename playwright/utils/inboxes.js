@@ -86,6 +86,18 @@ function nextAvailableTime() {
 }
 
 /**
+ * Every configured inbox with its state, for error messages, e.g.
+ * "a@gmail.com (limited until 11:17:25 am), b@gmail.com (available)".
+ * @returns {string}
+ */
+function describeInboxes() {
+    const coolDowns = readCoolDowns();
+    return getInboxes().map((i) => (coolDowns[i.address] > Date.now()
+        ? `${i.address} (limited until ${new Date(coolDowns[i.address]).toLocaleTimeString()})`
+        : `${i.address} (available)`)).join(', ');
+}
+
+/**
  * The configured inbox an address belongs to ("base+tag@x" belongs to "base@x"), or null.
  * @param {string} email
  * @returns {Inbox|null}
@@ -134,4 +146,4 @@ function gmailFor(inbox) {
     return client;
 }
 
-module.exports = { getInboxes, pickInbox, markRateLimited, nextAvailableTime, inboxForEmail, isSignupAddress, gmailFor, COOL_DOWN_MS };
+module.exports = { getInboxes, pickInbox, markRateLimited, nextAvailableTime, describeInboxes, inboxForEmail, isSignupAddress, gmailFor, COOL_DOWN_MS };
