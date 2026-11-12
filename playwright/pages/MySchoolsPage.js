@@ -470,8 +470,10 @@ class MySchoolsPage extends BasePage {
         await this.choose(this.selectors.instState, state);
         await this.choose(this.selectors.instCity, city);
         let target = institution;
-        if (!target && excludeInstitutions.length) {
-            // The institution list reloads for the chosen city; read it once it has settled.
+        if (!target) {
+            // The institution list reloads for the chosen city; read it once it has settled, and
+            // from this dropdown's own list. Picking "the first option" straight away can take
+            // the city list that is still on screen (e.g. "Ajo", the first Arizona city).
             await this.settle(5000);
             const listed = await this.getDropdownOptions(this.selectors.instName);
             target = listed.find((n) => !excludeInstitutions.includes(n));
