@@ -125,6 +125,8 @@ test.describe('AZ Residency Page Tests', () => {
     });
 
     test('Save and continue to next section', async () => {
+        test.skip(!!(process.env.RESIDENCY_TEST_EMAIL && process.env.RESIDENCY_TEST_PASSWORD),
+            'Saves the step, which would use up the reused account (see *_TEST_EMAIL in .env); runs on a fresh account');
         await residencyPage.saveAndContinue();
         await new ReviewPage(page).verifyPageLoaded();
     });

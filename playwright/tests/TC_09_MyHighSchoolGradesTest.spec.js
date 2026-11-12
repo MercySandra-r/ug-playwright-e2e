@@ -142,6 +142,7 @@ test.describe('My High School Grades Page Tests', () => {
     });
 
     test('Save and continue to next section', async () => {
+        test.skip(!!(process.env.GRADES_TEST_EMAIL && process.env.GRADES_TEST_PASSWORD), 'Saves the step, which would use up the reused account (see *_TEST_EMAIL in .env); runs on a fresh account');
         await gradesPage.saveAndContinue();
         await new AZResidencyPage(page).verifyPageLoaded();
     });
@@ -237,7 +238,10 @@ test.describe('My High School Grades Page Tests (future graduate)', () => {
             expect(saved, subject).toEqual(expect.arrayContaining(expected));
             expect(saved, subject).toHaveLength(2);
         }
-        await gradesPage.saveAndContinue();
-        await new AZResidencyPage(page).verifyPageLoaded();
+        // Saving would use up a reused account (GRADES_FUTURE_TEST_EMAIL); only a fresh one continues.
+        if (!(process.env.GRADES_FUTURE_TEST_EMAIL && process.env.GRADES_FUTURE_TEST_PASSWORD)) {
+            await gradesPage.saveAndContinue();
+            await new AZResidencyPage(page).verifyPageLoaded();
+        }
     });
 });

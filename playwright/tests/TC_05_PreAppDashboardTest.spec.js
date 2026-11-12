@@ -41,6 +41,10 @@ test.describe('Pre-Application Dashboard Tests', () => {
     /** @type {string} */
     let accountEmail;
 
+    // Reusing an account (set in .env)? Then tests that save the step are skipped, so the
+    // account stays on this step for the next run.
+    const reused = !!(process.env.PREAPP_TEST_EMAIL && process.env.PREAPP_TEST_PASSWORD);
+
     test.beforeAll(async ({ browser }, testInfo) => {
         testInfo.setTimeout(300000);
         context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
@@ -116,6 +120,7 @@ test.describe('Pre-Application Dashboard Tests', () => {
     });
 
     test('Start new application opens My information', async () => {
+        test.skip(reused, 'Starts the application, which would use up the reused account (PREAPP_TEST_EMAIL); runs on a fresh account');
         await freshPage();
         const applicationId = await dashboard.startApplication({ ...APPLICANT });
         expect(applicationId).toMatch(/^\d+$/);

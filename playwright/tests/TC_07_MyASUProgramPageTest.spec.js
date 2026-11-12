@@ -174,6 +174,7 @@ test.describe('My ASU Program Page Tests', () => {
     });
 
     test('Save and continue to next section', async () => {
+        test.skip(!!(process.env.MYPROGRAM_TEST_EMAIL && process.env.MYPROGRAM_TEST_PASSWORD), 'Saves the step, which would use up the reused account (see *_TEST_EMAIL in .env); runs on a fresh account');
         await programPage.saveAndContinue();
         await new MySchoolsPage(page).verifyPageLoaded();
     });
