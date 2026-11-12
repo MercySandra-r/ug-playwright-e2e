@@ -492,6 +492,18 @@ class PreAppDashboardPage extends BasePage {
         await this.setDateOfBirth(birth);
         await this.fillContactInformation({ phoneNumber: phone, phoneType: 'Mobile' });
 
+        // The form sometimes re-renders while the later fields are filled and drops the
+        // names typed first (Start then fails with "This is a required field" on both).
+        // Check them just before Start and type them again if they were lost.
+        for (let attempt = 0; attempt < 3; attempt++) {
+            const typedFirst = await this.page.locator(this.selectors.firstNameInput).inputValue();
+            const typedLast = await this.page.locator(this.selectors.lastNameInput).inputValue();
+            if (typedFirst === firstName && typedLast === lastName) break;
+            this.logger.warn('Pre-app names were cleared by a re-render; typing them again');
+            await this.fillPersonalInformation({ firstName, preferredFirstName, middleName, lastName, suffix });
+            await this.page.waitForTimeout(500);
+        }
+
         await startButton.scrollIntoViewIfNeeded();
         await startButton.click();
         await this.handleBriteVerifyPopup('submit');
