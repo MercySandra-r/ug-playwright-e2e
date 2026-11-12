@@ -516,9 +516,23 @@ class MyASUProgramPage extends BasePage {
 
         const dialog = this.page.locator(this.selectors.programDialog);
         await dialog.waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        let pickedLocation = location || '';
         if (location) {
             await dialog.locator(this.selectors.locationToggle).click();
             await this.option(location).click();
+        } else {
+            // Online applicants have one location, already chosen, and see the start terms at
+            // once. In-person applicants must pick a campus first ("What location would you
+            // like to attend?"); with none asked for, take the first one offered.
+            const termShown = await dialog.locator(this.selectors.radio).first()
+                .waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false);
+            if (!termShown) {
+                await dialog.locator(this.selectors.locationToggle).click();
+                const first = this.page.getByRole('option').first();
+                await first.waitFor({ state: 'visible', timeout: this.assertionTimeout });
+                pickedLocation = (await first.innerText()).replace(/\s+/g, ' ').trim();
+                await first.click();
+            }
         }
         const term = await this.chooseStartTerm(dialog, startTerm);
         await dialog.locator(this.selectors.dialogNextButton).click();
@@ -527,7 +541,7 @@ class MyASUProgramPage extends BasePage {
         await save.waitFor({ state: 'visible', timeout: this.assertionTimeout });
         const backupRequired = await dialog.locator(this.selectors.backupRequiredHeading).isVisible();
         const summary = (await dialog.innerText()).replace(/\s+/g, ' ');
-        const usedLocation = location || (summary.match(/Step 2 of 2 .*?, \w+ (.+?) \d{4} (spring|summer|fall)/i) || [])[1] || '';
+        const usedLocation = pickedLocation || (summary.match(/Step 2 of 2 .*?, \w+ (.+?) \d{4} (spring|summer|fall)/i) || [])[1] || '';
         await save.click();
         await dialog.waitFor({ state: 'hidden', timeout: this.navigationTimeout });
         await this.page.waitForLoadState('networkidle');

@@ -25,7 +25,8 @@ const STEPS = ['my-information', 'my-program', 'my-schools', 'my-high-school-gra
  * @param {import('@playwright/test').Page} page
  * @param {'my-information'|'my-program'|'my-schools'|'my-high-school-grades'|'arizona-residency'|'review'} step
  * @param {{ captureValidations?: boolean, veteran?: boolean, spouseOfServiceMember?: boolean,
- *           graduationDate?: string, applicant?: Applicant }} [options]
+ *           graduationDate?: string, applicant?: Applicant, mode?: 'online'|'in-person' }} [options]
+ *   mode: how the applicant attends, chosen on the landing page (default 'online')
  *   applicant: who the applicant is (birthday, visa, race, uniformed services, high school);
  *   see the Applicant typedef. Defaults: born June 15 2000, permanent resident, no race,
  *   no uniformed services, Tempe High School (Arizona).
@@ -37,19 +38,27 @@ const STEPS = ['my-information', 'my-program', 'my-schools', 'my-high-school-gra
  *   veteran" (Arizona residency then asks which describes the service member)
  * @returns {Promise<string>} the application ID
  */
-async function startApplicationAt(page, step, { captureValidations = true, veteran = false, spouseOfServiceMember = false, graduationDate = 'May 2026', applicant = {} } = {}) {
+async function startApplicationAt(page, step, { captureValidations = true, veteran = false, spouseOfServiceMember = false, graduationDate = 'May 2026', applicant = {}, mode = 'online' } = {}) {
     const target = STEPS.indexOf(step);
     if (target < 0) throw new Error(`startApplicationAt: unknown or unsupported step "${step}"`);
 
-    await signUpVerifiedAccount(page, { mode: 'online', degreeType: 'pursue' });
-    const applicationId = await new PreAppDashboardPage(page).startApplication({ captureValidations, birth: applicant.birth });
+    await signUpVerifiedAccount(page, { mode, degreeType: 'pursue' });
+    const applicationId = await new PreAppDashboardPage(page).startApplication({
+        captureValidations, birth: applicant.birth, mode,
+        ...(applicant.firstName ? { firstName: applicant.firstName } : {}),
+        ...(applicant.lastName ? { lastName: applicant.lastName } : {}),
+    });
 
     if (target > 0) {
         const info = new MyInformationPage(page);
         info.applicationId = applicationId;
         await info.navigateToMyInformation();
         if (captureValidations) await info.captureFieldValidations({ stepName: 'My information' });
-        await info.completeRequiredFields(applicant.visaType ? { visaType: applicant.visaType } : {});
+        await info.completeRequiredFields({
+            ...(applicant.visaType ? { visaType: applicant.visaType } : {}),
+            // U.S. citizen: asks for the country of birth and the SSN (typed from TEST_SSN).
+            ...(applicant.usCitizen ? { usCitizenship: 'Yes', countryOfBirth: 'United States' } : {}),
+        });
         if (applicant.races) await info.selectEthnicityAndRace({ races: applicant.races, raceOrigins: applicant.raceOrigins || {} });
         if (applicant.uniformed) await info.fillUniformedServices(applicant.uniformed);
         if (veteran) await info.fillUniformedServices({ affiliation: 'I am a U.S. service member or veteran', status: 'Veteran' });
@@ -109,6 +118,9 @@ async function startApplicationAt(page, step, { captureValidations = true, veter
  * Who the applicant is, for scenarios that depend on earlier answers.
  * @typedef {Object} Applicant
  * @property {{ month: string, day: string, year: string }} [birth] - pre-app birthday
+ * @property {string} [firstName] - pre-app legal first name (default "Qa")
+ * @property {string} [lastName] - pre-app legal last name (default "Automation")
+ * @property {boolean} [usCitizen] - My information: U.S. citizen (needs TEST_SSN in .env)
  * @property {string} [visaType] - My information visa (non-citizen path), e.g. "Student (F-1)"
  * @property {string[]} [races] - e.g. ["American Indian/Alaska Native"]
  * @property {Record<string, string>} [raceOrigins] - e.g. { "American Indian/Alaska Native": "Ak-Chin" }
