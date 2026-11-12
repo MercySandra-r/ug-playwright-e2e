@@ -155,6 +155,15 @@ function noteSignedIn(page, email) {
 }
 
 /**
+ * The account `page` is signed in to, when it signed up or signed in through the suite.
+ * @param {import('@playwright/test').Page} page
+ * @returns {string|undefined}
+ */
+function signedInEmail(page) {
+    return signedIn.get(page);
+}
+
+/**
  * Record an application started on the account `page` is signed in to.
  * Does nothing when the account isn't known (signed in some other way).
  * @param {import('@playwright/test').Page} page
@@ -184,4 +193,4 @@ async function annotateAccount(email, notes, applicationIds = []) {
     });
 }
 
-module.exports = { recordAccount, noteSignedIn, recordApplication, annotateAccount, XLSX_FILE, JSON_FILE };
+module.exports = { recordAccount, noteSignedIn, signedInEmail, recordApplication, annotateAccount, XLSX_FILE, JSON_FILE };

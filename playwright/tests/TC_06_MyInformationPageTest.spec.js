@@ -2,6 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const { faker } = require('@faker-js/faker');
 const { signUpVerifiedAccount } = require('../utils/authHelper');
+const { runSaveTest } = require('../utils/accountPool');
 const LoginPage = require('../pages/LoginPage');
 const PreAppDashboardPage = require('../pages/PreAppDashboardPage');
 const MyInformationPage = require('../pages/MyInformationPage');
@@ -230,43 +231,51 @@ test.describe('My Information Page Tests', () => {
         await myInfoPage.validateFloatingHelp();
     });
 
-    test('End to end: fill every field, save and continue, values persist', async () => {
-        test.skip(reused, 'Saves the step, which would use up the reused account (see *_TEST_EMAIL in .env); runs on a fresh account');
-        test.setTimeout(240000);
-        const entered = await myInfoPage.completeAllFields();
-        test.info().annotations.push({ type: 'entered', description: JSON.stringify(entered) });
+    test('End to end: fill every field, save and continue, values persist', async ({ browser }, testInfo) => {
+        test.setTimeout(600000);
+        // Saving uses the account up for this suite, so with a reused account this runs on one
+        // from the account pool (see utils/accountPool.js).
+        await runSaveTest({
+            reused, browser, testInfo, step: 'my-information', own: { page, applicationId: myInfoPage.applicationId },
+            body: async (p, applicationId) => {
+                const info = new MyInformationPage(p);
+                info.applicationId = applicationId;
+                const entered = await info.completeAllFields();
+                test.info().annotations.push({ type: 'entered', description: JSON.stringify(entered) });
 
-        await myInfoPage.saveAndContinue();
-        await new MyASUProgramPage(page).verifyPageLoaded();
+                await info.saveAndContinue();
+                await new MyASUProgramPage(p).verifyPageLoaded();
 
-        // Reopen step 1: everything entered must have been saved.
-        await myInfoPage.navigateToMyInformation();
-        const saved = await myInfoPage.readFormValues();
-        test.info().annotations.push({ type: 'saved', description: JSON.stringify(saved) });
-        const { formerName, guardian, address } = entered;
-        expect(saved).toMatchObject({
-            formerNames: expect.arrayContaining([`${formerName.firstName} ${formerName.lastName}`]),
-            legalSex: entered.legalSex,
-            primaryLanguage: entered.primaryLanguage,
-            address: { country: address.country, line1: address.line1, line2: address.line2, city: address.city, state: address.state, zip: address.zip },
-            hispanicLatino: entered.hispanicLatino,
-            races: expect.arrayContaining(entered.races),
-            raceOrigins: entered.raceOrigins,
-            primaryRace: entered.primaryRace,
-            citizenship: 'I am not a U.S. citizen',
-            visaType: entered.visaType,
-            countryOfCitizenship: entered.countryOfCitizenship,
-            countryOfBirth: entered.countryOfBirth,
-            guardians: expect.arrayContaining([`${guardian.firstName} ${guardian.lastName}`]),
-            affiliations: entered.asuAffiliate.affiliations,
-            affiliateId: entered.asuAffiliate.affiliateId,
-            militaryStatus: entered.uniformed.affiliation,
-            serviceStatus: entered.uniformed.status,
-            serviceBranch: entered.uniformed.branch,
-            vaBenefits: entered.uniformed.vaBenefits,
-            jstAuthorize: entered.uniformed.jstAuthorize,
-            educationBenefits: 'Yes',
-            benefitProvider: entered.benefitProvider,
+                // Reopen step 1: everything entered must have been saved.
+                await info.navigateToMyInformation();
+                const saved = await info.readFormValues();
+                test.info().annotations.push({ type: 'saved', description: JSON.stringify(saved) });
+                const { formerName, guardian, address } = entered;
+                expect(saved).toMatchObject({
+                    formerNames: expect.arrayContaining([`${formerName.firstName} ${formerName.lastName}`]),
+                    legalSex: entered.legalSex,
+                    primaryLanguage: entered.primaryLanguage,
+                    address: { country: address.country, line1: address.line1, line2: address.line2, city: address.city, state: address.state, zip: address.zip },
+                    hispanicLatino: entered.hispanicLatino,
+                    races: expect.arrayContaining(entered.races),
+                    raceOrigins: entered.raceOrigins,
+                    primaryRace: entered.primaryRace,
+                    citizenship: 'I am not a U.S. citizen',
+                    visaType: entered.visaType,
+                    countryOfCitizenship: entered.countryOfCitizenship,
+                    countryOfBirth: entered.countryOfBirth,
+                    guardians: expect.arrayContaining([`${guardian.firstName} ${guardian.lastName}`]),
+                    affiliations: entered.asuAffiliate.affiliations,
+                    affiliateId: entered.asuAffiliate.affiliateId,
+                    militaryStatus: entered.uniformed.affiliation,
+                    serviceStatus: entered.uniformed.status,
+                    serviceBranch: entered.uniformed.branch,
+                    vaBenefits: entered.uniformed.vaBenefits,
+                    jstAuthorize: entered.uniformed.jstAuthorize,
+                    educationBenefits: 'Yes',
+                    benefitProvider: entered.benefitProvider,
+                });
+            },
         });
     });
 });

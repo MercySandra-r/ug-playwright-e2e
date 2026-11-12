@@ -3,6 +3,7 @@ const { test, expect } = require('@playwright/test');
 const { startApplicationAt, resumeApplication } = require('../utils/applicationJourney');
 const MyHighSchoolGradesPage = require('../pages/MyHighSchoolGradesPage');
 const AZResidencyPage = require('../pages/AZResidencyPage');
+const { runSaveTest } = require('../utils/accountPool');
 
 /**
  * My high school grades (step 4 of the application wizard), against the live page.
@@ -141,10 +142,24 @@ test.describe('My High School Grades Page Tests', () => {
         await gradesPage.answerSelfReport(true);
     });
 
-    test('Save and continue to next section', async () => {
-        test.skip(!!(process.env.GRADES_TEST_EMAIL && process.env.GRADES_TEST_PASSWORD), 'Saves the step, which would use up the reused account (see *_TEST_EMAIL in .env); runs on a fresh account');
-        await gradesPage.saveAndContinue();
-        await new AZResidencyPage(page).verifyPageLoaded();
+    test('Save and continue to next section', async ({ browser }, testInfo) => {
+        // Saving uses the account up for this suite, so with a reused account this runs on one
+        // from the account pool (see utils/accountPool.js).
+        await runSaveTest({
+            reused: !!(process.env.GRADES_TEST_EMAIL && process.env.GRADES_TEST_PASSWORD),
+            browser, testInfo, step: 'my-high-school-grades', own: { page, applicationId: gradesPage.applicationId },
+            body: async (p, applicationId, pooled) => {
+                const grades = new MyHighSchoolGradesPage(p);
+                grades.applicationId = applicationId;
+                // A pool account has nothing entered yet; the suite's own account was filled above.
+                if (pooled && !(await grades.isStepNotNecessary())) {
+                    await grades.chooseSelfReporting();
+                    await grades.useDefaultSelfReportedGrades();
+                }
+                await grades.saveAndContinue();
+                await new AZResidencyPage(p).verifyPageLoaded();
+            },
+        });
     });
 });
 

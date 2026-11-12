@@ -1,6 +1,7 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
 const { signUpVerifiedAccount } = require('../utils/authHelper');
+const { runSaveTest } = require('../utils/accountPool');
 const LoginPage = require('../pages/LoginPage');
 const PreAppDashboardPage = require('../pages/PreAppDashboardPage');
 const MyInformationPage = require('../pages/MyInformationPage');
@@ -173,9 +174,20 @@ test.describe('My ASU Program Page Tests', () => {
         expect(await programPage.isInterestSelected('Pre-law interest')).toBe(true);
     });
 
-    test('Save and continue to next section', async () => {
-        test.skip(!!(process.env.MYPROGRAM_TEST_EMAIL && process.env.MYPROGRAM_TEST_PASSWORD), 'Saves the step, which would use up the reused account (see *_TEST_EMAIL in .env); runs on a fresh account');
-        await programPage.saveAndContinue();
-        await new MySchoolsPage(page).verifyPageLoaded();
+    test('Save and continue to next section', async ({ browser }, testInfo) => {
+        // Saving uses the account up for this suite, so with a reused account this runs on one
+        // from the account pool (see utils/accountPool.js).
+        await runSaveTest({
+            reused: !!(process.env.MYPROGRAM_TEST_EMAIL && process.env.MYPROGRAM_TEST_PASSWORD),
+            browser, testInfo, step: 'my-program', own: { page, applicationId: programPage.applicationId },
+            body: async (p, applicationId, pooled) => {
+                const program = new MyASUProgramPage(p);
+                program.applicationId = applicationId;
+                // A pool account has no program yet; the suite's own account chose one above.
+                if (pooled) await program.selectProgram({ program: 'Anthropology, BA', degreeType: 'Bachelor' });
+                await program.saveAndContinue();
+                await new MySchoolsPage(p).verifyPageLoaded();
+            },
+        });
     });
 });
