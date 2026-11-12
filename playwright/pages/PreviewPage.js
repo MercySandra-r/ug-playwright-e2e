@@ -49,10 +49,14 @@ class PreviewPage extends BasePage {
     // ------------------------------------------------------------------ navigation
 
     /**
-     * Open the preview of the signed-in user's submitted application. Uses
-     * this.applicationId, else the "Your applications" card (via the post-submission
-     * dashboard page object). Falls back to "Review what you submitted" on Next steps if
-     * the direct link redirects.
+     * Open the preview of the signed-in user's submitted application the way a person does:
+     * the Next steps dashboard, then "Review what you submitted". Uses this.applicationId,
+     * else the "Your applications" card (via the post-submission dashboard page object).
+     *
+     * APP BUG (seen 2026-11-12): loading /ug-app/<id>/preview directly, or reloading it, shows
+     * "No data has been entered" for My information's Legal sex and Primary language, though
+     * both have values (they show when the page is reached through the link). So never open
+     * the preview by URL here.
      * @returns {Promise<void>}
      */
     async navigateToPreviewPage() {
@@ -61,13 +65,9 @@ class PreviewPage extends BasePage {
         dashboard.applicationId = this.applicationId;
         const id = await dashboard.getSubmittedApplicationId();
         this.applicationId = id;
-        await this.page.goto(`/ug-app/${id}/preview`, { timeout: this.navigationTimeout });
+        await dashboard.navigateToDashboard();
+        await dashboard.clickPreviewLink();
         await this.settle();
-        if (!/\/preview/.test(this.page.url())) {
-            this.logger.warn(`Direct link to preview landed on ${this.page.url()}; going via Next steps`);
-            await dashboard.navigateToDashboard();
-            await dashboard.clickPreviewLink();
-        }
         await this.verifyPageLoaded();
     }
 
