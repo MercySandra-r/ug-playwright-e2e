@@ -636,13 +636,15 @@ class MySchoolsPage extends BasePage {
     }
 
     /**
-     * HiSET/GED is not offered as a separate path on this step as of 2026-11-10
-     * (the high-school form has no GED option). Kept so flow specs fail clearly.
-     * @param {Record<string, any>} _data
-     * @returns {Promise<never>}
+     * High school equivalency instead of a high school. "HiSet" and "GED" are entries at the
+     * end of the High school name list for a city (after the schools, with "Home School"),
+     * e.g. Arizona, Ajo. Everything else on the form is as for a high school.
+     * @param {{ type?: 'HiSet'|'GED', country?: string, state?: string, city?: string,
+     *           graduationDate?: string | { month: string, year: string } }} [data]
+     * @returns {Promise<{ country: string, state?: string, city?: string, name: string }>}
      */
-    async addHiSetGED(_data) {
-        throw new Error('addHiSetGED: no HiSET/GED entry exists on the live My schools step; map it once the app team confirms where GED is captured.');
+    async addHiSetGED({ type = 'HiSet', country = 'United States', state = 'Arizona', city = 'Ajo', graduationDate } = {}) {
+        return this.addHighSchool({ country, state, city, name: type, ...(graduationDate ? { graduationDate } : {}) });
     }
 
     // ------------------------------------------------------------------ footer

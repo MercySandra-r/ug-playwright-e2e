@@ -58,6 +58,9 @@ async function startApplicationAt(page, step, { captureValidations = true, veter
             ...(applicant.visaType ? { visaType: applicant.visaType } : {}),
             // U.S. citizen: asks for the country of birth and the SSN (typed from TEST_SSN).
             ...(applicant.usCitizen ? { usCitizenship: 'Yes', countryOfBirth: 'United States' } : {}),
+            // Education benefits from a partner employer: Yes, with this provider.
+            ...(applicant.partnerBenefitsProvider
+                ? { partnerBenefits: { hasPartnerBenefits: true, provider: applicant.partnerBenefitsProvider } } : {}),
         });
         if (applicant.races) await info.selectEthnicityAndRace({ races: applicant.races, raceOrigins: applicant.raceOrigins || {} });
         if (applicant.uniformed) await info.fillUniformedServices(applicant.uniformed);
@@ -121,6 +124,8 @@ async function startApplicationAt(page, step, { captureValidations = true, veter
  * @property {string} [firstName] - pre-app legal first name (default "Qa")
  * @property {string} [lastName] - pre-app legal last name (default "Automation")
  * @property {boolean} [usCitizen] - My information: U.S. citizen (needs TEST_SSN in .env)
+ * @property {string} [partnerBenefitsProvider] - My information: Education benefits = Yes with
+ *   this provider, e.g. "Amazon DSP" (default: No)
  * @property {string} [visaType] - My information visa (non-citizen path), e.g. "Student (F-1)"
  * @property {string[]} [races] - e.g. ["American Indian/Alaska Native"]
  * @property {Record<string, string>} [raceOrigins] - e.g. { "American Indian/Alaska Native": "Ak-Chin" }

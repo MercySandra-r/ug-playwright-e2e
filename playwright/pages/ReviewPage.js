@@ -80,6 +80,9 @@ class ReviewPage extends BasePage {
             radio: 'role=radio',
             payNow: 'role=radio[name="Pay now (Visa, Mastercard, Discover or American Express)"]',
             payLater: 'role=radio[name="Pay later"]',
+            // Fee already waived (e.g. Education benefits = Yes with a partner provider on My
+            // information): this notice replaces the payment options and the waiver list.
+            feeWaivedNotice: 'text=/Your application fee has been waived\\./',
             // Fee waiver (in-person applicants): reasons are checkboxes, see FEE_WAIVER_OPTIONS
             feeWaiverHeading: 'role=heading[name=/qualify you for an application fee waiver/]',
             feeWaiverCertification: 'text=/I certify that I understand and meet the eligibility requirements to request an admission application fee waiver/',
@@ -378,6 +381,23 @@ class ReviewPage extends BasePage {
      */
     feeWaiverOption(label) {
         return this.page.getByRole('checkbox', { name: label, exact: true });
+    }
+
+    /**
+     * Does Review say the fee is already waived ("Your application fee has been waived. If all
+     * your information is correct, you may proceed and submit your application.")?
+     * @returns {Promise<boolean>}
+     */
+    async isFeeWaived() {
+        return this.page.locator(this.selectors.feeWaivedNotice).first().isVisible();
+    }
+
+    /**
+     * Are the payment options ("Pay now" / "Pay later") offered?
+     * @returns {Promise<boolean>}
+     */
+    async isPaymentOffered() {
+        return this.page.locator(this.selectors.paymentGroup).isVisible();
     }
 
     /**
