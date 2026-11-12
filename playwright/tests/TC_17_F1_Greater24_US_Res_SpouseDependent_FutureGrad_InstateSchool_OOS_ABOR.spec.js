@@ -95,6 +95,34 @@ test.describe('F1 Greater24 US Res SpouseDependent FutureGrad InstateSchool OOS 
         await context?.close();
     });
 
+    // Each test needs the steps before it. These two helpers do a missing step once, so any
+    // test can also be run on its own (for example from the UI panel): the group then creates
+    // its applicant and the test first saves residency, or submits, as needed.
+    let residencySaved = false;
+    async function ensureResidencySaved() {
+        if (residencySaved) return;
+        await residencyPage.navigateToAZResidency();
+        await residencyPage.fillResidencyInformation(
+            { isArizonaResident: false, permanentState: testData.residency.permanentState },
+            testData.residency.serviceMember,
+        );
+        await residencyPage.saveAndContinue();
+        await reviewPage.verifyPageLoaded();
+        residencySaved = true;
+    }
+    let submitted = false;
+    /** IRREVERSIBLE: certifies and submits the application (once). */
+    async function ensureSubmitted() {
+        if (submitted) return;
+        await ensureResidencySaved();
+        await reviewPage.navigateToReviewPage();
+        await reviewPage.setFeeWaivers(await reviewPage.getSelectedFeeWaivers(), false);
+        await reviewPage.requestFeeWaiver({ reasons: testData.feeWaiver.reasons, signature: fullName });
+        await reviewPage.submitApplication({ certify: true, paymentOption: null });
+        await reviewPage.waitForSubmitted();
+        submitted = true;
+    }
+
     test('Arizona residency asks an over-24 spouse/dependent the right questions', async () => {
         await residencyPage.navigateToAZResidency();
         expect(await residencyPage.isStepNotNecessary()).toBe(false);
@@ -119,9 +147,11 @@ test.describe('F1 Greater24 US Res SpouseDependent FutureGrad InstateSchool OOS 
 
         await residencyPage.saveAndContinue();
         await reviewPage.verifyPageLoaded();
+        residencySaved = true;
     });
 
     test('Review shows the applicant, program and high school', async () => {
+        await ensureResidencySaved();
         await reviewPage.navigateToReviewPage();
         expect(await reviewPage.getSectionValue('Profile', 'Legal name')).toBe(fullName);
         const { first } = await reviewPage.getChosenPrograms();
@@ -132,6 +162,7 @@ test.describe('F1 Greater24 US Res SpouseDependent FutureGrad InstateSchool OOS 
     });
 
     test('Fee waiver (ABOR): the reasons offered, and ticking one asks for a signature', async () => {
+        await ensureResidencySaved();
         await reviewPage.navigateToReviewPage();
         expect(await reviewPage.isFeeWaiverOffered()).toBe(true);
         expect(await reviewPage.getFeeWaiverOptions()).toEqual([...ReviewPage.FEE_WAIVER_OPTIONS, ReviewPage.FEE_WAIVER_NONE]);
@@ -150,6 +181,7 @@ test.describe('F1 Greater24 US Res SpouseDependent FutureGrad InstateSchool OOS 
     });
 
     test('Submit the application with the fee waiver', async () => {
+        await ensureResidencySaved();
         await reviewPage.navigateToReviewPage();
         await reviewPage.setFeeWaivers(await reviewPage.getSelectedFeeWaivers(), false);
         await reviewPage.requestFeeWaiver({ reasons: testData.feeWaiver.reasons, signature: fullName });
@@ -159,9 +191,11 @@ test.describe('F1 Greater24 US Res SpouseDependent FutureGrad InstateSchool OOS 
         // IRREVERSIBLE: certify and submit. No payment option: the fee waiver replaces it.
         await reviewPage.submitApplication({ certify: true, paymentOption: null });
         await reviewPage.waitForSubmitted();
+        submitted = true;
     });
 
     test('Next steps dashboard shows the submitted application', async () => {
+        await ensureSubmitted();
         const dashboard = new PostAppSubmissionDashboardPage(page);
         dashboard.applicationId = applicationId;
         await dashboard.verifyPageLoaded();

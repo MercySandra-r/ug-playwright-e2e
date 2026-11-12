@@ -99,6 +99,38 @@ test.describe('F3 18To24 NonUS Res Veteran PastGrad OOS GlobalAppFeewaiver Locat
         await context?.close();
     });
 
+    // Each test needs the steps before it. These two helpers do a missing step once, so any
+    // test can also be run on its own (for example from the UI panel): the group then creates
+    // its applicant and the test first saves residency, or submits, as needed.
+    let residencySaved = false;
+    async function ensureResidencySaved() {
+        if (residencySaved) return;
+        await residencyPage.navigateToAZResidency();
+        await residencyPage.fillResidencyInformation({ isArizonaResident: false, permanentState: testData.residency.permanentState });
+        await residencyPage.saveAndContinue();
+        await reviewPage.verifyPageLoaded();
+        residencySaved = true;
+    }
+    let submitted = false;
+    /** IRREVERSIBLE: certifies and submits the application (once). */
+    async function ensureSubmitted() {
+        if (submitted) return;
+        await ensureResidencySaved();
+        await reviewPage.navigateToReviewPage();
+        fee = {
+            waived: await reviewPage.isFeeWaived(),
+            waiverListOffered: await reviewPage.isFeeWaiverOffered(),
+            paymentOffered: await reviewPage.isPaymentOffered(),
+        };
+        if (!fee.waived && fee.waiverListOffered) {
+            await reviewPage.setFeeWaivers(await reviewPage.getSelectedFeeWaivers(), false);
+            await reviewPage.requestFeeWaiver({ reasons: [testData.feeWaiverReason], signature: fullName });
+        }
+        await reviewPage.submitApplication({ certify: true, paymentOption: !fee.waived && fee.paymentOffered ? 'later' : null });
+        await reviewPage.waitForSubmitted();
+        submitted = true;
+    }
+
     test('Arizona residency asks a veteran aged 18 to 24 the right questions', async () => {
         await residencyPage.navigateToAZResidency();
         expect(await residencyPage.isStepNotNecessary()).toBe(false);
@@ -121,9 +153,11 @@ test.describe('F3 18To24 NonUS Res Veteran PastGrad OOS GlobalAppFeewaiver Locat
 
         await residencyPage.saveAndContinue();
         await reviewPage.verifyPageLoaded();
+        residencySaved = true;
     });
 
     test('Review shows the applicant, permanent resident, veteran, Tempe and the high school', async () => {
+        await ensureResidencySaved();
         await reviewPage.navigateToReviewPage();
         expect(await reviewPage.getSectionValue('Profile', 'Legal name')).toBe(fullName);
         expect(await reviewPage.getSectionValue('My information', 'U.S. citizenship')).toBe('I am not a U.S. citizen');
@@ -142,6 +176,7 @@ test.describe('F3 18To24 NonUS Res Veteran PastGrad OOS GlobalAppFeewaiver Locat
     });
 
     test('Submit the application with what Review offers for the fee', async () => {
+        await ensureResidencySaved();
         await reviewPage.navigateToReviewPage();
         fee = {
             waived: await reviewPage.isFeeWaived(),
@@ -158,9 +193,11 @@ test.describe('F3 18To24 NonUS Res Veteran PastGrad OOS GlobalAppFeewaiver Locat
         // IRREVERSIBLE: certify and submit. "Pay later" only when payment is what is offered.
         await reviewPage.submitApplication({ certify: true, paymentOption: !fee.waived && fee.paymentOffered ? 'later' : null });
         await reviewPage.waitForSubmitted();
+        submitted = true;
     });
 
     test('Next steps dashboard shows the submitted application', async () => {
+        await ensureSubmitted();
         const dashboard = new PostAppSubmissionDashboardPage(page);
         dashboard.applicationId = applicationId;
         await dashboard.verifyPageLoaded();
@@ -168,6 +205,7 @@ test.describe('F3 18To24 NonUS Res Veteran PastGrad OOS GlobalAppFeewaiver Locat
     });
 
     test('Fee was waived for the Tempe location, with no payment option (GlobalAppFeewaiver_Location)', async () => {
+        await ensureSubmitted();
         // The sheet's expectation, checked from what Review showed before the submit.
         expect(fee, 'Review should say the fee is waived for the Tempe location, and offer no payment or waiver list')
             .toEqual({ waived: true, waiverListOffered: false, paymentOffered: false });
