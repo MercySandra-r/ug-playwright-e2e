@@ -92,6 +92,29 @@ test.describe('F2 Lessthan18 US Res ActiveDuty FGD HiSetGED AZ GlobalAppFeewaive
         await context?.close();
     });
 
+    // Each test needs the steps before it. These two helpers do a missing step once, so any
+    // test can also be run on its own (for example from the UI panel): the group then creates
+    // its applicant and the test first saves residency, or submits, as needed.
+    let residencySaved = false;
+    async function ensureResidencySaved() {
+        if (residencySaved) return;
+        await residencyPage.navigateToAZResidency();
+        await residencyPage.fillArizonaResidentAllYes();
+        await residencyPage.saveAndContinue();
+        await reviewPage.verifyPageLoaded();
+        residencySaved = true;
+    }
+    let submitted = false;
+    /** IRREVERSIBLE: certifies and submits the application (once). */
+    async function ensureSubmitted() {
+        if (submitted) return;
+        await ensureResidencySaved();
+        await reviewPage.navigateToReviewPage();
+        await reviewPage.submitApplication({ certify: true, paymentOption: null });
+        await reviewPage.waitForSubmitted();
+        submitted = true;
+    }
+
     test('Arizona residency asks an under-18 active duty applicant the right questions', async () => {
         await residencyPage.navigateToAZResidency();
         expect(await residencyPage.isStepNotNecessary()).toBe(false);
@@ -113,9 +136,11 @@ test.describe('F2 Lessthan18 US Res ActiveDuty FGD HiSetGED AZ GlobalAppFeewaive
 
         await residencyPage.saveAndContinue();
         await reviewPage.verifyPageLoaded();
+        residencySaved = true;
     });
 
     test('Review shows the applicant, active duty, partner benefits and HiSet', async () => {
+        await ensureResidencySaved();
         await reviewPage.navigateToReviewPage();
         expect(await reviewPage.getSectionValue('Profile', 'Legal name')).toBe(fullName);
         expect(await reviewPage.getSectionValue('My information', 'U.S. citizenship')).toBe('I am a U.S. citizen');
@@ -145,6 +170,7 @@ test.describe('F2 Lessthan18 US Res ActiveDuty FGD HiSetGED AZ GlobalAppFeewaive
     });
 
     test('Application fee is waived by the partner benefits (GlobalAppFeewaiver)', async () => {
+        await ensureResidencySaved();
         await reviewPage.navigateToReviewPage();
         expect(await reviewPage.isFeeWaived()).toBe(true);
         // Nothing to pay and nothing to request
@@ -153,13 +179,16 @@ test.describe('F2 Lessthan18 US Res ActiveDuty FGD HiSetGED AZ GlobalAppFeewaive
     });
 
     test('Submit the application', async () => {
+        await ensureResidencySaved();
         await reviewPage.navigateToReviewPage();
         // IRREVERSIBLE: certify and submit. No payment option: the fee is waived.
         await reviewPage.submitApplication({ certify: true, paymentOption: null });
         await reviewPage.waitForSubmitted();
+        submitted = true;
     });
 
     test('Next steps dashboard shows the submitted application', async () => {
+        await ensureSubmitted();
         const dashboard = new PostAppSubmissionDashboardPage(page);
         dashboard.applicationId = applicationId;
         await dashboard.verifyPageLoaded();
