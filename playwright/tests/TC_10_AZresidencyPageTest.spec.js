@@ -3,6 +3,7 @@ const { test, expect } = require('@playwright/test');
 const { startApplicationAt, resumeApplication } = require('../utils/applicationJourney');
 const AZResidencyPage = require('../pages/AZResidencyPage');
 const ReviewPage = require('../pages/ReviewPage');
+const { runSaveTest } = require('../utils/accountPool');
 
 /**
  * Arizona residency (step 5 of the application wizard), against the live page.
@@ -124,11 +125,21 @@ test.describe('AZ Residency Page Tests', () => {
         expect(await residencyPage.answerRemainingQuestions(4, { answer: true, preferredOption: 'Arizona' })).toEqual([]);
     });
 
-    test('Save and continue to next section', async () => {
-        test.skip(!!(process.env.RESIDENCY_TEST_EMAIL && process.env.RESIDENCY_TEST_PASSWORD),
-            'Saves the step, which would use up the reused account (see *_TEST_EMAIL in .env); runs on a fresh account');
-        await residencyPage.saveAndContinue();
-        await new ReviewPage(page).verifyPageLoaded();
+    test('Save and continue to next section', async ({ browser }, testInfo) => {
+        // Saving uses the account up for this suite, so with a reused account this runs on one
+        // from the account pool (see utils/accountPool.js).
+        await runSaveTest({
+            reused: !!(process.env.RESIDENCY_TEST_EMAIL && process.env.RESIDENCY_TEST_PASSWORD),
+            browser, testInfo, step: 'arizona-residency', own: { page, applicationId: residencyPage.applicationId },
+            body: async (p, applicationId, pooled) => {
+                const residency = new AZResidencyPage(p);
+                residency.applicationId = applicationId;
+                // A pool account has nothing answered yet; the suite's own account was filled above.
+                if (pooled && !(await residency.isStepNotNecessary())) await residency.fillArizonaResidentAllYes();
+                await residency.saveAndContinue();
+                await new ReviewPage(p).verifyPageLoaded();
+            },
+        });
     });
 });
 

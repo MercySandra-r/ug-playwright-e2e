@@ -4,6 +4,7 @@ const { signUpVerifiedAccount } = require('../utils/authHelper');
 const LoginPage = require('../pages/LoginPage');
 const PreAppDashboardPage = require('../pages/PreAppDashboardPage');
 const MyInformationPage = require('../pages/MyInformationPage');
+const { runSaveTest } = require('../utils/accountPool');
 
 /**
  * Pre-application dashboard ("Welcome! You're a few steps away from becoming a Sun
@@ -119,13 +120,20 @@ test.describe('Pre-Application Dashboard Tests', () => {
         expect(await dashboard.expandFaq('Is there an application fee?')).not.toBe('');
     });
 
-    test('Start new application opens My information', async () => {
-        test.skip(reused, 'Starts the application, which would use up the reused account (PREAPP_TEST_EMAIL); runs on a fresh account');
-        await freshPage();
-        const applicationId = await dashboard.startApplication({ ...APPLICANT });
-        expect(applicationId).toMatch(/^\d+$/);
-        const info = new MyInformationPage(page);
-        info.applicationId = applicationId;
-        await info.verifyPageLoaded();
+    test('Start new application opens My information', async ({ browser }, testInfo) => {
+        // Starting the application uses the account up for this suite, so with a reused
+        // account it runs on one from the account pool (see utils/accountPool.js).
+        await runSaveTest({
+            reused, browser, testInfo, step: 'no-application', own: { page },
+            body: async (p) => {
+                const dash = new PreAppDashboardPage(p);
+                await dash.navigateToDashboard();
+                const applicationId = await dash.startApplication({ ...APPLICANT });
+                expect(applicationId).toMatch(/^\d+$/);
+                const info = new MyInformationPage(p);
+                info.applicationId = applicationId;
+                await info.verifyPageLoaded();
+            },
+        });
     });
 });

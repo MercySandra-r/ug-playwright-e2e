@@ -6,6 +6,9 @@ const { logger } = require('./testLogger');
 const { recordAccount, noteSignedIn } = require('./accountLog');
 const { getInboxes, pickInbox, markRateLimited, describeInboxes, inboxForEmail, gmailFor } = require('./inboxes');
 
+/** Password given to every account the suite signs up (a test value, not a secret). */
+const DEFAULT_PASSWORD = 'AsuQaTest1234!';
+
 /**
  * Has this inbox ever received mail for `email`? If so the address was already
  * used for a sign-up (all plus-tags land in the same inbox), so skip it.
@@ -62,7 +65,7 @@ async function reserveFreshEmail(gmail, inboxAddress, maxSkips = 20) {
 async function signUpVerifiedAccount(page, opts = {}) {
     const mode = opts.mode || 'online';
     const degreeType = opts.degreeType || 'pursue';
-    const password = opts.password || 'AsuQaTest1234!';
+    const password = opts.password || DEFAULT_PASSWORD;
     const maxAttempts = opts.email ? 1 : opts.maxAttempts || 5;
     const idp = new AsuIdpPage(page);
 
@@ -153,4 +156,4 @@ async function signInExistingAccount(page, email, password) {
     noteSignedIn(page, email);
 }
 
-module.exports = { signUpVerifiedAccount, signInExistingAccount, reserveFreshEmail };
+module.exports = { signUpVerifiedAccount, signInExistingAccount, reserveFreshEmail, DEFAULT_PASSWORD };

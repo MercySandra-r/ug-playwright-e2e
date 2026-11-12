@@ -3,6 +3,7 @@ const { test, expect } = require('@playwright/test');
 const { startApplicationAt, resumeApplication } = require('../utils/applicationJourney');
 const MySchoolsPage = require('../pages/MySchoolsPage');
 const MyHighSchoolGradesPage = require('../pages/MyHighSchoolGradesPage');
+const { openPooledAccount } = require('../utils/accountPool');
 
 /**
  * My schools (step 3 of the application wizard), against the live page.
@@ -145,18 +146,41 @@ test.describe('My Schools Page Tests', () => {
         expect(saved).toEqual(expect.arrayContaining(added));
     });
 
-    test('Save and continue to next section', async () => {
-        test.skip(!!(process.env.MYSCHOOLS_TEST_EMAIL && process.env.MYSCHOOLS_TEST_PASSWORD), 'Saves the step, which would use up the reused account (see *_TEST_EMAIL in .env); runs on a fresh account');
+    // Saving uses the account up for this suite. With a reused account (MYSCHOOLS_TEST_EMAIL)
+    // the two tests below run on an account from the account pool instead (see
+    // utils/accountPool.js), which gets its own five high schools and five colleges first.
+    const reused = !!(process.env.MYSCHOOLS_TEST_EMAIL && process.env.MYSCHOOLS_TEST_PASSWORD);
+    /** @type {Awaited<ReturnType<typeof openPooledAccount>> | undefined} */
+    let pooled;
+    /** @type {MySchoolsPage} the page object the save tests work on */
+    let saving;
+
+    test.afterAll(async () => {
+        await pooled?.context.close();
+    });
+
+    test('Save and continue to next section', async ({ browser }, testInfo) => {
+        saving = schoolsPage;
+        if (reused) {
+            test.setTimeout(900000);
+            pooled = await openPooledAccount(browser, testInfo, 'my-schools');
+            testInfo.annotations.push({ type: 'account', description: `${pooled.email} (${pooled.fromPool ? 'from the pool' : 'new'})` });
+            saving = new MySchoolsPage(pooled.page);
+            saving.applicationId = pooled.applicationId;
+            await saving.addHighSchools(5, { country: 'United States', state: 'Arizona', city: 'Tempe' });
+            await saving.addColleges(5, { state: 'Arizona', city: 'Mesa' });
+        }
         // Keep the five colleges: answer stays "Yes".
-        await schoolsPage.acknowledgeTranscripts();
-        await schoolsPage.saveAndContinue();
-        await new MyHighSchoolGradesPage(page).verifyPageLoaded();
+        await saving.acknowledgeTranscripts();
+        await saving.saveAndContinue();
+        await new MyHighSchoolGradesPage(saving.page).verifyPageLoaded();
     });
 
     test('Five high schools and five colleges are kept after Continue', async () => {
-        test.skip(!!(process.env.MYSCHOOLS_TEST_EMAIL && process.env.MYSCHOOLS_TEST_PASSWORD), 'Saves the step, which would use up the reused account (see *_TEST_EMAIL in .env); runs on a fresh account');
-        await schoolsPage.navigateToMySchools();
-        expect(await schoolsPage.getSavedHighSchools()).toHaveLength(5);
-        expect(await schoolsPage.getSavedInstitutions()).toHaveLength(5);
+        await saving.navigateToMySchools();
+        expect(await saving.getSavedHighSchools()).toHaveLength(5);
+        expect(await saving.getSavedInstitutions()).toHaveLength(5);
+        // Saved and checked: the pool account now sits on grades, for that suite's save test.
+        pooled?.passOn();
     });
 });
