@@ -146,6 +146,7 @@ test.describe('My Schools Page Tests', () => {
     });
 
     test('Save and continue to next section', async () => {
+        test.skip(!!(process.env.MYSCHOOLS_TEST_EMAIL && process.env.MYSCHOOLS_TEST_PASSWORD), 'Saves the step, which would use up the reused account (see *_TEST_EMAIL in .env); runs on a fresh account');
         // Keep the five colleges: answer stays "Yes".
         await schoolsPage.acknowledgeTranscripts();
         await schoolsPage.saveAndContinue();
@@ -153,6 +154,7 @@ test.describe('My Schools Page Tests', () => {
     });
 
     test('Five high schools and five colleges are kept after Continue', async () => {
+        test.skip(!!(process.env.MYSCHOOLS_TEST_EMAIL && process.env.MYSCHOOLS_TEST_PASSWORD), 'Saves the step, which would use up the reused account (see *_TEST_EMAIL in .env); runs on a fresh account');
         await schoolsPage.navigateToMySchools();
         expect(await schoolsPage.getSavedHighSchools()).toHaveLength(5);
         expect(await schoolsPage.getSavedInstitutions()).toHaveLength(5);

@@ -34,6 +34,10 @@ test.describe('My Information Page Tests', () => {
     /** @type {MyInformationPage} */
     let myInfoPage;
 
+    // Reusing an account (set in .env)? Then tests that save the step are skipped, so the
+    // account stays on this step for the next run.
+    const reused = !!(process.env.MYINFO_TEST_EMAIL && process.env.MYINFO_TEST_PASSWORD);
+
     test.beforeAll(async ({ browser }, testInfo) => {
         testInfo.setTimeout(240000);
         context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
@@ -227,6 +231,7 @@ test.describe('My Information Page Tests', () => {
     });
 
     test('End to end: fill every field, save and continue, values persist', async () => {
+        test.skip(reused, 'Saves the step, which would use up the reused account (see *_TEST_EMAIL in .env); runs on a fresh account');
         test.setTimeout(240000);
         const entered = await myInfoPage.completeAllFields();
         test.info().annotations.push({ type: 'entered', description: JSON.stringify(entered) });
