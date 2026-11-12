@@ -96,6 +96,18 @@ function inboxForEmail(email) {
     return getInboxes().find((inbox) => inbox.address.toLowerCase() === base) || null;
 }
 
+/**
+ * Is this one of the suite's sign-up addresses: "<inbox>+<prefix>NNNN@domain" on any
+ * configured inbox (prefix: GMAIL_SEQUENCE_PREFIX, default "asuqa")?
+ * @param {string} email
+ * @returns {boolean}
+ */
+function isSignupAddress(email) {
+    const prefix = process.env.GMAIL_SEQUENCE_PREFIX || 'asuqa';
+    const tag = (email.split('@')[0].split('+')[1] || '');
+    return !!inboxForEmail(email) && tag.startsWith(prefix) && /^[0-9]{4,}$/.test(tag.slice(prefix.length));
+}
+
 /** @type {Map<string, Promise<GmailUtils>>} one client per inbox per process */
 const clients = new Map();
 
@@ -122,4 +134,4 @@ function gmailFor(inbox) {
     return client;
 }
 
-module.exports = { getInboxes, pickInbox, markRateLimited, nextAvailableTime, inboxForEmail, gmailFor, COOL_DOWN_MS };
+module.exports = { getInboxes, pickInbox, markRateLimited, nextAvailableTime, inboxForEmail, isSignupAddress, gmailFor, COOL_DOWN_MS };
