@@ -34,6 +34,27 @@ const SECTIONS = {
  * from sectionButton(). Specs use these names and the read-back methods, never their
  * own locators.
  */
+/**
+ * Fee waiver reasons under "If you feel your financial situation may qualify you for an
+ * application fee waiver, please select all that apply:" (in-person applicants; verified
+ * live 2026-11-12). Ticking any of them makes the applicant eligible: the page then shows a
+ * certification statement and a "Fee waiver signature" box. The last checkbox on the page,
+ * "None of these options apply to me.", is FEE_WAIVER_NONE.
+ */
+const FEE_WAIVER_OPTIONS = [
+    'I have received or am eligible to receive an ACT or SAT testing fee waiver.',
+    'I am enrolled in or am eligible to participate in the Federal Free or Reduced Price Lunch program (FRPL).',
+    'My annual family income falls within the Eligibility Guidelines set by the USDA Food and Nutrition Service.',
+    'I am enrolled in a federal, state, or local program that aids students from low-income families (e.g., TRIO programs such as Upward Bound).',
+    'My family receives public assistance.',
+    'I live in federally subsidized public housing, a foster home or am homeless.',
+    'I am a ward of the state or an orphan.',
+    'I can provide a supporting statement from a school official, college access counselor, financial aid officer, or community leader.',
+    'I have received a NACAC fee waiver.',
+    'I have received a College Board fee waiver.',
+];
+const FEE_WAIVER_NONE = 'None of these options apply to me.';
+
 class ReviewPage extends BasePage {
     /**
      * @param {import('@playwright/test').Page} page - The Playwright page object
@@ -59,7 +80,12 @@ class ReviewPage extends BasePage {
             radio: 'role=radio',
             payNow: 'role=radio[name="Pay now (Visa, Mastercard, Discover or American Express)"]',
             payLater: 'role=radio[name="Pay later"]',
+            // Fee waiver (in-person applicants): reasons are checkboxes, see FEE_WAIVER_OPTIONS
+            feeWaiverHeading: 'role=heading[name=/qualify you for an application fee waiver/]',
+            feeWaiverCertification: 'text=/I certify that I understand and meet the eligibility requirements to request an admission application fee waiver/',
+            feeWaiverSignature: 'role=textbox[name="Fee waiver signature"]',
             submitButton: 'role=button[name="Submit application"]',
+            submitErrorsHeading: 'text="Please correct the following items:"',
             previousStepButton: 'role=button[name="Previous step"]',
             acd401Link: 'role=link[name=/^ACD 401: Prohibition Against Discrimination/]',
             reportItLink: 'role=link[name="asu.edu/reportit"]',
@@ -343,6 +369,93 @@ class ReviewPage extends BasePage {
         });
     }
 
+    // ------------------------------------------------------------------ fee waiver
+
+    /**
+     * A fee waiver checkbox by its label (one of FEE_WAIVER_OPTIONS, or FEE_WAIVER_NONE).
+     * @param {string} label
+     * @returns {import('@playwright/test').Locator}
+     */
+    feeWaiverOption(label) {
+        return this.page.getByRole('checkbox', { name: label, exact: true });
+    }
+
+    /**
+     * Is the fee waiver list offered on this Review page?
+     * @returns {Promise<boolean>}
+     */
+    async isFeeWaiverOffered() {
+        return this.page.locator(this.selectors.feeWaiverHeading).isVisible();
+    }
+
+    /**
+     * The fee waiver checkboxes shown, in page order ("None of these options apply to me."
+     * last), read from the page.
+     * @returns {Promise<string[]>}
+     */
+    async getFeeWaiverOptions() {
+        const known = [...FEE_WAIVER_OPTIONS, FEE_WAIVER_NONE];
+        const labels = await this.page.getByRole('checkbox').evaluateAll((boxes) => boxes
+            .map((b) => (b.getAttribute('aria-label') || b.closest('label')?.textContent || b.parentElement?.textContent || '').replace(/\s+/g, ' ').trim()));
+        return labels.filter((l) => known.includes(l));
+    }
+
+    /**
+     * Tick or untick fee waiver checkboxes.
+     * @param {string[]} labels
+     * @param {boolean} [checked]
+     * @returns {Promise<void>}
+     */
+    async setFeeWaivers(labels, checked = true) {
+        for (const label of labels) {
+            const box = this.feeWaiverOption(label);
+            await box.scrollIntoViewIfNeeded();
+            if ((await box.isChecked()) !== checked) await box.click();
+            if (checked) await expect(box).toBeChecked();
+            else await expect(box).not.toBeChecked();
+        }
+    }
+
+    /**
+     * The fee waiver checkboxes currently ticked.
+     * @returns {Promise<string[]>}
+     */
+    async getSelectedFeeWaivers() {
+        /** @type {string[]} */
+        const ticked = [];
+        for (const label of await this.getFeeWaiverOptions()) {
+            if (await this.feeWaiverOption(label).isChecked()) ticked.push(label);
+        }
+        return ticked;
+    }
+
+    /**
+     * Are the certification statement and the "Fee waiver signature" box shown? They appear
+     * once at least one waiver reason is ticked.
+     * @returns {Promise<boolean>}
+     */
+    async isFeeWaiverSignatureShown() {
+        return (await this.page.locator(this.selectors.feeWaiverSignature).isVisible())
+            && this.page.locator(this.selectors.feeWaiverCertification).first().isVisible();
+    }
+
+    /**
+     * Request a fee waiver: tick the reasons, then sign.
+     * @param {{ reasons: string[], signature: string }} data - signature: the applicant's name
+     * @returns {Promise<void>}
+     */
+    async requestFeeWaiver({ reasons, signature }) {
+        await this.setFeeWaivers(reasons, true);
+        const box = this.page.locator(this.selectors.feeWaiverSignature);
+        await box.waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        await box.fill(signature);
+    }
+
+    /** @returns {Promise<string>} what is typed in "Fee waiver signature" */
+    async getFeeWaiverSignature() {
+        return this.page.locator(this.selectors.feeWaiverSignature).inputValue();
+    }
+
     /**
      * IRREVERSIBLE: click "Submit application". Certifies the affidavit and chooses
      * "Pay later" first unless told not to. Callers must gate this explicitly.
@@ -362,8 +475,32 @@ class ReviewPage extends BasePage {
      * @returns {Promise<void>}
      */
     async waitForSubmitted(timeoutMs = 60000) {
-        await this.page.waitForURL((u) => !/\/review/.test(u.pathname), { timeout: timeoutMs });
+        // Submitted = the app moved to the application's Next steps dashboard. If Review
+        // refuses instead, it lists what to correct: fail with that list rather than wait.
+        const deadline = Date.now() + timeoutMs;
+        while (Date.now() < deadline) {
+            if (/\/ug-app\/\d+\/dashboard/.test(this.page.url())) return;
+            const errors = await this.getSubmitErrors();
+            if (errors.length) throw new Error(`Submit application was blocked by Review: ${errors.join('; ')}`);
+            await this.page.waitForTimeout(500);
+        }
+        throw new Error(`Application not submitted after ${timeoutMs / 1000}s: still at ${this.page.url()}`);
+    }
+
+    /**
+     * The items listed under "Please correct the following items:" after a refused submit
+     * (empty when the message isn't shown).
+     * @returns {Promise<string[]>}
+     */
+    async getSubmitErrors() {
+        const heading = this.page.locator(this.selectors.submitErrorsHeading).first();
+        if (!(await heading.isVisible().catch(() => false))) return [];
+        const text = await heading.locator('xpath=..').innerText();
+        return text.split(/\s*[\r\n]+\s*/).map((l) => l.trim())
+            .filter((l) => l && !/^Please correct the following items:?$/.test(l));
     }
 }
 
+ReviewPage.FEE_WAIVER_OPTIONS = FEE_WAIVER_OPTIONS;
+ReviewPage.FEE_WAIVER_NONE = FEE_WAIVER_NONE;
 module.exports = ReviewPage;
