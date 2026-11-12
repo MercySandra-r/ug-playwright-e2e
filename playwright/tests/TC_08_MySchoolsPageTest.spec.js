@@ -158,34 +158,56 @@ test.describe('My Schools Page Tests', () => {
     const reused = !!(process.env.MYSCHOOLS_TEST_EMAIL && process.env.MYSCHOOLS_TEST_PASSWORD);
     /** @type {Awaited<ReturnType<typeof openPooledAccount>> | undefined} */
     let pooled;
-    /** @type {MySchoolsPage} the page object the save tests work on */
+    /** @type {MySchoolsPage | undefined} the page object the step was saved on, once it has been */
     let saving;
 
     test.afterAll(async () => {
         await pooled?.context.close();
     });
 
-    test('Save and continue to next section', async ({ browser }, testInfo) => {
-        saving = schoolsPage;
+    /**
+     * Save the step with five high schools and five colleges, once. Both tests below call
+     * it, so either can run on its own (for example from the UI panel): whichever runs first
+     * does the save. Missing schools are topped up first; in the normal order they are
+     * already there on the suite's own account.
+     * @param {import('@playwright/test').Browser} browser
+     * @param {import('@playwright/test').TestInfo} testInfo
+     * @returns {Promise<MySchoolsPage>} the page object the step was saved on
+     */
+    async function saveWithFiveSchools(browser, testInfo) {
+        if (saving) return saving;
+        testInfo.setTimeout(900000);
+        let target = schoolsPage;
         if (reused) {
-            test.setTimeout(900000);
             pooled = await openPooledAccount(browser, testInfo, 'my-schools');
             testInfo.annotations.push({ type: 'account', description: `${pooled.email} (${pooled.fromPool ? 'from the pool' : 'new'})` });
-            saving = new MySchoolsPage(pooled.page);
-            saving.applicationId = pooled.applicationId;
-            await saving.addHighSchools(5, { country: 'United States', state: 'Arizona', city: 'Tempe' });
-            await saving.addColleges(5, { state: 'Arizona', city: 'Mesa' });
+            target = new MySchoolsPage(pooled.page);
+            target.applicationId = pooled.applicationId;
         }
+        if (reused) {
+            // A pool account was only just opened: load the step before working on it.
+            await target.navigateToMySchools();
+            await target.verifyPageLoaded();
+        }
+        await target.addHighSchools(5, { country: 'United States', state: 'Arizona', city: 'Tempe' });
+        await target.addColleges(5, { state: 'Arizona', city: 'Mesa' });
         // Keep the five colleges: answer stays "Yes".
-        await saving.acknowledgeTranscripts();
-        await saving.saveAndContinue();
-        await new MyHighSchoolGradesPage(saving.page).verifyPageLoaded();
+        await target.acknowledgeTranscripts();
+        await target.saveAndContinue();
+        saving = target;
+        return target;
+    }
+
+    test('Save and continue to next section', async ({ browser }, testInfo) => {
+        const saved = await saveWithFiveSchools(browser, testInfo);
+        await new MyHighSchoolGradesPage(saved.page).verifyPageLoaded();
     });
 
-    test('Five high schools and five colleges are kept after Continue', async () => {
-        await saving.navigateToMySchools();
-        expect(await saving.getSavedHighSchools()).toHaveLength(5);
-        expect(await saving.getSavedInstitutions()).toHaveLength(5);
+    test('Five high schools and five colleges are kept after Continue', async ({ browser }, testInfo) => {
+        const saved = await saveWithFiveSchools(browser, testInfo);
+        await saved.navigateToMySchools();
+        expect(await saved.getSavedHighSchools()).toHaveLength(5);
+        expect(await saved.getSavedInstitutions()).toHaveLength(5);
         // Saved and checked: the pool account now sits on grades, for that suite's save test.
         pooled?.passOn();
     });
