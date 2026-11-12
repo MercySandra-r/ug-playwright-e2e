@@ -141,9 +141,9 @@ test.describe('AZ Residency Page Tests', () => {
  *
  * Accounts: set the scenario's `envKey` to an account's email and
  * RESIDENCY_SCENARIO_TEST_PASSWORD to its password to reuse it; otherwise the group creates
- * ONE new account (the IdP limits sign-ups per hour, so prefer reuse). Tests never save the
- * step on a reused account, so it stays reusable; the "save and continue to Review" tests
- * run only on an account the run created itself.
+ * ONE new account (the IdP limits sign-ups per hour, so prefer reuse). These groups never
+ * save the step, so their accounts stay reusable. Saving is tested in the last group, "save
+ * and continue to Review", which creates a fresh account for each of its tests on every run.
  */
 const SCENARIOS = AZResidencyPage.RESIDENCY_SCENARIOS;
 const sorted = (/** @type {string[]} */ names) => [...names].sort();
@@ -153,16 +153,17 @@ const sorted = (/** @type {string[]} */ names) => [...names].sort();
  * @param {import('@playwright/test').Browser} browser
  * @param {import('@playwright/test').TestInfo} testInfo
  * @param {import('../pages/AZResidencyPage').ResidencyScenario} scenario
+ * @param {{ alwaysNew?: boolean }} [options] - alwaysNew: ignore the reuse account and sign up
  */
-async function openScenario(browser, testInfo, scenario) {
+async function openScenario(browser, testInfo, scenario, { alwaysNew = false } = {}) {
     testInfo.setTimeout(480000);
     const context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
     const page = await context.newPage();
     const residencyPage = new AZResidencyPage(page);
     const email = process.env[scenario.envKey];
     const password = process.env.RESIDENCY_SCENARIO_TEST_PASSWORD;
-    const reused = !!(email && password);
-    residencyPage.applicationId = email && password
+    const reused = !alwaysNew && !!(email && password);
+    residencyPage.applicationId = !alwaysNew && email && password
         ? await resumeApplication(page, email, password)
         : await startApplicationAt(page, 'arizona-residency', {
             captureValidations: false, applicant: scenario.applicant,
@@ -213,14 +214,11 @@ test.describe(`AZ Residency: ${SCENARIOS.noArizonaHighSchoolVeteran.name}`, () =
 
     /** @type {import('@playwright/test').BrowserContext} */
     let context;
-    /** @type {import('@playwright/test').Page} */
-    let page;
     /** @type {AZResidencyPage} */
     let residencyPage;
-    let reused = false;
 
     test.beforeAll(async ({ browser }, testInfo) => {
-        ({ context, page, residencyPage, reused } = await openScenario(browser, testInfo, scenario));
+        ({ context, residencyPage } = await openScenario(browser, testInfo, scenario));
     });
 
     test.afterAll(async () => {
@@ -260,14 +258,6 @@ test.describe(`AZ Residency: ${SCENARIOS.noArizonaHighSchoolVeteran.name}`, () =
         expect(await residencyPage.getQuestionsNotAnsweredYes()).toEqual([]);
         expect(await residencyPage.getSupportTotal()).toBe(100);
     });
-
-    test('Arizona resident veteran, every answer Yes: save and continue to Review', async () => {
-        test.skip(reused, 'Saving would change the reused account; runs only on an account this run created');
-        await freshPage();
-        await residencyPage.fillArizonaResidentAllYes();
-        await residencyPage.saveAndContinue();
-        await new ReviewPage(page).verifyPageLoaded();
-    });
 });
 
 /**
@@ -282,14 +272,11 @@ test.describe(`AZ Residency: ${SCENARIOS.noArizonaHighSchoolDependent.name}`, ()
 
     /** @type {import('@playwright/test').BrowserContext} */
     let context;
-    /** @type {import('@playwright/test').Page} */
-    let page;
     /** @type {AZResidencyPage} */
     let residencyPage;
-    let reused = false;
 
     test.beforeAll(async ({ browser }, testInfo) => {
-        ({ context, page, residencyPage, reused } = await openScenario(browser, testInfo, scenario));
+        ({ context, residencyPage } = await openScenario(browser, testInfo, scenario));
     });
 
     test.afterAll(async () => {
@@ -339,13 +326,40 @@ test.describe(`AZ Residency: ${SCENARIOS.noArizonaHighSchoolDependent.name}`, ()
             });
         }
     });
+});
 
-    test('Spouse of a veteran, every answer Yes: save and continue to Review', async () => {
-        test.skip(reused, 'Saving would change the reused account; runs only on an account this run created');
-        await freshPage();
-        await residencyPage.fillArizonaResidentAllYes({ type: 'Veteran' });
-        await residencyPage.saveAndContinue();
-        await new ReviewPage(page).verifyPageLoaded();
+/**
+ * Saving the step: fill everything Yes with Arizona, Continue, and land on Review.
+ * Saving changes the account for good (the app ignores later changes to a saved step), so
+ * each test here signs up its own fresh applicant on every run: two sign-ups per run.
+ */
+test.describe('AZ Residency: save and continue to Review (new account each run)', () => {
+    test.describe.configure({ timeout: 600000 });
+
+    test('Veteran, Arizona resident, every answer Yes', async ({ browser }, testInfo) => {
+        const { context, page, residencyPage } = await openScenario(browser, testInfo, SCENARIOS.noArizonaHighSchoolVeteran, { alwaysNew: true });
+        testInfo.setTimeout(600000);
+        try {
+            await residencyPage.navigateToAZResidency();
+            await residencyPage.fillArizonaResidentAllYes();
+            await residencyPage.saveAndContinue();
+            await new ReviewPage(page).verifyPageLoaded();
+        } finally {
+            await context.close();
+        }
+    });
+
+    test('Spouse of a veteran, Arizona resident, every answer Yes', async ({ browser }, testInfo) => {
+        const { context, page, residencyPage } = await openScenario(browser, testInfo, SCENARIOS.noArizonaHighSchoolDependent, { alwaysNew: true });
+        testInfo.setTimeout(600000);
+        try {
+            await residencyPage.navigateToAZResidency();
+            await residencyPage.fillArizonaResidentAllYes({ type: 'Veteran' });
+            await residencyPage.saveAndContinue();
+            await new ReviewPage(page).verifyPageLoaded();
+        } finally {
+            await context.close();
+        }
     });
 });
 
