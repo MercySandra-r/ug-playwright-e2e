@@ -43,7 +43,8 @@ test.describe('Duplicate Application Check (new account, same SSN)', () => {
         info.applicationId = applicationId;
         await info.verifyPageLoaded();
         await info.captureFieldValidations({ stepName: 'My information' });
-        await info.completeRequiredFields({ usCitizenship: 'Yes', countryOfBirth: 'United States' }); // SSN from TEST_SSN
+        // The same SSN as the existing application, from TEST_SSN: that is what makes it a duplicate.
+        await info.completeRequiredFields({ usCitizenship: 'Yes', countryOfBirth: 'United States', ssn: process.env.TEST_SSN });
         await info.saveAndContinue();
 
         const programPage = new MyASUProgramPage(page);

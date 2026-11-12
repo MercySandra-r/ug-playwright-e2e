@@ -56,7 +56,7 @@ async function startApplicationAt(page, step, { captureValidations = true, veter
         if (captureValidations) await info.captureFieldValidations({ stepName: 'My information' });
         await info.completeRequiredFields({
             ...(applicant.visaType ? { visaType: applicant.visaType } : {}),
-            // U.S. citizen: asks for the country of birth and the SSN (typed from TEST_SSN).
+            // U.S. citizen: asks for the country of birth and an SSN (a made-up one is typed).
             ...(applicant.usCitizen ? { usCitizenship: 'Yes', countryOfBirth: 'United States' } : {}),
             // Education benefits from a partner employer: Yes, with this provider.
             ...(applicant.partnerBenefitsProvider
@@ -127,7 +127,7 @@ async function startApplicationAt(page, step, { captureValidations = true, veter
  * @property {{ month: string, day: string, year: string }} [birth] - pre-app birthday
  * @property {string} [firstName] - pre-app legal first name (default "Qa")
  * @property {string} [lastName] - pre-app legal last name (default "Automation")
- * @property {boolean} [usCitizen] - My information: U.S. citizen (needs TEST_SSN in .env)
+ * @property {boolean} [usCitizen] - My information: U.S. citizen (a made-up SSN is typed)
  * @property {string} [campus] - My program, in-person applicants: the campus location, e.g.
  *   "Tempe" (default: the first one offered)
  * @property {string} [partnerBenefitsProvider] - My information: Education benefits = Yes with
