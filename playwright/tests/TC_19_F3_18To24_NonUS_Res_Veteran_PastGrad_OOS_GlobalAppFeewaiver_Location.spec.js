@@ -1,297 +1,175 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const LandingPage = require('../pages/LandingPage');
-const VerifyEmailPage = require('../pages/VerifyEmailPage');
-const LoginPage = require('../pages/LoginPage');
-const PreAppDashboardPage = require('../pages/PreAppDashboardPage');
-const MyInformationPage = require('../pages/MyInformationPage');
-const MyASUProgramPage = require('../pages/MyASUProgramPage');
-const MySchoolsPage = require('../pages/MySchoolsPage');
-const MyHighSchoolGradesPage = require('../pages/MyHighSchoolGradesPage');
+const { startApplicationAt } = require('../utils/applicationJourney');
 const AZResidencyPage = require('../pages/AZResidencyPage');
 const ReviewPage = require('../pages/ReviewPage');
-const PreviewPage = require('../pages/PreviewPage');
 const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashboardPage');
 
-// Test data for F3 flow: 18To24_NonUS_Res_Veteran_PastGrad_OOS_GlobalAppFeewaiver_Location
-const testData = {
-  // User credentials (would be generated/retrieved in real test)
-  user: {
-    email: `test${Date.now() + 2}@example.com`, // Different email from previous tests
-    password: 'TestPassword123!',
-    firstName: 'Test',
-    lastName: 'Veteran',
-    birthDate: '01/01/2000', // Age between 18-24
-  },
-  // Personal information
-  personalInfo: {
-    legalSex: 'Male',
-    primaryLanguage: 'English',
-    address: {
-      street: '789 Veteran Way',
-      city: 'New York',
-      state: 'New York',
-      zip: '10001',
-      country: 'United States',
-      yearsAtAddress: '3',
-    },
-    phone: '2125551234',
-    usCitizenship: 'No', // Non-US resident
-    visaType: 'Permanent Resident', // Or other appropriate visa type
-    hispanicLatino: 'No',
-    usArmedForces: 'Yes', // Veteran status
-    militaryStatus: 'Veteran',
-    // Global app fee waiver
-    hasFeeWaiver: true,
-    // No partner benefits for this flow
-    partnerBenefits: {
-      hasPartnerBenefits: false
-    },
-  },
-  // Program information
-  programInfo: {
-    degreeType: 'Bachelor',
-    program: 'Computer Science',
-    startTerm: 'Fall 2025',
-    programLocation: 'Tempe', // In-person program
-    // Add other program info fields
-  },
-  // School information
-  schoolInfo: {
-    highSchoolName: 'Test High School',
-    highSchoolCity: 'New York',
-    highSchoolState: 'New York',
-    highSchoolCountry: 'United States',
-    graduationDate: '06/2020', // Past graduation
-    // Add other school info fields
-  },
-  // Residency information
-  residencyInfo: {
-    isArizonaResident: false, // Out of state
-    // Add other residency info fields
-  }
-};
-
 /**
- * Test suite for F3 Flow: 18To24_NonUS_Res_Veteran_PastGrad_OOS_GlobalAppFeewaiver_Location
- * This test follows the flow defined in F3_18To24_NonUS_Res_Veteran_PastGrad_OOS_GlobalAppFeewaiver_Location.xml
+ * Flow F3: 18To24_NonUS_Res_Veteran_PastGrad_OOS_GlobalAppFeewaiver_Location
+ * (row F3 of the "E2E Flows" sheet, "NAA App - Automation Test flows" workbook)
+ *
+ *   MOL                 in person
+ *   18To24              applicant between 18 and 24 (born 20 years ago)
+ *   NonUS_Res           not a U.S. citizen, resident: visa type "Permanent resident"
+ *   Previous ASU        never affiliated
+ *   Veteran             U.S. service member or veteran, status Veteran (My information)
+ *   Program             campus location Tempe
+ *   Partner benefits    No
+ *   PastGrad            high school graduation date in the past
+ *   Grades              self-report (the journey's default answers)
+ *   OOS                 "Residency", the first field on Arizona residency, is set to
+ *                       "Outside the U.S. or Not Listed"
+ *   GlobalAppFeewaiver_Location
+ *                       the sheet expects the application fee to be waived because of the
+ *                       Tempe location: a message, and no payment option
+ *
+ * One fresh account per run (beforeAll), taken through steps 1-4 with the answers above;
+ * the tests then cover Arizona residency, Review, submission and the fee expectation.
+ *
+ * THIS FLOW ALWAYS SUBMITS the application (it cannot be undone), so every run leaves one
+ * submitted application in QA. The last name is different on every run.
+ *
+ * FEE: on 2026-11-12 QA did NOT waive the fee for Tempe; Review offered the fee waiver list
+ * instead (as in F1). So the flow submits with whatever Review offers (waived: nothing to do;
+ * waiver list: a reason and a signature; otherwise Pay later), and the LAST test states the
+ * sheet's expectation. That test fails while the location waiver is not applied, without
+ * stopping the rest of the flow.
+ *
+ * POM: every element comes from the page objects; this spec has no locators of its own.
  */
-test.describe('F3 Flow: 18To24_NonUS_Res_Veteran_PastGrad_OOS_GlobalAppFeewaiver_Location', () => {
-  let landingPage;
-  let verifyEmailPage;
-  let loginPage;
-  let preAppDashboardPage;
-  let myInformationPage;
-  let myASUProgramPage;
-  let mySchoolsPage;
-  let myHighSchoolGradesPage;
-  let azResidencyPage;
-  let reviewPage;
-  let previewPage;
-  let postAppDashboardPage;
 
-  test.beforeEach(async ({ page }) => {
-    // Initialize all page objects
-    landingPage = new LandingPage(page);
-    verifyEmailPage = new VerifyEmailPage(page);
-    loginPage = new LoginPage(page);
-    preAppDashboardPage = new PreAppDashboardPage(page);
-    myInformationPage = new MyInformationPage(page);
-    myASUProgramPage = new MyASUProgramPage(page);
-    mySchoolsPage = new MySchoolsPage(page);
-    myHighSchoolGradesPage = new MyHighSchoolGradesPage(page);
-    azResidencyPage = new AZResidencyPage(page);
-    reviewPage = new ReviewPage(page);
-    previewPage = new PreviewPage(page);
-    postAppDashboardPage = new PostAppSubmissionDashboardPage(page);
-  });
+/** Letters only, new on every run. */
+const uniqueLastName = `Flow${Array.from({ length: 6 }, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('')}`;
 
-  test('Complete F3 flow: 18To24_NonUS_Res_Veteran_PastGrad_OOS_GlobalAppFeewaiver_Location', async ({ page }) => {
-    // Step 1: Navigate to landing page and start application
-    await landingPage.navigateToLandingPage();
-    await landingPage.verifyPageLoaded();
-    
-    // Choose in-person mode of learning and degree type
-    await landingPage.chooseInPersonMOL();
-    await landingPage.selectDegreeType('Bachelor');
-    
-    // Create account
-    await landingPage.createAccount(
-      testData.user.firstName,
-      testData.user.lastName,
-      testData.user.email,
-      testData.user.password
-    );
-    
-    // Verify email (in a real test, this would involve checking the email)
-    await verifyEmailPage.verifyPageLoaded();
-    // Note: In a real test, you would extract the verification code from an email service
-    
-    // Login with the new account
-    await loginPage.navigateToLoginPage();
-    await loginPage.login(testData.user.email, testData.user.password);
-    
-    // Verify pre-application dashboard
-    await preAppDashboardPage.verifyPageLoaded();
-    
-    // Verify age is between 18-24
-    await preAppDashboardPage.verifyAgeBetween18And24();
-    
-    // Start new application
-    await preAppDashboardPage.startNewApplication();
-    
-    // ===== My Information Page =====
-    await myInformationPage.verifyPageLoaded();
-    
-    // Fill personal information with veteran status and non-US residency
-    await myInformationPage.fillPersonalInformation({
-      legalSex: testData.personalInfo.legalSex,
-      primaryLanguage: testData.personalInfo.primaryLanguage,
-      address: testData.personalInfo.address,
-      phone: testData.personalInfo.phone,
-      usCitizenship: testData.personalInfo.usCitizenship,
-      visaType: testData.personalInfo.visaType,
-      hispanicLatino: testData.personalInfo.hispanicLatino,
-      usArmedForces: testData.personalInfo.usArmedForces,
-      militaryStatus: testData.personalInfo.militaryStatus,
-      // Add other fields as needed
+const testData = {
+    mode: /** @type {'in-person'} */ ('in-person'),
+    applicant: {
+        firstName: 'Qa',
+        lastName: uniqueLastName,
+        birth: { month: 'June', day: '15', year: String(new Date().getFullYear() - 20) },
+        visaType: 'Permanent resident',
+        campus: 'Tempe',
+    },
+    veteran: true,
+    graduationDate: `May ${new Date().getFullYear() - 1}`, // PastGrad
+    highSchool: 'Tempe High School',
+    program: 'Anthropology, BA',
+    residency: { permanentState: 'Outside the U.S. or Not Listed' }, // OOS
+    feeWaiverReason: ReviewPage.FEE_WAIVER_OPTIONS[0],
+};
+const fullName = `${testData.applicant.firstName} ${testData.applicant.lastName}`;
+
+test.describe('F3 18To24 NonUS Res Veteran PastGrad OOS GlobalAppFeewaiver Location', () => {
+    test.describe.configure({ mode: 'serial', timeout: 180000 });
+
+    /** @type {import('@playwright/test').BrowserContext} */
+    let context;
+    /** @type {import('@playwright/test').Page} */
+    let page;
+    /** @type {AZResidencyPage} */
+    let residencyPage;
+    /** @type {ReviewPage} */
+    let reviewPage;
+    let applicationId = '';
+    /** What Review offered for the fee, recorded before submitting. */
+    let fee = { waived: false, waiverListOffered: false, paymentOffered: false };
+
+    test.beforeAll(async ({ browser }, testInfo) => {
+        testInfo.setTimeout(600000);
+        context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+        page = await context.newPage();
+        // Steps 1-4: pre-app, My information (permanent resident, veteran), My program (Tempe),
+        // My schools (Arizona high school, past graduation), grades.
+        applicationId = await startApplicationAt(page, 'arizona-residency', {
+            captureValidations: false,
+            mode: testData.mode,
+            applicant: testData.applicant,
+            veteran: testData.veteran,
+            graduationDate: testData.graduationDate,
+        });
+        residencyPage = new AZResidencyPage(page);
+        residencyPage.applicationId = applicationId;
+        reviewPage = new ReviewPage(page);
+        reviewPage.applicationId = applicationId;
+        testInfo.annotations.push({ type: 'application', description: `${applicationId} (${fullName})` });
     });
-    
-    // Apply for global app fee waiver
-    if (testData.personalInfo.hasFeeWaiver) {
-      await myInformationPage.applyForFeeWaiver();
-    }
-    
-    // No partner benefits for this flow
-    if (testData.personalInfo.partnerBenefits?.hasPartnerBenefits) {
-      await myInformationPage.applyPartnerBenefits({
-        partnerName: testData.personalInfo.partnerBenefits.partnerName,
-        // Add other partner benefit details
-      });
-    }
-    
-    // Save and continue
-    await myInformationPage.saveAndContinue();
-    
-    // ===== My Program Page =====
-    await myASUProgramPage.verifyPageLoaded();
-    
-    // Fill program information for in-person program
-    await myASUProgramPage.selectProgram({
-      degreeType: testData.programInfo.degreeType,
-      program: testData.programInfo.program,
-      startTerm: testData.programInfo.startTerm,
-      location: testData.programInfo.programLocation,
-      // Add other fields as needed
+
+    test.afterAll(async () => {
+        await context?.close();
     });
-    
-    // Save and continue
-    await myASUProgramPage.saveAndContinue();
-    
-    // ===== My Schools Page =====
-    await mySchoolsPage.verifyPageLoaded();
-    
-    // Add high school with past graduation date
-    await mySchoolsPage.addHighSchool({
-      name: testData.schoolInfo.highSchoolName,
-      city: testData.schoolInfo.highSchoolCity,
-      state: testData.schoolInfo.highSchoolState,
-      country: testData.schoolInfo.highSchoolCountry,
-      graduationDate: testData.schoolInfo.graduationDate,
+
+    test('Arizona residency asks a veteran aged 18 to 24 the right questions', async () => {
+        await residencyPage.navigateToAZResidency();
+        expect(await residencyPage.isStepNotNecessary()).toBe(false);
+        // Under 24: the parent questions; veteran: DD-214, discharge date, voter registration.
+        await expect.poll(() => residencyPage.getShownFields()).toEqual([
+            'claimedAsDependent', 'dd214CharacterOfService', 'dischargeDate', 'employed', 'enrolledElsewhere',
+            'enrolledInAzCollege', 'filedStateTaxes', 'financialSupport', 'hasLicense', 'ownsVehicle',
+            'parentState', 'permanentState', 'registeredToVote',
+        ]);
+        expect(await residencyPage.isVeteranSectionShown()).toBe(true);
+        expect(await residencyPage.isSpouseOfServiceMemberSectionShown()).toBe(false);
     });
-    
-    // Add any college/universities if applicable
-    await mySchoolsPage.addCollegeOrUniversity({
-      // Add college/university details if needed
+
+    test('Residency "Outside the U.S. or Not Listed" (OOS): fill, save and continue to Review', async () => {
+        await residencyPage.navigateToAZResidency();
+        await residencyPage.fillResidencyInformation({ isArizonaResident: false, permanentState: testData.residency.permanentState });
+        expect(await residencyPage.getPermanentState()).toBe(testData.residency.permanentState);
+        expect((await residencyPage.getVeteranDetails()).characterOfService).toBe('Honorable');
+        expect(await residencyPage.getSupportTotal()).toBe(100);
+
+        await residencyPage.saveAndContinue();
+        await reviewPage.verifyPageLoaded();
     });
-    
-    // Save and continue
-    await mySchoolsPage.saveAndContinue();
-    
-    // ===== My High School Grades Page =====
-    await myHighSchoolGradesPage.verifyPageLoaded();
-    
-    // Fill grade information (self-reported or transcript)
-    await myHighSchoolGradesPage.fillGradeInformation({
-      // Add grade information
-      // For past graduates, this might be self-reported or from transcript
-      isSelfReported: true,
-      // Add other grade details as needed
+
+    test('Review shows the applicant, permanent resident, veteran, Tempe and the high school', async () => {
+        await reviewPage.navigateToReviewPage();
+        expect(await reviewPage.getSectionValue('Profile', 'Legal name')).toBe(fullName);
+        expect(await reviewPage.getSectionValue('My information', 'U.S. citizenship')).toBe('I am not a U.S. citizen');
+        expect(await reviewPage.getSectionValue('My information', 'Which type of visa will you be holding?')).toBe(testData.applicant.visaType);
+        expect(await reviewPage.getSectionValue('My information', 'Previous ASU affiliation'))
+            .toBe('I have never been affiliated with Arizona State University');
+        expect(await reviewPage.getSectionValue('My information', 'Military status')).toBe('Veteran');
+        expect(await reviewPage.getSectionValue('My information', 'Education benefits')).toBe('No');
+
+        const { first } = await reviewPage.getChosenPrograms();
+        expect(first).toBe(testData.program);
+        expect(await reviewPage.getSectionValue('My program', 'Location')).toBe(testData.applicant.campus);
+
+        expect(await reviewPage.getSectionValue('My schools', 'High school name')).toBe(testData.highSchool);
+        expect(await reviewPage.getSectionValue('My schools', 'Graduation date')).toBe(`May, ${new Date().getFullYear() - 1}`);
     });
-    
-    // Save and continue
-    await myHighSchoolGradesPage.saveAndContinue();
-    
-    // ===== Arizona Residency Page =====
-    await azResidencyPage.verifyPageLoaded();
-    
-    // Fill residency information for out-of-state applicant
-    await azResidencyPage.fillResidencyInformation({
-      isArizonaResident: testData.residencyInfo.isArizonaResident,
-      // Add veteran-specific residency information
-      isVeteran: true,
-      // Add other residency fields as needed
+
+    test('Submit the application with what Review offers for the fee', async () => {
+        await reviewPage.navigateToReviewPage();
+        fee = {
+            waived: await reviewPage.isFeeWaived(),
+            waiverListOffered: await reviewPage.isFeeWaiverOffered(),
+            paymentOffered: await reviewPage.isPaymentOffered(),
+        };
+        test.info().annotations.push({ type: 'fee section', description: JSON.stringify(fee) });
+
+        // Not waived: request a waiver (reason + signature) when the list is offered.
+        if (!fee.waived && fee.waiverListOffered) {
+            await reviewPage.setFeeWaivers(await reviewPage.getSelectedFeeWaivers(), false);
+            await reviewPage.requestFeeWaiver({ reasons: [testData.feeWaiverReason], signature: fullName });
+        }
+        // IRREVERSIBLE: certify and submit. "Pay later" only when payment is what is offered.
+        await reviewPage.submitApplication({ certify: true, paymentOption: !fee.waived && fee.paymentOffered ? 'later' : null });
+        await reviewPage.waitForSubmitted();
     });
-    
-    // Save and continue
-    await azResidencyPage.saveAndContinue();
-    
-    // ===== Review Page =====
-    await reviewPage.verifyPageLoaded();
-    
-    // Verify all information is correct
-    await reviewPage.verifyPersonalInformation(testData.personalInfo);
-    await reviewPage.verifyProgramInformation(testData.programInfo);
-    await reviewPage.verifySchoolInformation(testData.schoolInfo);
-    await reviewPage.verifyResidencyInformation(testData.residencyInfo);
-    
-    // Verify fee waiver is applied if applicable
-    if (testData.personalInfo.hasFeeWaiver) {
-      await reviewPage.verifyFeeWaiverApplied();
-    }
-    
-    // Proceed to preview
-    await reviewPage.proceedToPreview();
-    
-    // ===== Preview Page =====
-    await previewPage.verifyPageLoaded();
-    
-    // Verify all sections in preview
-    await previewPage.validatePreview();
-    
-    // Submit application
-    await previewPage.submitApplication();
-    
-    // ===== Post-Submission Dashboard =====
-    await postAppDashboardPage.verifyPageLoaded();
-    
-    // Verify application status is submitted
-    const { status, date } = await postAppDashboardPage.getApplicationStatus();
-    expect(status).toMatch(/submitted|completed|in review/i);
-    
-    // Log the submission date for reference
-    console.log(`Application submitted on: ${date}`);
-    
-    // Verify fee waiver status if applicable
-    if (testData.personalInfo.hasFeeWaiver) {
-      const feeStatus = await postAppDashboardPage.getFeeStatus();
-      expect(feeStatus).toMatch(/waived|paid/i);
-    }
-  });
-  
-  test.afterEach(async ({ page }) => {
-    // Clean up: Sign out after each test
-    try {
-      // Navigate to a page that has the profile menu (like the dashboard)
-      await page.goto('/dashboard');
-      await page.waitForLoadState('networkidle');
-      
-      // Click profile icon and sign out
-      await page.click('[data-cy="profile-icon"]');
-      await page.click('button:has-text("Sign Out")');
-      await page.waitForLoadState('networkidle');
-    } catch (error) {
-      console.log('Cleanup - User was not signed in or sign out failed:', error.message);
-    }
-  });
+
+    test('Next steps dashboard shows the submitted application', async () => {
+        const dashboard = new PostAppSubmissionDashboardPage(page);
+        dashboard.applicationId = applicationId;
+        await dashboard.verifyPageLoaded();
+        expect(await dashboard.getSubmittedApplicationId()).toBe(applicationId);
+    });
+
+    test('Fee was waived for the Tempe location, with no payment option (GlobalAppFeewaiver_Location)', async () => {
+        // The sheet's expectation, checked from what Review showed before the submit.
+        expect(fee, 'Review should say the fee is waived for the Tempe location, and offer no payment or waiver list')
+            .toEqual({ waived: true, waiverListOffered: false, paymentOffered: false });
+    });
 });
