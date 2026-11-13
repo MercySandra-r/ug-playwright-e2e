@@ -536,6 +536,9 @@ class MySchoolsPage extends BasePage {
      * @returns {Promise<string[]>} names of the schools this call added
      */
     async addHighSchools(total, { country = 'United States', state = 'Arizona', city = 'Tempe' } = {}) {
+        // Already there: don't open the form at all. A form left open and half filled blocks
+        // Continue on this step.
+        if ((await this.getSavedHighSchools()).length >= total) return [];
         await this.openHighSchoolForm();
         await this.choose(this.selectors.hsCountry, country);
         await this.choose(this.selectors.hsState, state);
