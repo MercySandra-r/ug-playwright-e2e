@@ -1,6 +1,8 @@
 // @ts-check
 const { defineConfig, devices } = require('@playwright/test');
-require('dotenv').config();
+// .env always wins over values left in the environment by an earlier run (the VS Code test
+// runner keeps its process alive, so without override a changed .env would be ignored).
+require('dotenv').config({ path: require('path').join(__dirname, '.env'), override: true });
 
 /**
  * @see https://playwright.dev/docs/test-configuration

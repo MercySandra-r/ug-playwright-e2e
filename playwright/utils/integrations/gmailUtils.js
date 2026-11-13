@@ -32,12 +32,14 @@ class GmailUtils {
      * @param {string[]} [options.scopes] - OAuth2 scopes (default: gmail.readonly).
      */
     constructor({
-        credentialsPath = process.env.GMAIL_CREDENTIALS_PATH || path.join(process.cwd(), 'credentials', 'credentials.json'),
-        tokenPath = process.env.GMAIL_TOKEN_PATH || path.join(process.cwd(), 'credentials', 'gmail-token.json'),
+        credentialsPath = process.env.GMAIL_CREDENTIALS_PATH || 'credentials/credentials.json',
+        tokenPath = process.env.GMAIL_TOKEN_PATH || 'credentials/gmail-token.json',
         scopes = ['https://www.googleapis.com/auth/gmail.readonly'],
     } = {}) {
-        this.credentialsPath = credentialsPath;
-        this.tokenPath = tokenPath;
+        // Relative paths are taken from the playwright/ folder, whatever the working directory.
+        const projectDir = path.join(__dirname, '..', '..');
+        this.credentialsPath = path.resolve(projectDir, credentialsPath);
+        this.tokenPath = path.resolve(projectDir, tokenPath);
         this.scopes = scopes;
         /** @type {import('google-auth-library').OAuth2Client | any} */
         this.auth = null;
