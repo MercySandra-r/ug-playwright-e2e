@@ -2,6 +2,7 @@
 const { test, expect } = require('@playwright/test');
 const LoginPage = require('../pages/LoginPage');
 const { inboxForEmail } = require('../utils/inboxes');
+const { signUpVerifiedAccount } = require('../utils/authHelper');
 
 /**
  * Test suite for Login functionality.
@@ -145,16 +146,23 @@ test.describe('Forgot Password Tests', () => {
         expect(await forgot.isErrorShown('invalidCode', 20000)).toBeTruthy();
     });
 
-    test('Verify a password reset via the emailed code, then sign in with the new password', async () => {
-        test.setTimeout(180000);
-        // A spare account that nothing else signs in to: its password changes on every run.
-        // Never point this at TEST_EMAIL or another shared account.
-        // It must be a "+tag" address of an inbox the suite reads (GMAIL_TEST_ADDRESS, _2, ...),
-        // or the reset code can never be read and the test would wait on the code screen.
-        const email = process.env.FORGOT_PASSWORD_TEST_EMAIL || '';
-        test.skip(!email, 'Set FORGOT_PASSWORD_TEST_EMAIL to a spare account (its password is changed on every run)');
-        test.skip(!!email && !inboxForEmail(email),
-            `FORGOT_PASSWORD_TEST_EMAIL (${email}) is not on an inbox the suite reads (GMAIL_TEST_ADDRESS, _2, ...)`);
+    test('Verify a password reset via the emailed code, then sign in with the new password', async ({ browser }, testInfo) => {
+        test.setTimeout(420000);
+        // The account's password changes on every run, so it must be one nothing else signs in
+        // to: never TEST_EMAIL or another shared account. It must also be on the inbox the
+        // suite reads, or the reset code could not be read.
+        //   - FORGOT_PASSWORD_TEST_EMAIL set and on that inbox: that spare account is used.
+        //   - otherwise: this test signs up a fresh account for itself (one sign-up per run).
+        let email = process.env.FORGOT_PASSWORD_TEST_EMAIL || '';
+        if (!email || !inboxForEmail(email)) {
+            const signupContext = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+            try {
+                ({ email } = await signUpVerifiedAccount(await signupContext.newPage(), { mode: 'online', degreeType: 'pursue' }));
+            } finally {
+                await signupContext.close();
+            }
+        }
+        testInfo.annotations.push({ type: 'account', description: email });
         // New each run, so the IdP can't reject it as a recently used password.
         const newPassword = `AsuQaReset${Date.now()}`;
 

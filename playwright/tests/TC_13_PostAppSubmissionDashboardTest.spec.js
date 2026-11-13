@@ -1,23 +1,22 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const LoginPage = require('../pages/LoginPage');
+const { signInWithSubmittedApplication } = require('../utils/applicationJourney');
 const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashboardPage');
 
 /**
  * Post-submission dashboard, "Next steps" (/ug-app/<id>/dashboard), against the live page.
  *
- * Needs an account whose application is ALREADY SUBMITTED, given by
- * SUBMITTED_TEST_EMAIL / SUBMITTED_TEST_PASSWORD. This suite never submits anything
- * itself (submission is irreversible; see TC_12 and REVIEW_ALLOW_SUBMIT). The page is
- * informational, so every test is read-only; external links are checked, not visited.
+ * Needs an account whose application is ALREADY SUBMITTED: SUBMITTED_TEST_EMAIL /
+ * SUBMITTED_TEST_PASSWORD when set. Without them, beforeAll creates a fresh applicant and
+ * SUBMITS its application (irreversible: one more submitted application in QA per run).
+ * The page is informational, so the tests are read-only; external links are checked, not
+ * visited.
  *
  * POM: every element comes from PostAppSubmissionDashboardPage (its selectors, locator
  * methods and read-back methods); this spec has no locators of its own.
  */
 test.describe('Post-Application Submission Dashboard Tests', () => {
     test.describe.configure({ mode: 'serial', timeout: 120000 });
-    test.skip(!process.env.SUBMITTED_TEST_EMAIL || !process.env.SUBMITTED_TEST_PASSWORD,
-        'Set SUBMITTED_TEST_EMAIL and SUBMITTED_TEST_PASSWORD to an account with a submitted application');
 
     /** @type {import('@playwright/test').BrowserContext} */
     let context;
@@ -27,12 +26,13 @@ test.describe('Post-Application Submission Dashboard Tests', () => {
     let dashboard;
 
     test.beforeAll(async ({ browser }, testInfo) => {
-        testInfo.setTimeout(180000);
+        testInfo.setTimeout(600000);
         context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
         page = await context.newPage();
-        // Sign in only: a submitted application has no dashboard "Continue", so the ID is
-        // read from the "Your applications" card instead of resumeApplication().
-        await new LoginPage(page).login(/** @type {string} */ (process.env.SUBMITTED_TEST_EMAIL), /** @type {string} */ (process.env.SUBMITTED_TEST_PASSWORD));
+        // A submitted application has no dashboard "Continue", so the ID is read from the
+        // "Your applications" card instead of resumeApplication().
+        const account = await signInWithSubmittedApplication(page);
+        testInfo.annotations.push({ type: 'account', description: `${account.email}${account.created ? ' (created and submitted by this run)' : ''}` });
         dashboard = new PostAppSubmissionDashboardPage(page);
         await dashboard.getSubmittedApplicationId();
     });

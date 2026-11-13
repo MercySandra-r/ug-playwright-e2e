@@ -1,15 +1,17 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const LoginPage = require('../pages/LoginPage');
+const { signInWithSubmittedApplication } = require('../utils/applicationJourney');
 const PreviewPage = require('../pages/PreviewPage');
 const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashboardPage');
 
 /**
  * "Preview Submitted Application" (/ug-app/<id>/preview), against the live page.
  *
- * The preview only exists after submission, so this needs SUBMITTED_TEST_EMAIL /
- * SUBMITTED_TEST_PASSWORD (an account with a submitted application, created through the
- * journey defaults). Read-only: the PDF is not downloaded, nothing is submitted.
+ * The preview only exists after submission: SUBMITTED_TEST_EMAIL / SUBMITTED_TEST_PASSWORD
+ * (an account with a submitted application, created through the journey defaults) when
+ * set. Without them, beforeAll creates a fresh applicant and SUBMITS its application
+ * (irreversible: one more submitted application in QA per run). The tests themselves are
+ * read-only: the PDF is not downloaded.
  * The old Excel comparison tests are replaced by a live comparison with Next steps.
  *
  * POM: every element comes from PreviewPage / PostAppSubmissionDashboardPage (their
@@ -17,8 +19,6 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
  */
 test.describe('Preview Page Tests', () => {
     test.describe.configure({ mode: 'serial', timeout: 120000 });
-    test.skip(!process.env.SUBMITTED_TEST_EMAIL || !process.env.SUBMITTED_TEST_PASSWORD,
-        'Set SUBMITTED_TEST_EMAIL and SUBMITTED_TEST_PASSWORD to an account with a submitted application');
 
     /** @type {import('@playwright/test').BrowserContext} */
     let context;
@@ -26,12 +26,16 @@ test.describe('Preview Page Tests', () => {
     let page;
     /** @type {PreviewPage} */
     let previewPage;
+    /** The signed-in account's email (SUBMITTED_TEST_EMAIL, or the account created here). */
+    let accountEmail = '';
 
     test.beforeAll(async ({ browser }, testInfo) => {
-        testInfo.setTimeout(180000);
+        testInfo.setTimeout(600000);
         context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
         page = await context.newPage();
-        await new LoginPage(page).login(/** @type {string} */ (process.env.SUBMITTED_TEST_EMAIL), /** @type {string} */ (process.env.SUBMITTED_TEST_PASSWORD));
+        const account = await signInWithSubmittedApplication(page);
+        accountEmail = account.email;
+        testInfo.annotations.push({ type: 'account', description: `${account.email}${account.created ? ' (created and submitted by this run)' : ''}` });
         previewPage = new PreviewPage(page);
     });
 
@@ -73,7 +77,7 @@ test.describe('Preview Page Tests', () => {
         await freshPage();
         expect(await previewPage.getSectionValue('Profile', 'Legal name')).toBe('Qa Automation');
         expect(await previewPage.getSectionValue('Profile', 'Date of birth')).toBe('2000-06-15');
-        expect(await previewPage.getSectionValue('Profile', 'Email')).toBe(process.env.SUBMITTED_TEST_EMAIL);
+        expect(await previewPage.getSectionValue('Profile', 'Email')).toBe(accountEmail);
     });
 
     test('Verify My Information section details', async () => {

@@ -1,5 +1,5 @@
 // @ts-check
-const { test } = require('@playwright/test');
+const { test, expect } = require('@playwright/test');
 const { signUpVerifiedAccount } = require('../utils/authHelper');
 const PreAppDashboardPage = require('../pages/PreAppDashboardPage');
 const MyInformationPage = require('../pages/MyInformationPage');
@@ -10,7 +10,7 @@ const MyASUProgramPage = require('../pages/MyASUProgramPage');
  * birthday and Social Security Number) applying to the same program and term must be
  * BLOCKED when saving on My program. No application is submitted.
  *
- * Runs only when TEST_SSN is set (in playwright/.env, e.g. TEST_SSN=111111111); the SSN is
+ * Needs TEST_SSN (in playwright/.env) and fails with a clear message without it; the SSN is
  * typed by MyInformationPage from that variable. Creates one new account per run.
  * Another application with the same SSN, program and term must already exist in QA.
  *
@@ -24,9 +24,11 @@ const MyASUProgramPage = require('../pages/MyASUProgramPage');
  */
 test.describe('Duplicate Application Check (new account, same SSN)', () => {
     test.describe.configure({ mode: 'serial', timeout: 420000 });
-    test.skip(!process.env.TEST_SSN, 'Set TEST_SSN (9 digits) in playwright/.env to run the duplicate application check');
 
     test('Saving the same program and term on My program is blocked', async ({ page }) => {
+        // The check needs the SSN of the application that already exists in QA; only the tester
+        // can supply it, so without it the test fails with this message rather than being skipped.
+        expect(process.env.TEST_SSN, 'Set TEST_SSN (9 digits) in playwright/.env: the SSN of the existing application').toMatch(/^\d{9}$/);
         const program = process.env.DUP_CHECK_PROGRAM || 'Anthropology, BA';
         const term = process.env.DUP_CHECK_TERM || '2027 spring - (Session A)';
         const [month, day, year] = (process.env.DUP_CHECK_DOB || 'April 17 1999').split(/\s+/);
