@@ -13,7 +13,8 @@ const { isSignupAddress } = require('../utils/inboxes');
  * High School, no self-reported grades, California). Account creation is
  * rate-limited per hour; this suite creates one.
  *
- * SUBMISSION IS IRREVERSIBLE: the two submit tests only run with REVIEW_ALLOW_SUBMIT=1.
+ * SUBMISSION IS IRREVERSIBLE: the last test only clicks Submit with REVIEW_ALLOW_SUBMIT=1
+ * (without it, it checks the payment options and stops).
  * Card payment is never exercised.
  *
  * The old Excel comparison test is gone: its data file never existed.
@@ -144,17 +145,20 @@ test.describe('Review Page Tests', () => {
         expect(options).toEqual(['Pay now (Visa, Mastercard, Discover or American Express)', 'Pay later']);
     });
 
-    test('Select payment option (Pay now / Pay later)', async () => {
+    test('Select payment option and submit application (Pay later)', async () => {
         await freshPage();
+        // Payment option: both choices can be selected
         await reviewPage.selectPaymentMethod('Visa'); // old card-brand names map to "Pay now"
         expect(await reviewPage.getSelectedPaymentOption()).toBe('Pay now');
         await reviewPage.selectPaymentMethod('Pay later');
         expect(await reviewPage.getSelectedPaymentOption()).toBe('Pay later');
-    });
 
-    test('Submit application (Pay later)', async () => {
-        test.skip(!allowSubmit, 'Submits the application; set REVIEW_ALLOW_SUBMIT=1 to run');
-        await freshPage();
+        // Submit with Pay later. IRREVERSIBLE, so only with REVIEW_ALLOW_SUBMIT=1; without it
+        // the test ends here, having checked the payment options.
+        if (!allowSubmit) {
+            test.info().annotations.push({ type: 'note', description: 'Not submitted: set REVIEW_ALLOW_SUBMIT=1 to submit the application' });
+            return;
+        }
         await reviewPage.submitApplication({ certify: true, paymentOption: 'later' });
         await reviewPage.waitForSubmitted();
     });
