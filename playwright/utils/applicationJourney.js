@@ -152,4 +152,32 @@ async function resumeApplication(page, email, password) {
     return new BasePage(page).getApplicationId();
 }
 
-module.exports = { startApplicationAt, resumeApplication, STEPS };
+/**
+ * Sign in to an account that has a SUBMITTED application, for the post-submission suites.
+ *
+ * With SUBMITTED_TEST_EMAIL / SUBMITTED_TEST_PASSWORD set, that account is used. Otherwise a
+ * fresh applicant is created with the journey's defaults, taken to Review and submitted
+ * (certify, Pay later). IRREVERSIBLE: that leaves one more submitted application in QA.
+ *
+ * @param {import('@playwright/test').Page} page
+ * @returns {Promise<{ email: string, applicationId: string, created: boolean }>}
+ */
+async function signInWithSubmittedApplication(page) {
+    const email = process.env.SUBMITTED_TEST_EMAIL;
+    const password = process.env.SUBMITTED_TEST_PASSWORD;
+    if (email && password) {
+        await new LoginPage(page).login(email, password);
+        return { email, applicationId: '', created: false };
+    }
+    const ReviewPage = require('../pages/ReviewPage');
+    const { signedInEmail } = require('./accountLog');
+    const applicationId = await startApplicationAt(page, 'review', { captureValidations: false });
+    const review = new ReviewPage(page);
+    review.applicationId = applicationId;
+    await review.navigateToReviewPage();
+    await review.submitApplication({ certify: true, paymentOption: (await review.isPaymentOffered()) ? 'later' : null });
+    await review.waitForSubmitted();
+    return { email: signedInEmail(page) || '', applicationId, created: true };
+}
+
+module.exports = { startApplicationAt, resumeApplication, signInWithSubmittedApplication, STEPS };

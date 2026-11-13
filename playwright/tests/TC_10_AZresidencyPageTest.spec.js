@@ -198,15 +198,16 @@ function defineFieldTests(scenario, residency) {
         await expect.poll(() => residency().getShownFields()).toEqual(sorted(scenario.asShown));
     });
 
+    // A non-resident is asked no home state at all, so these two tests don't exist for one.
+    if (scenario.notNecessary) return;
+
     test('Permanent home Arizona', async () => {
-        test.skip(!!scenario.notNecessary, 'No home state is asked when the step is not necessary');
         await residency().navigateToAZResidency();
         await residency().selectPermanentState('Arizona');
         await expect.poll(() => residency().getShownFields()).toEqual(sorted(scenario.homeArizona));
     });
 
     test('Permanent home in another state', async () => {
-        test.skip(!!scenario.notNecessary, 'No home state is asked when the step is not necessary');
         await residency().navigateToAZResidency();
         // Arizona first, so the test also proves the extra fields go away again.
         await residency().selectPermanentState('Arizona');

@@ -2,12 +2,15 @@
 const { test, expect } = require('@playwright/test');
 const LoginPage = require('../pages/LoginPage');
 const ProfilePage = require('../pages/ProfilePage');
+const PreAppDashboardPage = require('../pages/PreAppDashboardPage');
+const { signUpVerifiedAccount } = require('../utils/authHelper');
 
 /**
  * Applicant profile (/profile and its edit pages), against the live site.
  *
- * Signs in once (beforeAll) to TEST_EMAIL / TEST_PASSWORD, an existing account; no new
- * account is created. Serial.
+ * Signs in once (beforeAll) to TEST_EMAIL / TEST_PASSWORD, an existing account. Without
+ * them it creates its own account and starts one application on it (the profile is fully
+ * editable with exactly one application in progress). Serial.
  *
  * To keep that shared account intact:
  *  - Fields the application relies on (legal name, birthday, phone) are only opened,
@@ -21,9 +24,9 @@ const ProfilePage = require('../pages/ProfilePage');
  */
 test.describe('Profile Page Tests', () => {
     test.describe.configure({ mode: 'serial', timeout: 120000 });
-    test.skip(!process.env.TEST_EMAIL || !process.env.TEST_PASSWORD, 'Set TEST_EMAIL and TEST_PASSWORD to an existing account');
 
-    const email = /** @type {string} */ (process.env.TEST_EMAIL);
+    /** The account's email: TEST_EMAIL, or the account created in beforeAll. */
+    let email = process.env.TEST_EMAIL || '';
 
     /** @type {import('@playwright/test').BrowserContext} */
     let context;
@@ -36,7 +39,13 @@ test.describe('Profile Page Tests', () => {
         testInfo.setTimeout(180000);
         context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
         page = await context.newPage();
-        await new LoginPage(page).login(email, /** @type {string} */ (process.env.TEST_PASSWORD));
+        if (process.env.TEST_EMAIL && process.env.TEST_PASSWORD) {
+            await new LoginPage(page).login(process.env.TEST_EMAIL, process.env.TEST_PASSWORD);
+        } else {
+            testInfo.setTimeout(420000);
+            ({ email } = await signUpVerifiedAccount(page, { mode: 'online', degreeType: 'pursue' }));
+            await new PreAppDashboardPage(page).startApplication();
+        }
         profilePage = new ProfilePage(page);
     });
 
