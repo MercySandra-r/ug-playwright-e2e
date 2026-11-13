@@ -210,7 +210,7 @@ test.describe('My Information Page Tests', () => {
     test('Parents: valid and invalid contact; BriteVerify flags the invalid phone on Continue', async () => {
         test.setTimeout(240000);
         await myInfoPage.addParentInformation({ firstName: 'Valid', lastName: 'Parent', isLiving: true,
-            email: 'ugnaaqaautomation1+guardian@gmail.com', phone: '4809657788' });
+            email: 'ugnaaqaautomation+guardian@gmail.com', phone: '4809657788' });
         await myInfoPage.addParentInformation({ firstName: 'Invalid', lastName: 'Parent', isLiving: true,
             email: 'qa@au.is', phone: '5005550123' });
         expect(await myInfoPage.getGuardians()).toEqual(expect.arrayContaining(['Valid Parent', 'Invalid Parent']));

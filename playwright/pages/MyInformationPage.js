@@ -1098,7 +1098,7 @@ MyInformationPage.ALL_FIELDS = {
     countryOfBirth: 'Canada',
     // Valid contact details: the test inbox and ASU's public Admission Services number.
     guardian: { firstName: 'Pat', lastName: 'Guardian', isLiving: true, attendedAsu: false,
-        email: 'ugnaaqaautomation1+guardian@gmail.com', phone: '4809657788' },
+        email: 'ugnaaqaautomation+guardian@gmail.com', phone: '4809657788' },
     asuAffiliate: {
         /** @type {Array<'undergradDegreeSeeking'|'nondegreeOrGraduate'|'globalLaunch'|'transferPathway'|'employee'|'summerProgram'|'other'|'neverAffiliated'>} */
         affiliations: ['summerProgram'],

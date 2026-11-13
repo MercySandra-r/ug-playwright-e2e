@@ -10,7 +10,7 @@ const path = require('path');
  * A lock directory makes the increment safe across parallel Playwright workers.
  *
  * Env:
- *   GMAIL_TEST_ADDRESS     base inbox, e.g. ugnaaqaautomation1@gmail.com (required)
+ *   GMAIL_TEST_ADDRESS     base inbox, e.g. ugnaaqaautomation@gmail.com (required)
  *   GMAIL_SEQUENCE_PREFIX  tag prefix (default "asuqa")
  *   GMAIL_SEQUENCE_START   first number when no state file exists yet (default 1)
  */
@@ -69,7 +69,7 @@ function nextSequenceNumber() {
 }
 
 /**
- * Build the next sequential sign-up address, e.g. ugnaaqaautomation1+asuqa0007@gmail.com.
+ * Build the next sequential sign-up address, e.g. ugnaaqaautomation+asuqa0007@gmail.com.
  * @param {string} [inboxAddress] - the inbox to tag (default GMAIL_TEST_ADDRESS). The number
  *   sequence is shared by all inboxes.
  * @returns {{ email: string, sequence: number }}
