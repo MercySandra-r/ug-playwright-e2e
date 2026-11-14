@@ -14,7 +14,10 @@ module.exports = defineConfig({
   retries: 3,
   // Workers for running tests in parallel
   workers: process.env.CI ? 1 : undefined,
-  timeout: 60000, // Global timeout: 60 seconds
+  // Default per-test timeout. It also limits the clean-up hooks and the saving of the trace
+  // after them: in UI mode every run is traced, and a long flow's trace can take over a minute
+  // to write. Long suites raise their own test timeout with test.describe.configure().
+  timeout: 180000,
   expect: {
     timeout: 10000, // Assertion timeout: 10 seconds
   },
