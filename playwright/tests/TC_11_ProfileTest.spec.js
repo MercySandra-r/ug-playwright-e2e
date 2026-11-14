@@ -71,7 +71,10 @@ test.describe('Profile Page Tests', () => {
         await freshPage();
         const profile = await profilePage.readProfile();
         expect(profile.contactEmail).toBe(email);
-        expect(profile.welcomeName).toBe(profile.legalName);
+        // "Welcome, <name>": the preferred first name when one is set, otherwise the legal first
+        // name, followed by the last name.
+        const lastName = profile.legalName.split(' ').slice(-1)[0];
+        expect(profile.welcomeName).toBe(profile.preferredFirstName ? `${profile.preferredFirstName} ${lastName}` : profile.legalName);
         expect(profile.applicationId).toMatch(/^\d+$/);
         expect(profile.birthday).toMatch(/^[A-Z][a-z]+ \d{1,2}, \d{4}$/);
         expect(profile.phoneNumber).toMatch(/^\+\d+ \(\d{3}\) \d{3}-\d{4}$/);
@@ -99,10 +102,20 @@ test.describe('Profile Page Tests', () => {
 
     test('Preferred first name can be set and cleared', async () => {
         await freshPage();
-        await profilePage.updatePreferredFirstName('Q');
-        expect((await profilePage.readProfile()).preferredFirstName).toBe('Q');
-        await profilePage.updatePreferredFirstName('');
-        expect((await profilePage.readProfile()).preferredFirstName).toBe('');
+        // The account is shared between runs: always clear the name again, even if a check
+        // fails, so the next run starts without one.
+        try {
+            await profilePage.updatePreferredFirstName('Q');
+            const set = await profilePage.readProfile();
+            expect(set.preferredFirstName).toBe('Q');
+            expect(set.welcomeName).toBe(`Q ${set.legalName.split(' ').slice(-1)[0]}`);
+        } finally {
+            await freshPage();
+            await profilePage.updatePreferredFirstName('');
+        }
+        const cleared = await profilePage.readProfile();
+        expect(cleared.preferredFirstName).toBe('');
+        expect(cleared.welcomeName).toBe(cleared.legalName);
     });
 
     test('Birthday editor shows the current birthday; Cancel keeps it', async () => {
