@@ -216,12 +216,12 @@ class LandingPage extends BasePage {
     
     await this.waitForPageLoad();
     
-    // Scroll to the in-person radio button and click it
-    const inPersonRadioElement = await this.page.$(this.selectors.inPersonRadioButton);
-    if (!inPersonRadioElement) {
+    // Wait for the radio: after a back navigation the page redraws it a moment later.
+    const radio = this.page.locator(this.selectors.inPersonRadioButton).first();
+    await radio.waitFor({ state: 'visible', timeout: this.navigationTimeout }).catch(() => {
       throw new Error(`In-person radio button not found with selector: ${this.selectors.inPersonRadioButton}`);
-    }
-    await inPersonRadioElement.scrollIntoViewIfNeeded();
+    });
+    await radio.scrollIntoViewIfNeeded();
     await this.click(this.selectors.inPersonRadioButton);
     
     // Handle degree type selection
@@ -248,12 +248,12 @@ class LandingPage extends BasePage {
     
     await this.waitForPageLoad();
     
-    // Scroll to the online radio button and click it
-    const onlineRadioElement = await this.page.$(this.selectors.onlineRadioButton);
-    if (!onlineRadioElement) {
+    // Wait for the radio: after a back navigation the page redraws it a moment later.
+    const radio = this.page.locator(this.selectors.onlineRadioButton).first();
+    await radio.waitFor({ state: 'visible', timeout: this.navigationTimeout }).catch(() => {
       throw new Error(`Online radio button not found with selector: ${this.selectors.onlineRadioButton}`);
-    }
-    await onlineRadioElement.scrollIntoViewIfNeeded();
+    });
+    await radio.scrollIntoViewIfNeeded();
     await this.click(this.selectors.onlineRadioButton);
     
     // Handle degree type selection
