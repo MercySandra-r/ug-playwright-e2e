@@ -11,7 +11,9 @@ const { logger } = require('./testLogger');
  *   artifacts/accounts/accounts.xlsx   one row per account (open this)
  *   artifacts/accounts/accounts.json   the same rows; the source the sheet is rebuilt from
  *
- * Columns: email, created on (local date and time), application IDs, notes. Passwords are never written. artifacts/ is git-ignored.
+ * Columns: email, created on (local date and time), application IDs, notes. Passwords are never
+ * written. artifacts/ is git-ignored. Tab "Accounts" lists accounts on the inbox the suite
+ * uses now (GMAIL_TEST_ADDRESS); tab "Retired inboxes" keeps the older ones as history.
  *
  * The JSON is updated under a lock (parallel workers), then the sheet is rebuilt from it.
  * If the sheet is open in Excel the rebuild is skipped with a warning; the next account
@@ -112,22 +114,55 @@ async function upsert(email, change) {
  */
 async function writeSheet(rows) {
     const workbook = new ExcelJS.Workbook();
-    const sheet = workbook.addWorksheet('Accounts');
-    sheet.columns = [
-        { header: 'Email', key: 'email', width: 46 },
-        { header: 'Created on', key: 'created', width: 22 },
-        { header: 'Application IDs', key: 'applicationIds', width: 22 },
-        { header: 'Notes', key: 'notes', width: 60 },
-    ];
-    sheet.getRow(1).font = { bold: true };
-    sheet.views = [{ state: 'frozen', ySplit: 1 }];
-    for (const r of rows) sheet.addRow({ ...r, applicationIds: r.applicationIds.join(', ') });
+    /** @param {string} name */
+    const addTab = (name) => {
+        const sheet = workbook.addWorksheet(name);
+        sheet.columns = [
+            { header: 'Email', key: 'email', width: 46 },
+            { header: 'Created on', key: 'created', width: 22 },
+            { header: 'Application IDs', key: 'applicationIds', width: 22 },
+            { header: 'Notes', key: 'notes', width: 60 },
+        ];
+        sheet.getRow(1).font = { bold: true };
+        sheet.views = [{ state: 'frozen', ySplit: 1 }];
+        return sheet;
+    };
+    // "Accounts": accounts on the inbox the suite uses now. "Retired inboxes": accounts on
+    // inboxes no longer in .env, kept as history only.
+    const current = addTab('Accounts');
+    const retired = addTab('Retired inboxes');
+    for (const r of rows) {
+        (isOnCurrentInbox(r.email) ? current : retired).addRow({ ...r, applicationIds: r.applicationIds.join(', ') });
+    }
     try {
         await workbook.xlsx.writeFile(XLSX_FILE);
     } catch (e) {
         // Usually the file is open in Excel (locked on Windows). The JSON has the row.
         logger.warn(`accounts.xlsx not rewritten (is it open in Excel?): ${e instanceof Error ? e.message : String(e)}`);
     }
+}
+
+/**
+ * Is this address on one of the inboxes configured in .env? With no inbox configured,
+ * every account counts as current.
+ * @param {string} email
+ * @returns {boolean}
+ */
+function isOnCurrentInbox(email) {
+    try {
+        // Lazy: inboxes.js loads the Gmail client, which plain logging doesn't need.
+        return !!require('./inboxes').inboxForEmail(email);
+    } catch {
+        return true;
+    }
+}
+
+/**
+ * Rebuild accounts.xlsx from accounts.json (e.g. after the inboxes in .env change).
+ * @returns {Promise<void>}
+ */
+async function rebuildSheet() {
+    await writeSheet(withLock(readRows));
 }
 
 /**
@@ -193,4 +228,4 @@ async function annotateAccount(email, notes, applicationIds = []) {
     });
 }
 
-module.exports = { recordAccount, noteSignedIn, signedInEmail, recordApplication, annotateAccount, XLSX_FILE, JSON_FILE };
+module.exports = { recordAccount, noteSignedIn, signedInEmail, recordApplication, annotateAccount, rebuildSheet, XLSX_FILE, JSON_FILE };
