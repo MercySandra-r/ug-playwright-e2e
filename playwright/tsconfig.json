@@ -30,10 +30,14 @@
     "reports",
     "test-results",
     "artifacts",
-    // Flow specs TC_20-TC_27 (F4-F11) still call page-object methods from before the
+    // Flow specs TC_21-TC_27 (F5-F11) still call page-object methods from before the
     // site changed and need rebuilding; they are left out until then. Rebuilt flows
-    // (TC_17_F1, TC_18_F2, TC_19_F3, TC_29_F12) are checked.
-    "tests/TC_2?_F?_*",
+    // (TC_17_F1 to TC_20_F4, TC_29_F12) are checked.
+    "tests/TC_21_F5_*",
+    "tests/TC_22_F6_*",
+    "tests/TC_23_F7_*",
+    "tests/TC_24_F8_*",
+    "tests/TC_25_F9_*",
     "tests/TC_26_F10_*",
     "tests/TC_27_F11_*"
   ]
