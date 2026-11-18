@@ -21,7 +21,9 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
  *   GlobalAppFeewaiver  the partner benefits waive the application fee: Review says "Your
  *                       application fee has been waived" and asks for no payment
  *
- * The applicant studies online (Education benefits is asked of online applicants).
+ * MOL ASU Local: the applicant starts from the ASU Local landing link (/?asulocal=), which
+ * preselects ASU Local, and My program places the program at an ASU Local site
+ * (ASU Local at Los Angeles).
  *
  * One fresh account per run (beforeAll), taken through steps 1-4 with the answers above;
  * the tests then cover Arizona residency, Review with the waived fee, and submission.
@@ -37,7 +39,7 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
 const uniqueLastName = `Flow${Array.from({ length: 6 }, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('')}`;
 
 const testData = {
-    mode: /** @type {'online'} */ ('online'),
+    mode: /** @type {'asu-local'} */ ('asu-local'),
     applicant: {
         firstName: 'Qa',
         lastName: uniqueLastName,
@@ -45,6 +47,7 @@ const testData = {
         usCitizen: true,
         uniformed: { affiliation: 'I am a U.S. service member or veteran', status: 'Active Duty' },
         partnerBenefitsProvider: 'Amazon DSP',
+        campus: 'ASU Local at Los Angeles', // My program location
         // HiSet is an entry of the school list for Ajo, Arizona.
         highSchool: { state: 'Arizona', city: 'Ajo', name: 'HiSet' },
     },
@@ -150,7 +153,7 @@ test.describe('F2 Lessthan18 US Res ActiveDuty FGD HiSetGED AZ GlobalAppFeewaive
 
         const { first } = await reviewPage.getChosenPrograms();
         expect(first).toBe(testData.program);
-        expect(await reviewPage.getSectionValue('My program', 'Location')).toBe('ASU Online');
+        expect(await reviewPage.getSectionValue('My program', 'Location')).toBe(testData.applicant.campus);
 
         // APP BUG (seen 2026-11-12): "HiSet" is chosen and the saved row says "HiSet", but once
         // My schools is continued the app shows it as "GED" (there and on Review). Either is
