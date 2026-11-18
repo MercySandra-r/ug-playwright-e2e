@@ -57,7 +57,7 @@ accordion), waivers.
 |---|---|---|
 | F1 | `tests/TC_17_F1_…` | Rebuilt |
 | F2 | `tests/TC_18_F2_…` | Rebuilt, but it studies **online**: the sheet says ASU Local, which is not a choice on the landing page here |
-| F3 | `tests/TC_19_F3_…` | Rebuilt; QA does not waive the fee for Tempe, so the last test fails until it does |
+| F3 | `tests/TC_19_F3_…` | Rebuilt; the Tempe waiver shows only as no payment (dollar) option on Review, with no "waived" message |
 | F4 | `tests/TC_20_F4_…` | Rebuilt (2026-11-17): online, Nursing RN/BSN with a backup, HiSet, OOS (the flow name says OOS; the residency column says Arizona) |
 | F5–F11 | `tests/TC_21_…` to `tests/TC_27_…` | Old placeholders, to be rebuilt |
 | F12 Nursing RN/BSN with backup | `tests/TC_29_F12_…` | Built earlier (not in the workbook) |

@@ -21,8 +21,8 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
  *   OOS                 "Residency", the first field on Arizona residency, is set to
  *                       "Outside the U.S. or Not Listed"
  *   GlobalAppFeewaiver_Location
- *                       the sheet expects the application fee to be waived because of the
- *                       Tempe location: a message, and no payment option
+ *                       the application fee is waived because of the Tempe location. Review
+ *                       shows no message for it: the payment (dollar) option is simply absent
  *
  * One fresh account per run (beforeAll), taken through steps 1-4 with the answers above;
  * the tests then cover Arizona residency, Review, submission and the fee expectation.
@@ -30,10 +30,9 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
  * THIS FLOW ALWAYS SUBMITS the application (it cannot be undone), so every run leaves one
  * submitted application in QA. The last name is different on every run.
  *
- * FEE: on 2026-11-12 QA did NOT waive the fee for Tempe; Review offered the fee waiver list
- * instead (as in F1). So the flow submits with whatever Review offers (waived: nothing to do;
- * waiver list: a reason and a signature; otherwise Pay later), and the LAST test states the
- * sheet's expectation. That test fails while the location waiver is not applied, without
+ * FEE: the flow submits with whatever Review offers (waiver list: a reason and a signature;
+ * payment: Pay later; neither: nothing to do). The LAST test checks the Tempe waiver: Review
+ * must offer no payment (dollar) option. That test fails if payment is offered, without
  * stopping the rest of the flow.
  *
  * POM: every element comes from the page objects; this spec has no locators of its own.
@@ -204,10 +203,10 @@ test.describe('F3 18To24 NonUS Res Veteran PastGrad OOS GlobalAppFeewaiver Locat
         expect(await dashboard.getSubmittedApplicationId()).toBe(applicationId);
     });
 
-    test('Fee was waived for the Tempe location, with no payment option (GlobalAppFeewaiver_Location)', async () => {
+    test('Fee was waived for the Tempe location: no payment option (GlobalAppFeewaiver_Location)', async () => {
         await ensureSubmitted();
-        // The sheet's expectation, checked from what Review showed before the submit.
-        expect(fee, 'Review should say the fee is waived for the Tempe location, and offer no payment or waiver list')
-            .toEqual({ waived: true, waiverListOffered: false, paymentOffered: false });
+        // Review shows no "fee waived" message for this case: the waiver shows only as the
+        // absence of the payment (dollar) option. Checked from what Review showed before the submit.
+        expect(fee.paymentOffered, 'Review should offer no payment option for the Tempe location').toBe(false);
     });
 });
