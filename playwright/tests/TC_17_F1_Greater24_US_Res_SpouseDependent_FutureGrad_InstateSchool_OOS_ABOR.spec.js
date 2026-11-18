@@ -164,7 +164,9 @@ test.describe('F1 Greater24 US Res SpouseDependent FutureGrad InstateSchool OOS 
     test('Fee waiver (ABOR): the reasons offered, and ticking one asks for a signature', async () => {
         await ensureResidencySaved();
         await reviewPage.navigateToReviewPage();
+        // ABOR: the waiver checkboxes are shown and no fee (payment option) is.
         expect(await reviewPage.isFeeWaiverOffered()).toBe(true);
+        expect(await reviewPage.isPaymentOffered()).toBe(false);
         expect(await reviewPage.getFeeWaiverOptions()).toEqual([...ReviewPage.FEE_WAIVER_OPTIONS, ReviewPage.FEE_WAIVER_NONE]);
 
         // Start clean, whatever an earlier visit left ticked.
