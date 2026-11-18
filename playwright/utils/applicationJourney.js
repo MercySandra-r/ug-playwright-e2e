@@ -25,8 +25,9 @@ const STEPS = ['my-information', 'my-program', 'my-schools', 'my-high-school-gra
  * @param {import('@playwright/test').Page} page
  * @param {'my-information'|'my-program'|'my-schools'|'my-high-school-grades'|'arizona-residency'|'review'} step
  * @param {{ captureValidations?: boolean, veteran?: boolean, spouseOfServiceMember?: boolean,
- *           graduationDate?: string, applicant?: Applicant, mode?: 'online'|'in-person' }} [options]
- *   mode: how the applicant attends, chosen on the landing page (default 'online')
+ *           graduationDate?: string, applicant?: Applicant, mode?: 'online'|'in-person'|'asu-local' }} [options]
+ *   mode: how the applicant attends, chosen on the landing page (default 'online'); 'asu-local'
+ *   opens the ASU Local landing link
  *   applicant: who the applicant is (birthday, visa, race, uniformed services, high school);
  *   see the Applicant typedef. Defaults: born June 15 2000, permanent resident, no race,
  *   no uniformed services, Tempe High School (Arizona).
@@ -128,7 +129,8 @@ async function startApplicationAt(page, step, { captureValidations = true, veter
  * @property {string} [firstName] - pre-app legal first name (default "Qa")
  * @property {string} [lastName] - pre-app legal last name (default "Automation")
  * @property {boolean} [usCitizen] - My information: U.S. citizen (a made-up SSN is typed)
- * @property {string} [campus] - My program, in-person applicants: the campus location, e.g.
+ * @property {string} [campus] - My program location: for in-person applicants the campus, for
+ *   ASU Local applicants the site (e.g. "ASU Local at Los Angeles"), e.g.
  *   "Tempe" (default: the first one offered)
  * @property {string} [partnerBenefitsProvider] - My information: Education benefits = Yes with
  *   this provider, e.g. "Amazon DSP" (default: No)

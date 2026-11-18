@@ -42,6 +42,8 @@ class LandingPage extends BasePage {
       // name of their own, so match on value (verified live 2026-11-10).
       inPersonRadioButton: '[role="radio"][value="in-person"]',
       onlineRadioButton: '[role="radio"][value="online"]',
+      // Shown as the chosen mode on the ASU Local landing link (/?asulocal=)
+      asuLocalChoice: 'text=ASU Local',
       molSelection: 'role=radiogroup',
       inPersonMolTitle: 'role=heading[name*="In-person" i]',
       inPersonLearnMore: 'role=link[name*="Learn more about in-person programs" i]',
@@ -237,6 +239,20 @@ class LandingPage extends BasePage {
   }
 
   /**
+   * ASU Local: opened through its own landing link (/?asulocal=), which preselects the mode
+   * ("ASU Local" with an Edit link) and asks no degree question; Continue is next.
+   * @returns {Promise<string>} the selected MOL text
+   */
+  async verifyAsuLocalMOL() {
+    await this.waitForPageLoad();
+    await this.page.locator(this.selectors.asuLocalChoice).first()
+      .waitFor({ state: 'visible', timeout: this.navigationTimeout });
+    this.selectedMOL = 'ASU Local';
+    this.logger.debug(`How would you like to attend? ${this.selectedMOL}`);
+    return this.selectedMOL;
+  }
+
+  /**
    * Choose the Online MOL option
    * @param {Object} options - Options for MOL selection
    * @param {string} [options.degreeType='pursue'] - Type of degree to select ('pursue' or 'individual')
@@ -271,7 +287,7 @@ class LandingPage extends BasePage {
 
   /**
    * Create a random account with valid information
-   * @param {{ mode?: 'in-person'|'online'|'random', degreeType?: 'pursue'|'individual' }} [options]
+   * @param {{ mode?: 'in-person'|'online'|'asu-local'|'random', degreeType?: 'pursue'|'individual' }} [options]
    * @returns {Promise<{email: string, password: string}>} Account credentials
    */
   async createRandomAccount(options = {}) {
@@ -286,7 +302,7 @@ class LandingPage extends BasePage {
 
   /**
    * Create a random account and proceed to the Verify Email page
-   * @param {{ mode?: 'in-person'|'online'|'random', degreeType?: 'pursue'|'individual' }} [options]
+   * @param {{ mode?: 'in-person'|'online'|'asu-local'|'random', degreeType?: 'pursue'|'individual' }} [options]
    * @returns {Promise<{ credentials: { email: string, password: string }, verifyEmailPage: any }>}
    */
   async createAccountAndGoToVerifyEmail(options = {}) {

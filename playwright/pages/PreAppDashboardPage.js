@@ -151,7 +151,7 @@ class PreAppDashboardPage extends BasePage {
      * Open the pre-app dashboard. Accounts that signed in (rather than coming from the
      * landing page's learning-mode choice) first get "How would you like to attend ASU?";
      * it is answered with `mode`.
-     * @param {'online'|'in-person'} [mode]
+     * @param {'online'|'in-person'|'asu-local'} [mode]
      * @returns {Promise<void>}
      */
     async navigateToDashboard(mode = 'online') {
@@ -434,7 +434,7 @@ class PreAppDashboardPage extends BasePage {
 
     /**
      * Answer the learning-mode modal if it is shown over the form.
-     * @param {'online'|'in-person'} mode
+     * @param {'online'|'in-person'|'asu-local'} mode
      * @returns {Promise<void>}
      */
     async answerLearningModeIfAsked(mode) {
@@ -457,7 +457,7 @@ class PreAppDashboardPage extends BasePage {
      * @param {{ firstName?: string, preferredFirstName?: string, middleName?: string,
      *           lastName?: string, suffix?: string,
      *           birth?: { month: string, day: string, year: string },
-     *           phone?: string, mode?: 'online'|'in-person', captureValidations?: boolean }} [data]
+     *           phone?: string, mode?: 'online'|'in-person'|'asu-local', captureValidations?: boolean }} [data]
      *   captureValidations: click Start new application on the empty form first and record the
      *   field validations (see BasePage.captureFieldValidations)
      * @returns {Promise<string>} the new application's ID

@@ -68,7 +68,7 @@ class AsuIdpPage extends BasePage {
      */
     /**
      * @param {Object} [opts]
-     * @param {'in-person'|'online'|'random'} [opts.mode] - When set, take the new-applicant
+     * @param {'in-person'|'online'|'asu-local'|'random'} [opts.mode] - When set, take the new-applicant
      *   path: landing -> learning mode -> degree type -> Continue. Otherwise click "Sign in".
      * @param {'pursue'|'individual'} [opts.degreeType]
      */
@@ -78,12 +78,14 @@ class AsuIdpPage extends BasePage {
             // A return visit remembers the learning mode and hides the choice; start clean.
             await this.page.context().clearCookies();
             await this.page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
-            await this.page.goto('/', { timeout: this.navigationTimeout });
+            // ASU Local has its own landing link (?asulocal=), which preselects it.
+            await this.page.goto(opts.mode === 'asu-local' ? '/?asulocal=' : '/', { timeout: this.navigationTimeout });
             // Lazy require: LandingPage -> authHelper -> AsuIdpPage would otherwise be circular.
             const LandingPage = require('./LandingPage');
             const landing = new LandingPage(this.page);
             const degreeType = opts.degreeType || 'pursue';
-            if (opts.mode === 'in-person') await landing.chooseInPersonMOL({ degreeType });
+            if (opts.mode === 'asu-local') await landing.verifyAsuLocalMOL();
+            else if (opts.mode === 'in-person') await landing.chooseInPersonMOL({ degreeType });
             else if (opts.mode === 'online') await landing.chooseOnlineMOL({ degreeType });
             else await landing.chooseRandomMOL({ degreeType });
             await this.page.locator(this.selectors.appContinueButton).click();

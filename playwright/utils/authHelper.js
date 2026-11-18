@@ -57,7 +57,7 @@ async function reserveFreshEmail(gmail, inboxAddress, maxSkips = 20) {
  * @param {string} [opts.password] - >=10 chars, mixed case + number.
  * @param {GmailUtils} [opts.gmail] - Reuse an initialized GmailUtils instance (first inbox only).
  * @param {number} [opts.maxAttempts] - Sign-up attempts on "already exists" (default 5).
- * @param {'in-person'|'online'|'random'} [opts.mode] - Learning mode chosen on the landing
+ * @param {'in-person'|'online'|'asu-local'|'random'} [opts.mode] - Learning mode chosen on the landing
  *   page before Continue (default 'online'). The app carries it into the new application.
  * @param {'pursue'|'individual'} [opts.degreeType] - Default 'pursue'.
  * @returns {Promise<{ email: string, password: string }>}
