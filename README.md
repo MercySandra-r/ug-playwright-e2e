@@ -8,7 +8,7 @@ Everything lives in the `playwright/` folder.
 
 ## What is covered
 
-The suite has 280 tests in 28 spec files (`playwright/tests/`), numbered in the order of the
+The suite has 282 tests in 29 spec files (`playwright/tests/`), numbered in the order of the
 application.
 
 | Spec | Area | Tests |
@@ -31,6 +31,7 @@ application.
 | TC_26 | ASU Local: filtered programs, Pay later only, a second application | 5 |
 | TC_27 | Starbucks: a Starbucks application, then a non-Starbucks second application | 5 |
 | TC_28 | Need help per application type (online, in person, ASU Local, SCAP) and the error pages (500, 404) | 9 |
+| TC_29 | Multiple applications on one account until no start date is left (degree; NDG / VUS) | 2 |
 
 The end-to-end flows are defined in [`playwright/docs/E2E_FLOWS.md`](playwright/docs/E2E_FLOWS.md):
 each one is a different kind of applicant taken through the whole application and submitted.

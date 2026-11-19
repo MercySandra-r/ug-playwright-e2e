@@ -64,9 +64,18 @@ class PostAppSubmissionDashboardPage extends BasePage {
             viewApplicationButton: 'role=button[name="View application"]',
             continueButton: 'role=button[name="Continue"s]',
             startNewApplicationButton: 'role=button[name="Start a new application"]',
+            // Shown instead of "Continue with new application" once every open start date has an
+            // application (verified 2026-11-19).
+            newApplicationBlockedHeading: 'text=/Why can.t I start a new application\?/',
+            newApplicationBlockedText: 'text=/Only one application can be sent for each start date/',
             continueWithNewButton: 'role=button[name="Continue with new application"]',
             newApplicationModal: 'role=alertdialog',
             degreeYesRadio: 'role=radio[name="Yes, I want to pursue an associate or bachelor\'s degree."]',
+            degreeNoRadio: 'role=radio[name="No, I want to take individual classes as a nondegree or visiting university student."]',
+            // Nondegree follow-ups (as on the landing page): in the modal the Yes/No groups have no
+            // name, so each "No" is found after its question's text.
+            earnedBachelorNo: 'xpath=.//*[contains(normalize-space(.),"already earned a bachelor")][not(*)]/following::*[@role="radio"][normalize-space(.)="No"][1]',
+            startedAsuDegreeNo: 'xpath=.//*[contains(normalize-space(.),"previously started courses to pursue")][not(*)]/following::*[@role="radio"][normalize-space(.)="No"][1]',
 
             // Profile menu
             profileMenuButton: 'role=button[name="Profile menu"]',
@@ -189,13 +198,32 @@ class PostAppSubmissionDashboardPage extends BasePage {
     }
 
     /**
+     * Why a new application cannot be started, when the dashboard says so ("Why can't I start a
+     * new application?" "Only one application can be sent for each start date. ..."); empty when
+     * a new one can be started. Opens the "Start a new application" accordion if needed.
+     * @returns {Promise<string>}
+     */
+    async getNewApplicationBlockedReason() {
+        const text = this.page.locator(this.selectors.newApplicationBlockedText).first();
+        const continueNew = this.page.locator(this.selectors.continueWithNewButton);
+        if (!(await text.isVisible().catch(() => false)) && !(await continueNew.isVisible().catch(() => false))) {
+            await this.page.locator(this.selectors.startNewApplicationButton).click();
+            await text.or(continueNew).first().waitFor({ state: 'visible', timeout: this.assertionTimeout }).catch(() => {});
+        }
+        if (!(await text.isVisible().catch(() => false))) return '';
+        return (await text.innerText()).replace(/\s+/g, ' ').trim();
+    }
+
+    /**
      * Open a second application: resume the in-progress draft if there is one (so reruns
      * don't pile up drafts), otherwise "Start a new application" -> "Continue with new
      * application" and answer the learning-mode / degree modal. Never submits anything.
-     * @param {{ mode?: 'In-person'|'Online'|'ASU Local' }} [opts]
+     * @param {{ mode?: 'In-person'|'Online'|'ASU Local', degreeType?: 'pursue'|'individual' }} [opts]
+     *   degreeType 'individual': a nondegree / visiting application ("No, I want to take
+     *   individual classes ...", then No to the two follow-up questions when asked)
      * @returns {Promise<{ applicationId: string, resumed: boolean }>}
      */
-    async startOrResumeNewApplication({ mode = 'Online' } = {}) {
+    async startOrResumeNewApplication({ mode = 'Online', degreeType = 'pursue' } = {}) {
         const draftId = await this.getDraftApplicationId();
         if (draftId) {
             const card = this.line(new RegExp(`Application ID:\\s*${draftId}(?!\\d)`)).first().locator(this.selectors.draftCardFromLine);
@@ -203,13 +231,36 @@ class PostAppSubmissionDashboardPage extends BasePage {
             await this.page.waitForURL(/\/ug-app\/\d+\//, { timeout: this.navigationTimeout });
             return { applicationId: draftId, resumed: true };
         }
-        await this.page.locator(this.selectors.startNewApplicationButton).click();
-        await this.page.locator(this.selectors.continueWithNewButton).click();
+        // "Start a new application" is an accordion: clicking it while open closes it again, so
+        // only open it when "Continue with new application" is not showing yet. A click on
+        // Continue can be lost while the accordion is opening: retry until the modal shows.
+        const continueNew = this.page.locator(this.selectors.continueWithNewButton);
         const modal = this.page.locator(this.selectors.newApplicationModal);
+        for (let attempt = 0; attempt < 3 && !(await modal.isVisible().catch(() => false)); attempt++) {
+            if (!(await continueNew.isVisible().catch(() => false))) {
+                await this.page.locator(this.selectors.startNewApplicationButton).click();
+                await continueNew.waitFor({ state: 'visible', timeout: this.assertionTimeout }).catch(() => {});
+            }
+            await continueNew.click();
+            await modal.waitFor({ state: 'visible', timeout: 8000 }).catch(() => {});
+        }
         await modal.waitFor({ state: 'visible', timeout: this.navigationTimeout });
         await this.modalRadio(mode).click();
         // ASU Local shows "About ASU Local" and Continue, with no degree question (2026-11-19).
-        if (mode !== 'ASU Local') await modal.locator(this.selectors.degreeYesRadio).click();
+        if (mode !== 'ASU Local') {
+            if (degreeType === 'individual') {
+                await modal.locator(this.selectors.degreeNoRadio).click();
+                for (const no of [this.selectors.earnedBachelorNo, this.selectors.startedAsuDegreeNo]) {
+                    const radio = modal.locator(no).first();
+                    if (await radio.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false)) {
+                        await radio.click();
+                        await expect(radio).toHaveAttribute('aria-checked', 'true', { timeout: this.assertionTimeout });
+                    }
+                }
+            } else {
+                await modal.locator(this.selectors.degreeYesRadio).click();
+            }
+        }
         await modal.locator(this.selectors.continueButton).click();
         await this.page.waitForURL(/\/ug-app\/\d+\//, { timeout: this.navigationTimeout });
         const m = this.page.url().match(/\/ug-app\/(\d+)\//);
@@ -238,6 +289,24 @@ class PostAppSubmissionDashboardPage extends BasePage {
         await this.page.locator(this.selectors.profileMenu).locator(this.selectors.signOutItem).click();
         await this.page.waitForURL((u) => !/\/dashboard|\/ug-app\//.test(u.pathname), { timeout: this.navigationTimeout });
         await this.settle();
+    }
+
+    /**
+     * Open the main dashboard (/dashboard, "Welcome back, ..."), where "Start a new application"
+     * is. Right after a submission an "Application submitted!" popup covers Next steps; its
+     * "Go to dashboard" is used when it is there.
+     * @returns {Promise<void>}
+     */
+    async openMainDashboard() {
+        const goToDashboard = this.page.getByRole('button', { name: /Go to dashboard/ }).or(this.page.getByRole('link', { name: /Go to dashboard/ })).first();
+        if (await goToDashboard.waitFor({ state: 'visible', timeout: 5000 }).then(() => true).catch(() => false)) {
+            await goToDashboard.click();
+            await this.page.waitForURL(/\/dashboard/, { timeout: this.navigationTimeout }).catch(() => {});
+        }
+        if (!/\/dashboard\/?(\?|$)/.test(new URL(this.page.url()).pathname + new URL(this.page.url()).search) || /\/ug-app\//.test(this.page.url())) {
+            await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
+        }
+        await this.page.locator(this.selectors.startNewApplicationButton).first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
     }
 
     /**

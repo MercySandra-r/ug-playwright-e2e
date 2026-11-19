@@ -522,7 +522,9 @@ class MyASUProgramPage extends BasePage {
             pick = labels.find((l) => l.startsWith(`${year} ${season}`)) || labels.find((l) => l.includes(season));
         }
         if (!pick) {
-            pick = enabled.find((l) => !avoid.includes(l)) || enabled[0] || labels[0];
+            pick = enabled.find((l) => !avoid.includes(l)) || enabled[0];
+            // Every term disabled (e.g. each one already applied for on this account).
+            if (!pick) throw new Error(`No start term is open (all ${labels.length} disabled: ${labels.join('; ')})`);
             if (desired) this.logger.warn(`Start term "${desired}" not offered; using "${pick}"`);
         }
         await this.radioIn(scope, pick).first().click();
@@ -624,7 +626,7 @@ class MyASUProgramPage extends BasePage {
         const data = arg;
         if (data.degreeType) await this.selectDegreeIntent(data.degreeType);
         if (MyASUProgramPage.intentFor(data.degreeType) === 'nondegree') {
-            return this.selectNondegreeOptions({ visiting: data.visiting, location: data.location, startTerm: data.startTerm });
+            return this.selectNondegreeOptions({ visiting: data.visiting, location: data.location, startTerm: data.startTerm, avoidTerms: data.avoidTerms });
         }
         if (!data.program) throw new Error('selectProgram needs a program name for the degree path');
         const first = await this.chooseProgram({ program: data.program, startTerm: data.startTerm, location: data.location, avoidTerms: data.avoidTerms });
@@ -653,10 +655,10 @@ class MyASUProgramPage extends BasePage {
 
     /**
      * Fill the nondegree form.
-     * @param {{ visiting?: boolean, location?: string, startTerm?: string }} [data]
+     * @param {{ visiting?: boolean, location?: string, startTerm?: string, avoidTerms?: string[] }} [data]
      * @returns {Promise<{ visiting: boolean, location: string, startTerm: string }>}
      */
-    async selectNondegreeOptions({ visiting = false, location, startTerm } = {}) {
+    async selectNondegreeOptions({ visiting = false, location, startTerm, avoidTerms = [] } = {}) {
         await this.radioIn(this.page.locator(this.selectors.visitingGroup), visiting ? 'Yes' : 'No').click();
         const locationBox = this.page.locator(this.selectors.nondegreeLocation);
         const shownLocation = async () => (await locationBox.innerText().catch(() => '')).trim();
@@ -668,7 +670,7 @@ class MyASUProgramPage extends BasePage {
             await choice.waitFor({ state: 'visible', timeout: this.assertionTimeout });
             await choice.click();
         }
-        const term = await this.chooseStartTerm(this.page.locator(this.selectors.nondegreeStartTermGroup), startTerm);
+        const term = await this.chooseStartTerm(this.page.locator(this.selectors.nondegreeStartTermGroup), startTerm, avoidTerms);
         return { visiting, location: await shownLocation(), startTerm: term };
     }
 

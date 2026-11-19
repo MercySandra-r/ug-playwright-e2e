@@ -47,8 +47,7 @@ skipped.
 ## Still to cover (listed in the workbook)
 
 Kaplan, CORP, duplicate-application check on My information, Review
-page validations, multiple applications (prefill, profile editing, the Start new app
-accordion), waivers.
+page validations, profile editing with several applications, waivers.
 
 ## Where each flow lives
 
@@ -67,6 +66,7 @@ accordion), waivers.
 | F11 | `tests/TC_24_F11_…` | Rebuilt (2026-11-19): in person, visiting, U.S. citizen with an Arizona address; first in-person location; future graduation, no colleges, no transcript acknowledgement; grades "not necessary"; residency Arizona |
 | ASU Local (partner) | `tests/TC_26_ASULocal_…` | Built (2026-11-19) from "ASU Local_Automation_Testcases.xlsx": landing `/?asulocal=`; My program starts filtered to the six ASU Local sites ("Location (6)", chip "ASU Local"); program at ASU Local at Los Angeles; Review offers only "Pay later"; submitted; a second application started with ASU Local is filtered the same way. Not as the sheet says (recorded, not asserted): no ASU Local question on My information, no "You're an ASU Local student" guideline, and the program's location list also offers Tempe and ASU Online |
 | Starbucks (partner) | `tests/TC_27_Starbucks_…` | Built (2026-11-19) as the tester described: first application with Education benefits Starbucks (bachelor's degree No, "Starbucks partner", partner number from STARBUCKS_PARTNER_NUMBER, verified; SCAP terms "I accept"; manager disclosure Accept), My program locked to "pursue a degree" at ASU Online, submitted; second application on the same account with My information unchanged, another start term (the submitted one's term is disabled), a college with "Bachelor of Arts" showing "You cannot use the Starbucks College Achievement Plan education benefit..." then "Continue with no partner benefit"; Review: Pay now / Pay later; submitted |
+| Multiple applications | `tests/TC_29_MultipleApplications_…` | Built (2026-11-19): on one account, applications are submitted one after another (Start a new application on the main dashboard, My information prefilled and unchanged, the next open start term) until the dashboard says "Only one application can be sent for each start date. You cannot submit an application until additional start dates are announced." Two tests: pursue a degree (a different program each time) and NDG / VUS in turn. On 2026-11-19 that was two applications each (Spring 2027, Summer 2027) |
 | F12 Nursing RN/BSN with backup | `tests/TC_25_F12_…` | Built earlier (not in the workbook) |
 
 Known app bugs that affect the flows are noted in each spec's header.
