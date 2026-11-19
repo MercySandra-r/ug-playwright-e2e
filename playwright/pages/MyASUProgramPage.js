@@ -891,6 +891,15 @@ class MyASUProgramPage extends BasePage {
     }
 
     /**
+     * Whether the duplicate start date error ("You have already submitted an application
+     * for your chosen start date...") is on the page. It shows after Continue, not on load.
+     * @returns {Promise<boolean>}
+     */
+    async isDuplicateStartDateErrorShown() {
+        return this.page.locator(this.selectors.duplicateStartDateError).isVisible().catch(() => false);
+    }
+
+    /**
      * @returns {Promise<void>}
      */
     async clickContinue() {

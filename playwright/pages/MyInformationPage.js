@@ -1052,6 +1052,16 @@ class MyInformationPage extends BasePage {
     }
 
     /**
+     * Continue after opening this step with Review's Edit button: the step is saved and the
+     * app returns straight to Review (not to My program).
+     * @returns {Promise<void>}
+     */
+    async saveAndReturnToReview() {
+        await this.clickContinue();
+        await this.page.waitForURL(/\/ug-app\/\d+\/review/, { timeout: this.navigationTimeout });
+    }
+
+    /**
      * @returns {Promise<number>} how many "This is a required field." messages are shown
      */
     async getRequiredFieldErrorCount() {
