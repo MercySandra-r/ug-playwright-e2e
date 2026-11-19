@@ -88,7 +88,14 @@ class AsuIdpPage extends BasePage {
             else if (opts.mode === 'in-person') await landing.chooseInPersonMOL({ degreeType });
             else if (opts.mode === 'online') await landing.chooseOnlineMOL({ degreeType });
             else await landing.chooseRandomMOL({ degreeType });
-            await this.page.locator(this.selectors.appContinueButton).click();
+            // A click while the section below the answers is still opening can be lost (seen
+            // on the nondegree path): click again until the sign-in page starts loading.
+            const continueButton = this.page.locator(this.selectors.appContinueButton);
+            for (let attempt = 0; attempt < 3; attempt++) {
+                await continueButton.click();
+                const left = await this.page.waitForURL(/login\.asu\.edu/, { timeout: 8000 }).then(() => true).catch(() => false);
+                if (left || !(await continueButton.isVisible().catch(() => false))) break;
+            }
         } else {
             const signIn = this.page.locator(this.selectors.appSignInLink)
                 .or(this.page.locator(this.selectors.appSignInButton))

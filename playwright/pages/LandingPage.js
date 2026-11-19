@@ -56,6 +56,9 @@ class LandingPage extends BasePage {
       pursueDegreeRadio: '[role="radio"][value="DG"]',
       individualCoursesRadio: '[role="radio"][value="NDG"]',
       degreeTypeContinueBtn: 'role=button[name="Continue"]',
+      // Nondegree only (verified 2026-11-19): two Yes/No questions before Continue shows.
+      earnedBachelorGroup: 'role=radiogroup[name=/already earned a bachelor/]',
+      startedAsuDegreeGroup: 'role=radiogroup[name=/previously started courses to pursue an associate or bachelor/]',
 
       // Progress elements
       loader: '[data-cy="loader"]',
@@ -200,10 +203,33 @@ class LandingPage extends BasePage {
       await this.click(this.selectors.pursueDegreeRadio);
     } else {
       await this.click(this.selectors.individualCoursesRadio);
+      // Nondegree: "Have you already earned a bachelor's degree?" (Yes sends the applicant to
+      // the graduate application) and "Have you previously started courses to pursue an
+      // associate or bachelor's degree at ASU but didn't complete your degree?". Both No.
+      await this.answerNondegreeQuestions();
     }
-    
+
     // Wait for the form to update (no Continue button needed)
     await this.page.waitForLoadState('networkidle');
+  }
+
+  /**
+   * Answer the two questions the landing page asks a nondegree / visiting applicant; the
+   * "Important notes for nondegree and visiting students" and Continue then show.
+   * @param {{ earnedBachelor?: boolean, startedAsuDegree?: boolean }} [answers] - default No, No
+   * @returns {Promise<void>}
+   */
+  async answerNondegreeQuestions({ earnedBachelor = false, startedAsuDegree = false } = {}) {
+    for (const [selector, yes] of /** @type {Array<[string, boolean]>} */ ([
+      [this.selectors.earnedBachelorGroup, earnedBachelor],
+      [this.selectors.startedAsuDegreeGroup, startedAsuDegree],
+    ])) {
+      const group = this.page.locator(selector);
+      await group.waitFor({ state: 'visible', timeout: 15000 });
+      const radio = group.getByRole('radio', { name: yes ? 'Yes' : 'No', exact: true });
+      await radio.click();
+      await expect(radio).toHaveAttribute('aria-checked', 'true', { timeout: 10000 });
+    }
   }
 
   /**

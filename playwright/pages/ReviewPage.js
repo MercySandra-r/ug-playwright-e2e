@@ -152,6 +152,21 @@ class ReviewPage extends BasePage {
     }
 
     /**
+     * Which of the step sections Review lists, in SECTIONS order. A nondegree or visiting
+     * applicant has no "My high school grades" section.
+     * @returns {Promise<string[]>}
+     */
+    async getShownSections() {
+        await this.sectionButton('Profile').waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        /** @type {string[]} */
+        const shown = [];
+        for (const name of Object.keys(SECTIONS)) {
+            if (await this.sectionButton(name).isVisible().catch(() => false)) shown.push(name);
+        }
+        return shown;
+    }
+
+    /**
      * Expand a section and read its text lines in order, e.g.
      * ['Legal name', 'Qa Automation', 'Preferred first name', 'No data has been entered', ...].
      * Labels can repeat (My program lists Location/Starting term per choice) and some

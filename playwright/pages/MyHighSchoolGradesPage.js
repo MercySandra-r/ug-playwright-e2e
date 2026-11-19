@@ -95,8 +95,10 @@ class MyHighSchoolGradesPage extends BasePage {
             allGradesCard: 'role=radio[name=/^Self-report all high school grades/]',
             seniorCourseRequiredError: 'text=Please enter at least one course for senior year.',
             customCourseName: '#new_custom_course-name',
-            // Non-residents (e.g. JN visa): the step has nothing to fill, only Continue.
-            notNecessaryNotice: 'text=/not a resident of the United States\. Therefore, this page is not necessary/',
+            // Non-residents (e.g. JN visa) and nondegree / visiting students: nothing to fill,
+            // only Continue ("... Therefore, this page is not necessary" / "As a nondegree or
+            // visiting university student, this page is not necessary").
+            notNecessaryNotice: 'text=/this page is not necessary/',
         };
 
         this.SUBJECTS = SUBJECTS;

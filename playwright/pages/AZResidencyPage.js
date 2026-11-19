@@ -253,7 +253,7 @@ class AZResidencyPage extends BasePage {
             dropdownSearch: 'input[placeholder="Search..."]',
             permanentState: '#permanent',
             // Non-residents: nothing to fill, only Continue.
-            notNecessaryNotice: 'text=/not a resident of the United States. Therefore, this page is not necessary/',
+            notNecessaryNotice: 'text=/this page is not necessary/',
             parentState: '#group-stateParentLives',
             // Active military ("Where are you currently stationed?"). APP BUG: it reuses the
             // license-state id, so match it by its label too.

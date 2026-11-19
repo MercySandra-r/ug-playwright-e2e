@@ -25,9 +25,12 @@ const STEPS = ['my-information', 'my-program', 'my-schools', 'my-high-school-gra
  * @param {import('@playwright/test').Page} page
  * @param {'my-information'|'my-program'|'my-schools'|'my-high-school-grades'|'arizona-residency'|'review'} step
  * @param {{ captureValidations?: boolean, veteran?: boolean, spouseOfServiceMember?: boolean,
- *           graduationDate?: string, applicant?: Applicant, mode?: 'online'|'in-person'|'asu-local' }} [options]
+ *           graduationDate?: string, applicant?: Applicant, mode?: 'online'|'in-person'|'asu-local',
+ *           degreeType?: 'pursue'|'individual' }} [options]
  *   mode: how the applicant attends, chosen on the landing page (default 'online'); 'asu-local'
  *   opens the ASU Local landing link
+ *   degreeType: on the landing page, 'pursue' a degree (default) or take 'individual' courses
+ *   (nondegree / visiting); My program then shows the nondegree form instead of programs
  *   applicant: who the applicant is (birthday, visa, race, uniformed services, high school);
  *   see the Applicant typedef. Defaults: born June 15 2000, permanent resident, no race,
  *   no uniformed services, Tempe High School (Arizona).
@@ -39,11 +42,11 @@ const STEPS = ['my-information', 'my-program', 'my-schools', 'my-high-school-gra
  *   veteran" (Arizona residency then asks which describes the service member)
  * @returns {Promise<string>} the application ID
  */
-async function startApplicationAt(page, step, { captureValidations = true, veteran = false, spouseOfServiceMember = false, graduationDate = 'May 2026', applicant = {}, mode = 'online' } = {}) {
+async function startApplicationAt(page, step, { captureValidations = true, veteran = false, spouseOfServiceMember = false, graduationDate = 'May 2026', applicant = {}, mode = 'online', degreeType = 'pursue' } = {}) {
     const target = STEPS.indexOf(step);
     if (target < 0) throw new Error(`startApplicationAt: unknown or unsupported step "${step}"`);
 
-    await signUpVerifiedAccount(page, { mode, degreeType: 'pursue' });
+    await signUpVerifiedAccount(page, { mode, degreeType });
     const applicationId = await new PreAppDashboardPage(page).startApplication({
         captureValidations, birth: applicant.birth, mode,
         ...(applicant.firstName ? { firstName: applicant.firstName } : {}),

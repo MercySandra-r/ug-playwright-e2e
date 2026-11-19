@@ -633,6 +633,15 @@ class MySchoolsPage extends BasePage {
     // ------------------------------------------------------------------ transcripts
 
     /**
+     * Whether the transcript acknowledgement checkbox is on the step (degree-seeking
+     * applicants; a nondegree applicant is not asked, verified 2026-11-19).
+     * @returns {Promise<boolean>}
+     */
+    async isTranscriptAcknowledgementShown() {
+        return this.page.locator(this.selectors.transcriptAck).isVisible().catch(() => false);
+    }
+
+    /**
      * @returns {Promise<void>}
      */
     async acknowledgeTranscripts() {
