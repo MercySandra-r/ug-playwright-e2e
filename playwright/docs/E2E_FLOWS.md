@@ -60,7 +60,8 @@ accordion), waivers.
 | F3 | `tests/TC_19_F3_…` | Rebuilt; the Tempe waiver shows only as no payment (dollar) option on Review, with no "waived" message |
 | F4 | `tests/TC_20_F4_…` | Rebuilt (2026-11-17): online, Nursing RN/BSN with a backup, HiSet, OOS (the flow name says OOS; the residency column says Arizona) |
 | F5 | `tests/TC_21_F5_…` | Rebuilt (2026-11-19): in person, DACA, no uniformed services, Tempe High School with a future graduation. Grades open straight on self-report (no question). Residency asks only the permanent home and the Arizona high school questions (Prop 308): Arizona, Yes, Yes |
-| F6–F11 | `tests/TC_22_…` to `tests/TC_27_…` | Old placeholders, to be rebuilt |
+| F6 | `tests/TC_22_F6_…` | Rebuilt (2026-11-19): online, aged 18, JN visa (F-1 is not offered for online study), no uniformed services, past graduation. Grades and residency both say "not necessary". Review offered payment (Pay later) |
+| F7–F11 | `tests/TC_23_…` to `tests/TC_27_…` | Old placeholders, to be rebuilt |
 | F12 Nursing RN/BSN with backup | `tests/TC_29_F12_…` | Built earlier (not in the workbook) |
 
 Known app bugs that affect the flows are noted in each spec's header.

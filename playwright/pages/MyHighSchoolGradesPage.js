@@ -358,6 +358,7 @@ class MyHighSchoolGradesPage extends BasePage {
     async isStepNotNecessary() {
         const notice = this.page.locator(this.selectors.notNecessaryNotice);
         await notice.or(this.page.locator(this.selectors.selfReportGroup)).or(this.page.locator(this.selectors.seniorOnlyCard))
+            .or(this.page.locator(this.selectors.unweightedGpa)) // self-report required (Prop 308)
             .first().waitFor({ state: 'visible', timeout: this.navigationTimeout }).catch(() => {});
         return notice.isVisible();
     }

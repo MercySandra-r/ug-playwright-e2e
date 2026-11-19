@@ -1,272 +1,181 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
-const LandingPage = require('../pages/LandingPage');
-const VerifyEmailPage = require('../pages/VerifyEmailPage');
-const LoginPage = require('../pages/LoginPage');
-const PreAppDashboardPage = require('../pages/PreAppDashboardPage');
-const MyInformationPage = require('../pages/MyInformationPage');
-const MyASUProgramPage = require('../pages/MyASUProgramPage');
-const MySchoolsPage = require('../pages/MySchoolsPage');
+const { startApplicationAt } = require('../utils/applicationJourney');
 const MyHighSchoolGradesPage = require('../pages/MyHighSchoolGradesPage');
 const AZResidencyPage = require('../pages/AZResidencyPage');
 const ReviewPage = require('../pages/ReviewPage');
-const PreviewPage = require('../pages/PreviewPage');
 const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashboardPage');
 
-// Test data for F6 flow: 18yr_NonUS_NonRes_F1_J1_JN
-const testData = {
-  // User credentials (would be generated/retrieved in real test)
-  user: {
-    email: `test${Date.now() + 5}@example.com`, // Unique email
-    password: 'TestPassword123!',
-    firstName: 'Test',
-    lastName: 'Intl',
-    birthDate: '01/01/2005', // 18 years old
-  },
-  // Personal information
-  personalInfo: {
-    legalSex: 'Male',
-    primaryLanguage: 'English',
-    address: {
-      street: '789 International Blvd',
-      city: 'New York',
-      state: 'New York',
-      zip: '10001',
-      country: 'United States',
-      yearsAtAddress: '2',
-    },
-    phone: '2125551234',
-    usCitizenship: 'No', // Non-US citizen
-    visaType: 'F1', // F1, J1, or JN visa
-    hispanicLatino: 'No',
-    // No military status for this flow
-    militaryStatus: 'None',
-    // Random partner benefits (as per test case)
-    partnerBenefits: {
-      hasPartnerBenefits: true,
-      partnerName: 'Random Partner', // Will be selected randomly
-    },
-  },
-  // Program information
-  programInfo: {
-    degreeType: 'Bachelor',
-    program: 'Computer Science', // Will be randomly selected
-    startTerm: 'Fall 2025',
-    // Add other program info fields
-  },
-  // School information
-  schoolInfo: {
-    highSchoolName: 'International High School',
-    highSchoolCity: 'New York',
-    highSchoolState: 'New York',
-    highSchoolCountry: 'United States',
-    graduationDate: '06/2023', // Past graduation
-    // Add other school info fields
-  },
-  // Residency information
-  residencyInfo: {
-    isArizonaResident: false, // Non-resident
-    // Add other residency info fields
-  }
-};
-
 /**
- * Test suite for F6 Flow: 18yr_NonUS_NonRes_F1_J1_JN
- * This test follows the flow defined in F6_18yr_NonUS_NonRes_F1_J1_JN.xml
+ * Flow F6: 18yr_NonUS_NonRes_F1_J1_JN
+ * (row F6 of the "E2E Flows" sheet, "NAA App - Automation Test flows" workbook)
+ *
+ *   MOL                 online (the sheet allows any)
+ *   18yr                applicant aged 18 (born January 15, 18 years ago)
+ *   NonUS_NonRes        not a U.S. citizen, not a resident: visa type "International attending
+ *                       ASU Online programs only (JN)". The sheet allows F-1, J-1 or JN; the
+ *                       app does not offer F-1 for online study, so JN goes with online
+ *   Previous ASU        never affiliated (the sheet allows any)
+ *   Military status     "None of these options apply to me"
+ *   Program             Anthropology, BA (the sheet allows any)
+ *   Partner benefits    No (the sheet allows any)
+ *   My schools          Tempe High School, graduation date in the past (the last May gone by)
+ *   Grades              not applicable: the step says it is not necessary for a non-resident
+ *   Residency           not applicable: same notice
+ *   Payment             whatever Review offers (the sheet: waived or payment, at random)
+ *
+ * One fresh account per run (beforeAll), taken through steps 1-3 by the journey; the tests
+ * then cover the two "not necessary" steps, Review and submission.
+ *
+ * THIS FLOW ALWAYS SUBMITS the application (it cannot be undone), so every run leaves one
+ * submitted application in QA. The last name is different on every run.
+ *
+ * POM: every element comes from the page objects; this spec has no locators of its own.
  */
-test.describe('F6 Flow: 18yr_NonUS_NonRes_F1_J1_JN', () => {
-  let landingPage;
-  let verifyEmailPage;
-  let loginPage;
-  let preAppDashboardPage;
-  let myInformationPage;
-  let myASUProgramPage;
-  let mySchoolsPage;
-  let myHighSchoolGradesPage;
-  let azResidencyPage;
-  let reviewPage;
-  let previewPage;
-  let postAppDashboardPage;
 
-  test.beforeEach(async ({ page }) => {
-    // Initialize all page objects
-    landingPage = new LandingPage(page);
-    verifyEmailPage = new VerifyEmailPage(page);
-    loginPage = new LoginPage(page);
-    preAppDashboardPage = new PreAppDashboardPage(page);
-    myInformationPage = new MyInformationPage(page);
-    myASUProgramPage = new MyASUProgramPage(page);
-    mySchoolsPage = new MySchoolsPage(page);
-    myHighSchoolGradesPage = new MyHighSchoolGradesPage(page);
-    azResidencyPage = new AZResidencyPage(page);
-    reviewPage = new ReviewPage(page);
-    previewPage = new PreviewPage(page);
-    postAppDashboardPage = new PostAppSubmissionDashboardPage(page);
-  });
+/** Letters only, new on every run. */
+const uniqueLastName = `Flow${Array.from({ length: 6 }, () => 'abcdefghijklmnopqrstuvwxyz'[Math.floor(Math.random() * 26)]).join('')}`;
+const now = new Date();
+/** The last May that has gone by: a past graduation date at about 18. */
+const graduationYear = now.getMonth() > 4 ? now.getFullYear() : now.getFullYear() - 1;
 
-  test('Complete F6 flow: 18yr_NonUS_NonRes_F1_J1_JN', async ({ page }) => {
-    // Step 1: Navigate to landing page and start application
-    await landingPage.navigateToLandingPage();
-    await landingPage.verifyPageLoaded();
-    
-    // Choose random mode of learning and degree type
-    await landingPage.chooseRandomMOL();
-    await landingPage.selectDegreeType('Bachelor');
-    
-    // Create account
-    await landingPage.createAccount(
-      testData.user.firstName,
-      testData.user.lastName,
-      testData.user.email,
-      testData.user.password
-    );
-    
-    // Verify email (in a real test, this would involve checking the email)
-    await verifyEmailPage.verifyPageLoaded();
-    // Note: In a real test, you would extract the verification code from an email service
-    
-    // Login with the new account
-    await loginPage.navigateToLoginPage();
-    await loginPage.login(testData.user.email, testData.user.password);
-    
-    // Verify pre-application dashboard
-    await preAppDashboardPage.verifyPageLoaded();
-    
-    // Verify age is 18
-    await preAppDashboardPage.verifyAgeIs18();
-    
-    // Start new application
-    await preAppDashboardPage.startNewApplication();
-    
-    // ===== My Information Page =====
-    await myInformationPage.verifyPageLoaded();
-    
-    // Fill personal information with F1/J1/JN visa status
-    await myInformationPage.fillPersonalInformation({
-      legalSex: testData.personalInfo.legalSex,
-      primaryLanguage: testData.personalInfo.primaryLanguage,
-      address: testData.personalInfo.address,
-      phone: testData.personalInfo.phone,
-      usCitizenship: testData.personalInfo.usCitizenship,
-      visaType: testData.personalInfo.visaType, // F1, J1, or JN
-      hispanicLatino: testData.personalInfo.hispanicLatino,
-      militaryStatus: testData.personalInfo.militaryStatus, // None
-      // Add other fields as needed
+const testData = {
+    mode: /** @type {'online'} */ ('online'),
+    applicant: {
+        firstName: 'Qa',
+        lastName: uniqueLastName,
+        birth: { month: 'January', day: '15', year: String(now.getFullYear() - 18) },
+        visaType: 'International attending ASU Online programs only (JN)',
+    },
+    graduationDate: `May ${graduationYear}`, // PastGrad
+    highSchool: 'Tempe High School', // the journey's default
+    program: 'Anthropology, BA',
+    feeWaiverReason: ReviewPage.FEE_WAIVER_OPTIONS[0],
+};
+const fullName = `${testData.applicant.firstName} ${testData.applicant.lastName}`;
+
+test.describe('F6 18yr NonUS NonRes F1 J1 JN', () => {
+    test.describe.configure({ mode: 'serial', timeout: 180000 });
+
+    /** @type {import('@playwright/test').BrowserContext} */
+    let context;
+    /** @type {import('@playwright/test').Page} */
+    let page;
+    /** @type {MyHighSchoolGradesPage} */
+    let gradesPage;
+    /** @type {AZResidencyPage} */
+    let residencyPage;
+    /** @type {ReviewPage} */
+    let reviewPage;
+    let applicationId = '';
+
+    test.beforeAll(async ({ browser }, testInfo) => {
+        testInfo.setTimeout(600000);
+        context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+        page = await context.newPage();
+        // Steps 1-3: pre-app, My information (JN visa, no uniformed services), My program,
+        // My schools (Tempe High School, past graduation).
+        applicationId = await startApplicationAt(page, 'my-high-school-grades', {
+            captureValidations: false,
+            mode: testData.mode,
+            applicant: testData.applicant,
+            graduationDate: testData.graduationDate,
+        });
+        gradesPage = new MyHighSchoolGradesPage(page);
+        residencyPage = new AZResidencyPage(page);
+        reviewPage = new ReviewPage(page);
+        for (const p of [gradesPage, residencyPage, reviewPage]) p.applicationId = applicationId;
+        testInfo.annotations.push({ type: 'application', description: `${applicationId} (${fullName})` });
     });
-    
-    // Apply random partner benefits
-    if (testData.personalInfo.partnerBenefits?.hasPartnerBenefits) {
-      await myInformationPage.applyRandomPartnerBenefits();
+
+    test.afterAll(async () => {
+        await context?.close();
+    });
+
+    // Each test needs the steps before it. These helpers do a missing step once, so any test
+    // can also be run on its own (for example from the UI panel).
+    const done = { grades: false, residency: false, submitted: false };
+
+    async function ensureGrades() {
+        if (done.grades) return;
+        await gradesPage.navigateToMyHighSchoolGrades();
+        await gradesPage.saveAndContinue();
+        done.grades = true;
     }
-    
-    // Save and continue
-    await myInformationPage.saveAndContinue();
-    
-    // ===== My Program Page =====
-    await myASUProgramPage.verifyPageLoaded();
-    
-    // Select random program
-    await myASUProgramPage.selectRandomProgram({
-      degreeType: testData.programInfo.degreeType,
-      startTerm: testData.programInfo.startTerm,
-      // Add other fields as needed
-    });
-    
-    // Save and continue
-    await myASUProgramPage.saveAndContinue();
-    
-    // ===== My Schools Page =====
-    await mySchoolsPage.verifyPageLoaded();
-    
-    // Add high school information
-    await mySchoolsPage.addHighSchool({
-      name: testData.schoolInfo.highSchoolName,
-      city: testData.schoolInfo.highSchoolCity,
-      state: testData.schoolInfo.highSchoolState,
-      country: testData.schoolInfo.highSchoolCountry,
-      graduationDate: testData.schoolInfo.graduationDate,
-    });
-    
-    // Add any college/universities if applicable
-    await mySchoolsPage.addCollegeOrUniversity({
-      // Add college/university details if needed
-    });
-    
-    // Save and continue
-    await mySchoolsPage.saveAndContinue();
-    
-    // ===== My High School Grades Page =====
-    await myHighSchoolGradesPage.verifyPageLoaded();
-    
-    // Use non-resident flow for grades (as per test case)
-    await myHighSchoolGradesPage.useNonResidentFlow();
-    
-    // Save and continue
-    await myHighSchoolGradesPage.saveAndContinue();
-    
-    // ===== Arizona Residency Page =====
-    await azResidencyPage.verifyPageLoaded();
-    
-    // Fill non-resident specific residency information
-    await azResidencyPage.fillNonResidentFlow({
-      isArizonaResident: testData.residencyInfo.isArizonaResident,
-      // Add other non-resident specific fields
-    });
-    
-    // Save and continue
-    await azResidencyPage.saveAndContinue();
-    
-    // ===== Review Page =====
-    await reviewPage.verifyPageLoaded();
-    
-    // Verify all information is correct
-    await reviewPage.verifyPersonalInformation(testData.personalInfo);
-    await reviewPage.verifyProgramInformation(testData.programInfo);
-    await reviewPage.verifySchoolInformation(testData.schoolInfo);
-    await reviewPage.verifyResidencyInformation(testData.residencyInfo);
-    
-    // Acknowledge and proceed
-    await reviewPage.acknowledgeAndContinue();
-    
-    // Handle payment/waiver (random selection as per test case)
-    await reviewPage.handlePaymentOrWaiver('random');
-    
-    // Proceed to preview
-    await reviewPage.proceedToPreview();
-    
-    // ===== Preview Page =====
-    await previewPage.verifyPageLoaded();
-    
-    // Verify all sections in preview
-    await previewPage.validatePreview();
-    
-    // Submit application
-    await previewPage.submitApplication();
-    
-    // ===== Post-Submission Dashboard =====
-    await postAppDashboardPage.verifyPageLoaded();
-    
-    // Verify application status is submitted
-    const { status, date } = await postAppDashboardPage.getApplicationStatus();
-    expect(status).toMatch(/submitted|completed|in review/i);
-    
-    // Log the submission date for reference
-    console.log(`Application submitted on: ${date}`);
-  });
-  
-  test.afterEach(async ({ page }) => {
-    // Clean up: Sign out after each test
-    try {
-      // Navigate to a page that has the profile menu (like the dashboard)
-      await page.goto('/dashboard');
-      await page.waitForLoadState('networkidle');
-      
-      // Click profile icon and sign out
-      await page.click('[data-cy="profile-icon"]');
-      await page.click('button:has-text("Sign Out")');
-      await page.waitForLoadState('networkidle');
-    } catch (error) {
-      console.log('Cleanup - User was not signed in or sign out failed:', error.message);
+    async function ensureResidency() {
+        if (done.residency) return;
+        await ensureGrades();
+        await residencyPage.navigateToAZResidency();
+        await residencyPage.saveAndContinue();
+        await reviewPage.verifyPageLoaded();
+        done.residency = true;
     }
-  });
+    /** IRREVERSIBLE: certifies and submits the application (once), with what Review offers for the fee. */
+    async function ensureSubmitted() {
+        if (done.submitted) return;
+        await ensureResidency();
+        await reviewPage.navigateToReviewPage();
+        const fee = {
+            waived: await reviewPage.isFeeWaived(),
+            waiverListOffered: await reviewPage.isFeeWaiverOffered(),
+            paymentOffered: await reviewPage.isPaymentOffered(),
+        };
+        test.info().annotations.push({ type: 'fee section', description: JSON.stringify(fee) });
+        console.log(`[F6] fee section on Review: ${JSON.stringify(fee)}`);
+        if (!fee.waived && fee.waiverListOffered) {
+            await reviewPage.setFeeWaivers(await reviewPage.getSelectedFeeWaivers(), false);
+            await reviewPage.requestFeeWaiver({ reasons: [testData.feeWaiverReason], signature: fullName });
+        }
+        await reviewPage.submitApplication({ certify: true, paymentOption: !fee.waived && fee.paymentOffered ? 'later' : null });
+        await reviewPage.waitForSubmitted();
+        done.submitted = true;
+    }
+
+    test('My high school grades is not necessary for a non-resident', async () => {
+        await gradesPage.navigateToMyHighSchoolGrades();
+        expect(await gradesPage.isStepNotNecessary()).toBe(true);
+        const next = await gradesPage.saveAndContinue();
+        test.info().annotations.push({ type: 'after grades', description: next });
+        done.grades = true;
+    });
+
+    test('Arizona residency is not necessary for a non-resident', async () => {
+        await ensureGrades();
+        await residencyPage.navigateToAZResidency();
+        expect(await residencyPage.isStepNotNecessary()).toBe(true);
+        expect(await residencyPage.getShownFields()).toEqual([]);
+        await residencyPage.saveAndContinue();
+        await reviewPage.verifyPageLoaded();
+        done.residency = true;
+    });
+
+    test('Review shows the JN applicant, no military status, ASU Online and the high school', async () => {
+        await ensureResidency();
+        await reviewPage.navigateToReviewPage();
+        expect(await reviewPage.getSectionValue('Profile', 'Legal name')).toBe(fullName);
+        expect(await reviewPage.getSectionValue('My information', 'U.S. citizenship')).toBe('I am not a U.S. citizen');
+        expect(await reviewPage.getSectionValue('My information', 'Which type of visa will you be holding?')).toBe(testData.applicant.visaType);
+        expect(await reviewPage.getSectionValue('My information', 'Previous ASU affiliation'))
+            .toBe('I have never been affiliated with Arizona State University');
+        expect(await reviewPage.getSectionValue('My information', 'Military status')).toBe('None of these options apply to me');
+
+        const { first } = await reviewPage.getChosenPrograms();
+        expect(first).toBe(testData.program);
+        expect(await reviewPage.getSectionValue('My program', 'Location')).toBe('ASU Online');
+
+        expect(await reviewPage.getSectionValue('My schools', 'High school name')).toBe(testData.highSchool);
+        expect(await reviewPage.getSectionValue('My schools', 'Graduation date')).toBe(`May, ${graduationYear}`);
+    });
+
+    test('Submit the application with what Review offers for the fee', async () => {
+        await ensureSubmitted();
+    });
+
+    test('Next steps dashboard shows the submitted application', async () => {
+        await ensureSubmitted();
+        const dashboard = new PostAppSubmissionDashboardPage(page);
+        dashboard.applicationId = applicationId;
+        await dashboard.verifyPageLoaded();
+        expect(await dashboard.getSubmittedApplicationId()).toBe(applicationId);
+    });
 });
