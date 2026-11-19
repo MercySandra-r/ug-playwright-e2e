@@ -10,8 +10,12 @@ const { openPooledAccount } = require('../utils/accountPool');
  *
  * One fresh account per run (beforeAll) taken through steps 1-2 to step 3. Serial:
  * tests 1-6 start from a fresh load; 7-14 continue the same page session, because
- * saved schools only persist once Continue is clicked. The step ends with five high
- * schools and five colleges, is continued, and the last test checks all ten were kept.
+ * saved schools only persist once Continue is clicked. The step ends with ten high
+ * schools and ten colleges, is continued, and the last test checks all twenty were kept.
+ *
+ * Duplicates: every school added is a different one. The page does not stop a duplicate
+ * high school on "Save school" (no error is shown; reported as an open issue), so the
+ * tests also check that no saved name appears twice.
  * Account creation is rate-limited per hour by the IdP; this suite creates one.
  *
  * Debugging without creating accounts: set MYSCHOOLS_TEST_EMAIL and
@@ -23,6 +27,8 @@ const { openPooledAccount } = require('../utils/accountPool');
 test.describe('My Schools Page Tests', () => {
     test.describe.configure({ mode: 'serial', timeout: 120000 });
 
+    /** How many high schools, and how many colleges or universities, the step ends with. */
+    const SCHOOL_COUNT = 10;
     const HIGH_SCHOOL = { country: 'United States', state: 'Arizona', city: 'Tempe', name: 'Tempe High School', graduationDate: 'May 2026' };
 
     /** @type {import('@playwright/test').BrowserContext} */
@@ -71,8 +77,8 @@ test.describe('My Schools Page Tests', () => {
         await schoolsPage.choose(schoolsPage.selectors.hsCountry, 'United States');
         await schoolsPage.choose(schoolsPage.selectors.hsState, 'Arizona');
         await schoolsPage.choose(schoolsPage.selectors.hsCity, 'Tempe');
-        const schools = await schoolsPage.getDropdownOptions(schoolsPage.selectors.hsName);
-        expect(schools.length).toBeGreaterThan(1);
+        const schools = await schoolsPage.getListedHighSchools();
+        expect(schools.length).toBeGreaterThanOrEqual(SCHOOL_COUNT);
         expect(schools).toContain('Tempe High School');
     });
 
@@ -127,23 +133,24 @@ test.describe('My Schools Page Tests', () => {
         await schoolsPage.closeDialog();
     });
 
-    test('Add five high schools', async () => {
-        test.setTimeout(300000);
-        // Whatever is saved already counts towards the five (normally Compadre High School from
+    test(`Add ${SCHOOL_COUNT} different high schools`, async () => {
+        test.setTimeout(600000);
+        // Whatever is saved already counts towards the total (normally Compadre High School from
         // the tests above; nothing after a reload or when this test runs on its own, because
         // schools only live in the page until Continue).
         const before = await schoolsPage.getSavedHighSchools();
-        const added = await schoolsPage.addHighSchools(5, { country: 'United States', state: 'Arizona', city: 'Tempe' });
+        const added = await schoolsPage.addHighSchools(SCHOOL_COUNT, { country: 'United States', state: 'Arizona', city: 'Tempe' });
         test.info().annotations.push({ type: 'high schools added', description: JSON.stringify(added) });
-        expect(added).toHaveLength(5 - before.length);
+        expect(added).toHaveLength(SCHOOL_COUNT - before.length);
         const saved = await schoolsPage.getSavedHighSchools();
-        expect(saved).toHaveLength(5);
+        expect(saved).toHaveLength(SCHOOL_COUNT);
         expect(saved).toEqual(expect.arrayContaining([...before, ...added]));
+        expect(new Set(saved).size, 'no high school is saved twice').toBe(saved.length);
     });
 
     // Saving uses the account up for this suite. With a reused account (MYSCHOOLS_TEST_EMAIL)
     // the save and the check after it run on an account from the account pool instead (see
-    // utils/accountPool.js), which first gets its own five high schools and five colleges.
+    // utils/accountPool.js), which first gets its own high schools and colleges.
     // Without one (the usual case) they run on the suite's own account: no new account.
     const reused = !!(process.env.MYSCHOOLS_TEST_EMAIL && process.env.MYSCHOOLS_TEST_PASSWORD);
     /** @type {Awaited<ReturnType<typeof openPooledAccount>> | undefined} */
@@ -153,17 +160,19 @@ test.describe('My Schools Page Tests', () => {
         await pooled?.context.close();
     });
 
-    test('Add five colleges or universities, save and continue, and all ten schools are kept', async ({ browser }, testInfo) => {
-        test.setTimeout(900000);
-        // Mesa: its institution list matches the dropdown's search (Tempe's search drops some listed names).
+    test(`Add ${SCHOOL_COUNT} different colleges or universities, save and continue, and all schools are kept`, async ({ browser }, testInfo) => {
+        test.setTimeout(1800000);
+        // Mesa first: its institution list matches the dropdown's search (Tempe's search drops some
+        // listed names). Mesa lists 8, so the rest come from Phoenix.
         const before = await schoolsPage.getSavedInstitutions();
-        const added = await schoolsPage.addColleges(5, { state: 'Arizona', city: 'Mesa' });
+        const added = await schoolsPage.addColleges(SCHOOL_COUNT, { state: 'Arizona', city: 'Mesa' });
         test.info().annotations.push({ type: 'institutions added', description: JSON.stringify(added) });
         const saved = await schoolsPage.getSavedInstitutions();
-        expect(saved).toHaveLength(5);
+        expect(saved).toHaveLength(SCHOOL_COUNT);
         expect(saved).toEqual(expect.arrayContaining([...before, ...added]));
+        expect(new Set(saved).size, 'no institution is saved twice').toBe(saved.length);
 
-        // Save the step. Five high schools come from the test above; topped up if this test
+        // Save the step. The high schools come from the test above; topped up if this test
         // runs on its own, or on a pool account.
         let target = schoolsPage;
         if (reused) {
@@ -174,17 +183,21 @@ test.describe('My Schools Page Tests', () => {
             await target.navigateToMySchools();
             await target.verifyPageLoaded();
         }
-        await target.addHighSchools(5, { country: 'United States', state: 'Arizona', city: 'Tempe' });
-        await target.addColleges(5, { state: 'Arizona', city: 'Mesa' });
-        // Keep the five colleges: answer stays "Yes".
+        await target.addHighSchools(SCHOOL_COUNT, { country: 'United States', state: 'Arizona', city: 'Tempe' });
+        await target.addColleges(SCHOOL_COUNT, { state: 'Arizona', city: 'Mesa' });
+        // Keep the colleges: answer stays "Yes".
         await target.acknowledgeTranscripts();
         await target.saveAndContinue();
         await new MyHighSchoolGradesPage(target.page).verifyPageLoaded();
 
         // Back on My schools: everything was kept by the save.
         await target.navigateToMySchools();
-        expect(await target.getSavedHighSchools()).toHaveLength(5);
-        expect(await target.getSavedInstitutions()).toHaveLength(5);
+        const keptHighSchools = await target.getSavedHighSchools();
+        const keptInstitutions = await target.getSavedInstitutions();
+        expect(keptHighSchools).toHaveLength(SCHOOL_COUNT);
+        expect(keptInstitutions).toHaveLength(SCHOOL_COUNT);
+        expect(new Set(keptHighSchools).size, 'no high school is kept twice').toBe(SCHOOL_COUNT);
+        expect(new Set(keptInstitutions).size, 'no institution is kept twice').toBe(SCHOOL_COUNT);
         // Saved and checked: a pool account now sits on grades, for that suite's save test.
         pooled?.passOn();
     });

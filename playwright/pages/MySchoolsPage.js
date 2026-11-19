@@ -232,6 +232,23 @@ class MySchoolsPage extends BasePage {
     }
 
     /**
+     * The high schools listed for the chosen city, without the entries the list always has
+     * (Home School, GED, HiSet, "not on the list"). Waits for the list to reload for the
+     * city: read too early, it holds only those fixed entries.
+     * @returns {Promise<string[]>}
+     */
+    async getListedHighSchools() {
+        /** @type {string[]} */
+        let schools = [];
+        await expect.poll(async () => {
+            schools = (await this.getDropdownOptions(this.selectors.hsName))
+                .filter((n) => !MySchoolsPage.HIGH_SCHOOL_FIXED_OPTIONS.includes(n));
+            return schools.length;
+        }, { timeout: this.navigationTimeout, message: 'high schools listed for the chosen city' }).toBeGreaterThan(0);
+        return schools;
+    }
+
+    /**
      * Choose an option (exact label) from a dropdown, using its Search box when present.
      * With no value, the first option is chosen.
      * @param {string | import('@playwright/test').Locator} selector - CSS/role selector or a Locator
@@ -346,7 +363,9 @@ class MySchoolsPage extends BasePage {
         const table = this.savedTable(header);
         if (!(await table.count())) return [];
         const cells = table.locator(this.selectors.savedNameCells);
-        return [...new Set((await cells.allInnerTexts()).map((t) => t.trim()).filter(Boolean))];
+        // One entry per saved row, repeats kept: a school saved twice must show up twice.
+        // Spaces normalised as in the dropdown lists, so names compare equal.
+        return (await cells.allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').trim()).filter(Boolean);
     }
 
     /**
@@ -474,8 +493,17 @@ class MySchoolsPage extends BasePage {
             // The institution list reloads for the chosen city; read it once it has settled, and
             // from this dropdown's own list. Picking "the first option" straight away can take
             // the city list that is still on screen (e.g. "Ajo", the first Arizona city).
+            // After a change of city the list can still be the previous city's for a while.
+            // Institutions are listed as "<name> (<city>)": wait until this city's show.
+            // ("Not listed" has no city: it asks for a typed name instead.)
             await this.settle(5000);
-            const listed = await this.getDropdownOptions(this.selectors.instName);
+            const suffix = `(${city})`;
+            /** @type {string[]} */
+            let listed = [];
+            await expect.poll(async () => {
+                listed = (await this.getDropdownOptions(this.selectors.instName)).filter((n) => n.endsWith(suffix));
+                return listed.length;
+            }, { timeout: this.navigationTimeout }).toBeGreaterThan(0).catch(() => {});
             target = listed.find((n) => !excludeInstitutions.includes(n));
             if (!target) throw new Error(`No institution listed for ${city}, ${state} beyond ${excludeInstitutions.length} already saved`);
         }
@@ -531,7 +559,9 @@ class MySchoolsPage extends BasePage {
      * Add high schools until `total` are saved, choosing different schools from the
      * site's list for the city and different attendance years for each. The first saved
      * school is the current one (graduation date); the rest are previous schools.
-     * @param {number} total - e.g. 5
+     * A school already saved is never picked again: the page does not reject a duplicate
+     * high school on "Save school" (reported as an open issue).
+     * @param {number} total - e.g. 10
      * @param {{ country?: string, state?: string, city?: string }} [where]
      * @returns {Promise<string[]>} names of the schools this call added
      */
@@ -543,15 +573,17 @@ class MySchoolsPage extends BasePage {
         await this.choose(this.selectors.hsCountry, country);
         await this.choose(this.selectors.hsState, state);
         await this.choose(this.selectors.hsCity, city);
-        const listed = await this.getDropdownOptions(this.selectors.hsName);
+        const listed = await this.getListedHighSchools();
         /** @type {string[]} */
         const added = [];
+        // A different one-year range per previous school, all in the past: the last ends this year.
+        const firstYear = new Date().getFullYear() - total;
         // Re-count before each addition (the table can render late), and stop at `total`.
         for (let i = 0; (await this.getSavedHighSchools()).length < total; i++) {
             const saved = await this.getSavedHighSchools();
-            const available = listed.filter((n) => !saved.includes(n));
-            if (!available.length) throw new Error(`No more high schools listed for ${city}, ${state}`);
-            const year = 2017 + i; // a different year range per previous school
+            const available = listed.filter((n) => n && !saved.includes(n) && !added.includes(n));
+            if (!available.length) throw new Error(`No more high schools listed for ${city}, ${state} (${saved.length} of ${total} saved)`);
+            const year = firstYear + i;
             await this.addHighSchool({
                 country, state, city, name: available[0],
                 graduationDate: 'May 2026',
@@ -566,23 +598,34 @@ class MySchoolsPage extends BasePage {
     /**
      * Answer Yes to the college question and add institutions until `total` are saved,
      * choosing different institutions from the site's list and different dates for each.
-     * @param {number} total - e.g. 5
-     * @param {{ state?: string, city?: string }} [where]
+     * A city lists only so many institutions (Mesa: 8), so when one runs out the next city
+     * in `moreCities` is used. An institution already saved is never picked again.
+     * @param {number} total - e.g. 10
+     * @param {{ state?: string, city?: string, moreCities?: string[] }} [where]
      * @returns {Promise<string[]>} names of the institutions this call added
      */
-    async addColleges(total, { state = 'Arizona', city = 'Mesa' } = {}) {
+    async addColleges(total, { state = 'Arizona', city = 'Mesa', moreCities = ['Phoenix', 'Tucson'] } = {}) {
+        const cities = [city, ...moreCities.filter((c) => c !== city)];
+        let cityIndex = 0;
         /** @type {string[]} */
         const added = [];
+        // A different one-year range per institution, all in the past: the last ends this year.
+        const firstYear = new Date().getFullYear() - total;
         // Re-count before each addition (the table can render late), and stop at `total`.
-        for (let i = 0; (await this.getSavedInstitutions()).length < total; i++) {
+        while ((await this.getSavedInstitutions()).length < total) {
             const saved = await this.getSavedInstitutions();
-            const year = 2019 + i;
-            const { institution } = await this.addCollegeOrUniversity({
-                state, city, excludeInstitutions: [...saved, ...added, ''],
-                firstAttended: { month: 'August', year: String(year) },
-                lastAttended: { month: 'May', year: String(year + 1) },
-            });
-            added.push(institution);
+            const year = firstYear + added.length;
+            try {
+                const { institution } = await this.addCollegeOrUniversity({
+                    state, city: cities[cityIndex], excludeInstitutions: [...saved, ...added, ''],
+                    firstAttended: { month: 'August', year: String(year) },
+                    lastAttended: { month: 'May', year: String(year + 1) },
+                });
+                added.push(institution);
+            } catch (error) {
+                // This city has no institution left: go on with the next one.
+                if (!String(error).includes('No institution listed') || ++cityIndex >= cities.length) throw error;
+            }
         }
         return added;
     }
@@ -698,5 +741,8 @@ class MySchoolsPage extends BasePage {
         await this.page.waitForURL(/\/ug-app\/\d+\/my-high-school-grades/, { timeout: this.navigationTimeout });
     }
 }
+
+/** Entries the high school list has for every city: not schools of that city. */
+MySchoolsPage.HIGH_SCHOOL_FIXED_OPTIONS = ['Home School', 'GED', 'HiSet', 'My High School is not on the list'];
 
 module.exports = MySchoolsPage;
