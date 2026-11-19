@@ -12,6 +12,7 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
 /**
  * ASU Local flow (from "ASU Local_Automation_Testcases.xlsx"; the "To cover" list of the E2E
  * Flows workbook). An ASU Local applicant without partner benefits, so the fee is not waived.
+ * The TC-0nn numbers below are the case IDs in that ASU Local sheet, not spec files.
  *
  *   Landing             the ASU Local landing link /?asulocal= preselects ASU Local
  *   My information      U.S. citizen with an Arizona home address. There is no ASU Local
@@ -136,7 +137,7 @@ test.describe('ASU Local: filtered programs, Pay later only, second application'
         done.submitted = true;
     }
 
-    test('My program: the program list starts filtered to the ASU Local sites (TC-010)', async () => {
+    test('My program: the program list starts filtered to the ASU Local sites', async () => {
         await programPage.navigateToMyASUProgram();
         expect(await programPage.getAsuLocalFilterState()).toEqual({ locationButton: `Location (${testData.asuLocalSites.length})`, asuLocalChip: true });
 
@@ -149,7 +150,7 @@ test.describe('ASU Local: filtered programs, Pay later only, second application'
         if (others.length) test.info().annotations.push({ type: 'note', description: `Besides the ASU Local sites the program also offers: ${others.join(', ')}` });
     });
 
-    test('My program: choose a program at an ASU Local site and continue (TC-011)', async () => {
+    test('My program: choose a program at an ASU Local site and continue', async () => {
         await programPage.navigateToMyASUProgram();
         const { first } = await programPage.selectProgram({ program: testData.program, degreeType: 'Bachelor', location: testData.location });
         expect(first.program).toBe(testData.program);
@@ -159,7 +160,7 @@ test.describe('ASU Local: filtered programs, Pay later only, second application'
         done.program = true;
     });
 
-    test('Review: the only payment option is "Pay later" (TC-014)', async () => {
+    test('Review: the only payment option is "Pay later"', async () => {
         await ensureReview();
         await reviewPage.navigateToReviewPage();
         expect(await reviewPage.getSectionValue('My program', 'Location')).toBe(testData.location);
@@ -175,7 +176,7 @@ test.describe('ASU Local: filtered programs, Pay later only, second application'
         expect(await dashboard.getSubmittedApplicationId()).toBe(applicationId);
     });
 
-    test('Second application with ASU Local: My program again starts filtered to the ASU Local sites (TC-016)', async () => {
+    test('Second application with ASU Local: My program again starts filtered to the ASU Local sites', async () => {
         await ensureSubmitted();
         const dashboard = new PostAppSubmissionDashboardPage(page);
         dashboard.applicationId = applicationId;
