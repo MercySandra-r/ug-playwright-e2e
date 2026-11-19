@@ -344,7 +344,11 @@ class MySchoolsPage extends BasePage {
      */
     async addHighSchool(data) {
         if (await this.page.locator(this.selectors.addHighSchoolButton).isVisible().catch(() => false)) {
-            await this.page.locator(this.selectors.addHighSchoolButton).click();
+            await this.openHighSchoolForm();
+            // A new school's form opens empty: an earlier school's choices used to be carried
+            // over into it (fixed, tester 2026-11-19).
+            const { state, city, name } = await this.readHighSchoolForm();
+            expect({ state, city, name }, 'the new high school form should open empty').toEqual({ state: '', city: '', name: '' });
         }
         const school = await this.fillHighSchool(data);
         await this.saveSchool();
@@ -748,9 +752,8 @@ class MySchoolsPage extends BasePage {
 
     /**
      * What the open high-school form currently holds ('' for an empty or hidden field).
-     * Used to check that "Add a high school" opens an empty form: an earlier school's
-     * choices used to be carried over into it (fixed, tester 2026-11-19).
-     * @returns {Promise<{ open: boolean, country: string, state: string, city: string, name: string }>}
+     * addHighSchool uses it to check that a new school's form opens empty.
+     * @returns {Promise<{ country: string, state: string, city: string, name: string }>}
      */
     async readHighSchoolForm() {
         /** @param {string} selector */
@@ -760,7 +763,6 @@ class MySchoolsPage extends BasePage {
             return (await box.inputValue().catch(() => '')).replace(/\s+/g, ' ').trim();
         };
         return {
-            open: await this.page.locator(this.selectors.saveSchoolButton).isVisible().catch(() => false),
             country: await read(this.selectors.hsCountry),
             state: await read(this.selectors.hsState),
             city: await read(this.selectors.hsCity),

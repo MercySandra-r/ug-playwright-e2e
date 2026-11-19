@@ -8,7 +8,7 @@ Everything lives in the `playwright/` folder.
 
 ## What is covered
 
-The suite has 292 tests in 30 spec files (`playwright/tests/`), numbered in the order of the
+The suite has 291 tests in 30 spec files (`playwright/tests/`), numbered in the order of the
 application.
 
 | Spec | Area | Tests |
@@ -19,7 +19,7 @@ application.
 | TC_04 | Pre-application dashboard | 9 |
 | TC_05 | My information | 17 |
 | TC_06 | My ASU program | 13 |
-| TC_07 | My schools (up to ten high schools and ten colleges) | 13 |
+| TC_07 | My schools (up to ten high schools and ten colleges) | 12 |
 | TC_08 | My high school grades | 18 |
 | TC_09 | Arizona residency, including 10 applicant scenarios | 44 |
 | TC_10 | Profile | 12 |

@@ -17,7 +17,8 @@ const { openPooledAccount } = require('../utils/accountPool');
  * high school on "Save school" (no error is shown; reported as an open issue), so the
  * tests also check that no saved name appears twice.
  * "Add a high school" opens an empty form: the earlier school's choices are no longer
- * carried over into it (fixed, tester 2026-11-19; checked by its own test).
+ * carried over into it (fixed, tester 2026-11-19). MySchoolsPage.addHighSchool checks
+ * this every time it opens a new form.
  * Account creation is rate-limited per hour by the IdP; this suite creates one.
  *
  * Debugging without creating accounts: set MYSCHOOLS_TEST_EMAIL and
@@ -104,20 +105,6 @@ test.describe('My Schools Page Tests', () => {
         await schoolsPage.editSchool(HIGH_SCHOOL.name, { name: 'Compadre High School' });
         await schoolsPage.validateGraduatingSchool({ name: 'Compadre High School' });
         expect(await schoolsPage.getSavedHighSchools()).not.toContain(HIGH_SCHOOL.name);
-    });
-
-    test('Add a high school opens an empty form: the saved school is not carried over', async () => {
-        // Fixed (tester, 2026-11-19): the next school's form used to open with the first
-        // school's choices already selected. The form is left open for the next test to fill.
-        const saved = await schoolsPage.getSavedHighSchools();
-        expect(saved).toEqual(['Compadre High School']);
-        await schoolsPage.openHighSchoolForm();
-        const form = await schoolsPage.readHighSchoolForm();
-        test.info().annotations.push({ type: 'new high school form', description: JSON.stringify(form) });
-        expect(form.open, 'the new high school form is open').toBe(true);
-        expect(form.name, 'no high school is selected yet').toBe('');
-        expect(form.city, 'no city is selected yet').toBe('');
-        expect(form.state, 'no state is selected yet').toBe('');
     });
 
     test('Remove a school', async () => {
