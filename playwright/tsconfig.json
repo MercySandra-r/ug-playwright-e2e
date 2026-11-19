@@ -29,13 +29,6 @@
     // Generated output: bundled report viewer, run artifacts, debug files.
     "reports",
     "test-results",
-    "artifacts",
-    // Flow specs TC_21-TC_24 (F8-F11) still call page-object methods from before the
-    // site changed and need rebuilding; they are left out until then. Rebuilt flows
-    // (TC_14_F1 to TC_20_F7, TC_25_F12) are checked.
-    "tests/TC_21_F8_*",
-    "tests/TC_22_F9_*",
-    "tests/TC_23_F10_*",
-    "tests/TC_24_F11_*"
+    "artifacts"
   ]
 }

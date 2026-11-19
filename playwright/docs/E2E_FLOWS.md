@@ -61,7 +61,7 @@ accordion), waivers.
 | F5 | `tests/TC_18_F5_…` | Rebuilt (2026-11-19): in person, DACA, no uniformed services, Tempe High School with a future graduation. Grades open straight on self-report (no question). Residency asks only the permanent home and the Arizona high school questions (Prop 308): Arizona, Yes, Yes |
 | F6 | `tests/TC_19_F6_…` | Rebuilt (2026-11-19): online, aged 18, JN visa (F-1 is not offered for online study), no uniformed services, past graduation. Grades and residency both say "not necessary". Review offered payment (Pay later) |
 | F7 | `tests/TC_20_F7_…` | Rebuilt (2026-11-19), replacing the earlier single duplicate check on My program: same name and birthday as a submitted application, same program and term; random SSN to Review, then Edit My information from Review with TEST_SSN: Review lists "Application already submitted for the selected term" and My program's Continue shows the duplicate start date error; a new SSN clears both; submitted. The payment option still shows alongside the duplicate error, which is expected (the sheet's "no payment option" is out of date) |
-| F8–F11 | `tests/TC_21_…` to `tests/TC_24_…` | Old placeholders, to be rebuilt |
+| F8–F11 | (not yet) | Still to be built; the old placeholder specs were removed (2026-11-19). They will take TC_21–TC_24 |
 | F12 Nursing RN/BSN with backup | `tests/TC_25_F12_…` | Built earlier (not in the workbook) |
 
 Known app bugs that affect the flows are noted in each spec's header.
