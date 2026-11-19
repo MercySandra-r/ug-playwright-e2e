@@ -8,7 +8,7 @@ Everything lives in the `playwright/` folder.
 
 ## What is covered
 
-The suite has 247 tests in 23 spec files (`playwright/tests/`), numbered in the order of the
+The suite has 254 tests in 24 spec files (`playwright/tests/`), numbered in the order of the
 application.
 
 | Spec | Area | Tests |
@@ -26,10 +26,10 @@ application.
 | TC_11 | Review | 13 |
 | TC_12 | Post-submission dashboard ("Next steps") | 12 |
 | TC_13 | Preview of the submitted application | 16 |
-| TC_14–TC_22 | End-to-end flows F1–F9 | 56 |
+| TC_14–TC_23 | End-to-end flows F1–F10 | 63 |
 | TC_25 | End-to-end flow F12: Nursing RN/BSN with a backup program | 8 |
 
-Flows F10–F11 (visiting students) are still to be built and will take TC_23–TC_24.
+Flow F11 (visiting student in person) is still to be built and will take TC_24.
 
 The end-to-end flows are defined in [`playwright/docs/E2E_FLOWS.md`](playwright/docs/E2E_FLOWS.md):
 each one is a different kind of applicant taken through the whole application and submitted.
@@ -45,6 +45,7 @@ each one is a different kind of applicant taken through the whole application an
 | F7 | Duplicate application: the SSN of a submitted application entered from Review; the error on Review and My program, cleared by a new SSN |
 | F8 | Nondegree, online, U.S. citizen with an Arizona address, future graduate; grades not needed, OOS |
 | F9 | Nondegree, in person, J-1 non-resident, past graduate; grades and residency not needed |
+| F10 | Visiting student, online, DACA, past graduate; grades not needed, Prop 308 residency |
 
 ## Tools
 
