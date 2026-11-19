@@ -46,7 +46,11 @@ skipped.
 
 ## Still to cover (listed in the workbook)
 
-Kaplan, CORP, duplicate-application check on My information, waivers.
+Kaplan, duplicate-application check on My information, waivers.
+
+CORP (a corporate partner benefit, e.g. Amazon DSP: the fee is waived) is covered by F2
+(`tests/TC_15_F2_…`): Education benefits Amazon DSP, Review shows the fee waived and no
+payment option.
 
 ## Where each flow lives
 
