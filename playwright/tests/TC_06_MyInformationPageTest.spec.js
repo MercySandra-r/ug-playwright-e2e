@@ -146,11 +146,6 @@ test.describe('My Information Page Tests', () => {
         await expect(page.locator(myInfoPage.selectors.benefitProvider)).toHaveValue(/** @type {string} */ (provider));
     });
 
-    test('Add parent or legal guardian', async () => {
-        await myInfoPage.addParentInformation({ firstName: 'Pat', lastName: 'Guardian', isLiving: true });
-        expect((await myInfoPage.readFormValues()).guardians).toContain('Pat Guardian');
-    });
-
     test('Former names: up to 10, then the limit is reached; one can be deleted', async () => {
         const before = await myInfoPage.getFormerNames();
         // Letters only, unique per run so reruns on a reused account don't collide.
@@ -207,13 +202,17 @@ test.describe('My Information Page Tests', () => {
         expect(branches.length).toBeGreaterThan(0);
     });
 
-    test('Parents: valid and invalid contact; BriteVerify flags the invalid phone on Continue', async () => {
+    test('Add two parents or legal guardians; BriteVerify flags the invalid phone on Continue', async () => {
         test.setTimeout(240000);
+        const before = await myInfoPage.getGuardians();
+        // Parent 1: valid email and phone. Parent 2: an email and phone BriteVerify rejects.
         await myInfoPage.addParentInformation({ firstName: 'Valid', lastName: 'Parent', isLiving: true,
             email: 'ugnaaqaautomation+guardian@gmail.com', phone: '4809657788' });
         await myInfoPage.addParentInformation({ firstName: 'Invalid', lastName: 'Parent', isLiving: true,
             email: 'qa@au.is', phone: '5005550123' });
-        expect(await myInfoPage.getGuardians()).toEqual(expect.arrayContaining(['Valid Parent', 'Invalid Parent']));
+        const guardians = (await myInfoPage.readFormValues()).guardians;
+        expect(guardians).toEqual(expect.arrayContaining(['Valid Parent', 'Invalid Parent']));
+        expect(guardians).toHaveLength(before.length + 2);
 
         // BriteVerify only checks contact details when the step is continued.
         await myInfoPage.completeRequiredFields();
