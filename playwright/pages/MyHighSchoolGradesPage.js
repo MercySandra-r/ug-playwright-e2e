@@ -367,6 +367,16 @@ class MyHighSchoolGradesPage extends BasePage {
     }
 
     /**
+     * The "this page is not necessary" notice in full, or '' when the step asks for grades.
+     * Kaplan applicants always get it (tester, 2026-11-19).
+     * @returns {Promise<string>}
+     */
+    async getNotNecessaryMessage() {
+        if (!(await this.isStepNotNecessary())) return '';
+        return (await this.page.locator(this.selectors.notNecessaryNotice).first().innerText()).replace(/\s+/g, ' ').trim();
+    }
+
+    /**
      * Whether the two report cards are shown (graduation date in the future).
      * @returns {Promise<boolean>}
      */

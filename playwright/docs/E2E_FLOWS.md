@@ -46,7 +46,7 @@ skipped.
 
 ## Still to cover (listed in the workbook)
 
-Kaplan.
+Nothing: Kaplan was the last one (TC_31, 2026-11-19).
 
 Fee waivers are covered: ABOR is the waiver checkbox list on Review (F1: shown, no payment
 option, a reason needs a signature, submitted with the waiver; TC_11: the waiver choice and the
@@ -81,6 +81,7 @@ payment option.
 | Starbucks (partner) | `tests/TC_27_Starbucks_…` | Built (2026-11-19) as the tester described: first application with Education benefits Starbucks (bachelor's degree No, "Starbucks partner", partner number from STARBUCKS_PARTNER_NUMBER, verified; SCAP terms "I accept"; manager disclosure Accept), My program locked to "pursue a degree" at ASU Online, submitted; second application on the same account with My information unchanged, another start term (the submitted one's term is disabled), a college with "Bachelor of Arts" showing "You cannot use the Starbucks College Achievement Plan education benefit..." then "Continue with no partner benefit"; Review: Pay now / Pay later; submitted |
 | Multiple applications | `tests/TC_29_MultipleApplications_…` | Built (2026-11-19): on one account, applications are submitted one after another (Start a new application on the main dashboard, My information prefilled and unchanged, the next open start term) until the dashboard says "Only one application can be sent for each start date. You cannot submit an application until additional start dates are announced." Two tests: pursue a degree (a different program each time) and NDG / VUS in turn. On 2026-11-19 that was two applications each (Spring 2027, Summer 2027) |
 | Prefill and profile (multiple applications) | `tests/TC_30_MultipleApplications_…` | Built (2026-11-19): a second application is prefilled on My information and Arizona residency only (My schools empty); profile: nothing editable with none in progress, everything with the only one in progress, legal name and birthday read-only with several on the account; one application in progress at a time |
+| Kaplan (partner) | `tests/TC_31_Kaplan_…` | Built (2026-11-19) from "Kaplan_Regression .xlsx": landing `/?org=kaplaninc` with the Kaplan logo; the account is created on the landing page with the email typed twice (no password, no email code); log in again on `/kaplan/login` with the email only. Education benefits always No; My high school grades always says the page is not necessary ("not a resident of the United States"); Arizona residency asked as usual; Review: fee waived, no payment option. A second application (My information prefilled, another start term) is submitted the same way; then the dashboard says why no other application can be started |
 | F12 Nursing RN/BSN with backup | `tests/TC_25_F12_…` | Built earlier (not in the workbook) |
 
 Known app bugs that affect the flows are noted in each spec's header.

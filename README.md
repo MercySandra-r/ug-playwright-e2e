@@ -8,7 +8,7 @@ Everything lives in the `playwright/` folder.
 
 ## What is covered
 
-The suite has 291 tests in 30 spec files (`playwright/tests/`), numbered in the order of the
+The suite has 301 tests in 31 spec files (`playwright/tests/`), numbered in the order of the
 application.
 
 | Spec | Area | Tests |
@@ -33,6 +33,7 @@ application.
 | TC_28 | Need help per application type (online, in person, ASU Local, SCAP) and the error pages (500, 404) | 9 |
 | TC_29 | Multiple applications on one account until no start date is left (degree; NDG / VUS) | 2 |
 | TC_30 | Multiple applications: prefill (My information, Arizona residency) and profile editing | 5 |
+| TC_31 | Kaplan: account made on the landing page (email only), fee waived, grades not necessary, two applications | 10 |
 
 The end-to-end flows are defined in [`playwright/docs/E2E_FLOWS.md`](playwright/docs/E2E_FLOWS.md):
 each one is a different kind of applicant taken through the whole application and submitted.

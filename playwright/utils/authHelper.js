@@ -140,6 +140,40 @@ async function signUpVerifiedAccount(page, opts = {}) {
 }
 
 /**
+ * Create a Kaplan applicant account: the account is made on the Kaplan landing page
+ * (/?org=kaplaninc) with the email typed twice; no password, no email code. Ends on the
+ * pre-application dashboard. The address comes from the same sequence as other sign-ups.
+ * @param {import('@playwright/test').Page} page
+ * @param {{ mode?: 'online'|'in-person', degreeType?: 'pursue'|'individual', maxAttempts?: number }} [opts]
+ * @returns {Promise<{ email: string }>}
+ */
+async function signUpKaplanAccount(page, opts = {}) {
+    const KaplanPage = require('../pages/KaplanPage');
+    const kaplan = new KaplanPage(page);
+    const inbox = getInboxes()[0];
+    const gmail = await gmailFor(inbox);
+    const maxAttempts = opts.maxAttempts || 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        await kaplan.openLanding();
+        const email = await reserveFreshEmail(gmail, inbox.address);
+        logger.info(`Kaplan sign-up for ${email}`);
+        try {
+            await kaplan.createAccount(email, { mode: opts.mode, degreeType: opts.degreeType });
+        } catch (e) {
+            const formError = await kaplan.getFormError();
+            if (formError && attempt < maxAttempts) {
+                logger.warn(`${email} rejected ("${formError}"); trying next sequence number`);
+                continue;
+            }
+            throw formError ? new Error(`Kaplan sign-up rejected for ${email}: "${formError}"`) : e;
+        }
+        await recordAccount(page, email, 'Kaplan');
+        return { email };
+    }
+    throw new Error(`Kaplan sign-up failed after ${maxAttempts} attempts`);
+}
+
+/**
  * Sign in to an existing (already-verified) account through the ASU IdP.
  * @param {import('@playwright/test').Page} page
  * @param {string} email
@@ -156,4 +190,4 @@ async function signInExistingAccount(page, email, password) {
     noteSignedIn(page, email);
 }
 
-module.exports = { signUpVerifiedAccount, signInExistingAccount, reserveFreshEmail, DEFAULT_PASSWORD };
+module.exports = { signUpVerifiedAccount, signUpKaplanAccount, signInExistingAccount, reserveFreshEmail, DEFAULT_PASSWORD };
