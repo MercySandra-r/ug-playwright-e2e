@@ -29,7 +29,6 @@ Terms used in the flow names:
 | **F4** 18To24_NonUS_Res_Armed Forces Reserve_National Guardian_PastGrad_HiSetGED_OOS | Online | 18 to 24 | Not a citizen; Permanent Resident or Refugee | Random | Armed Forces Reserve or National Guard | Nursing (RN/BSN) | Random | Past graduation, HiSet/GED | Self-report with any courses, or transcripts only (random) | Arizona | Random: waived (Global or ABOR), or payment |
 | **F5** Prop308_UD_DACA_NoMilitarystatus | Random | Random | Not a citizen, not resident; DACA or UD | Random | None of these apply | Random | Random | Future graduation, in-state school (AZ) | Defaults to self-report | Prop 308 questions | Random: waived (Global or ABOR), or payment |
 | **F6** 18yr_NonUS_NonRes_F1_J1_JN | Random | 18 | Not a citizen, not resident; F-1, J-1 or JN | Random | None of these apply | Random | Random | Past graduation | Not applicable | Not applicable | Random: waived (Global or ABOR), or payment |
-| **F7** DuplicateApp_Submission_Check_PSwaiver | Random | Same date of birth as an already-submitted account | Random | Random | Random | Random; the term must be the same as the submitted application | Random | Random | Random | Random | None: a message is shown and no payment option |
 
 ## Nondegree and visiting flows
 
@@ -61,7 +60,8 @@ accordion), waivers.
 | F4 | `tests/TC_20_F4_…` | Rebuilt (2026-11-17): online, Nursing RN/BSN with a backup, HiSet, OOS (the flow name says OOS; the residency column says Arizona) |
 | F5 | `tests/TC_21_F5_…` | Rebuilt (2026-11-19): in person, DACA, no uniformed services, Tempe High School with a future graduation. Grades open straight on self-report (no question). Residency asks only the permanent home and the Arizona high school questions (Prop 308): Arizona, Yes, Yes |
 | F6 | `tests/TC_22_F6_…` | Rebuilt (2026-11-19): online, aged 18, JN visa (F-1 is not offered for online study), no uniformed services, past graduation. Grades and residency both say "not necessary". Review offered payment (Pay later) |
-| F7–F11 | `tests/TC_23_…` to `tests/TC_27_…` | Old placeholders, to be rebuilt |
+| F7 | (removed) | DuplicateApp_Submission_Check_PSwaiver removed from the suite (2026-11-19). The duplicate-application check on My program stays in `tests/TC_15_DupAppCheckTest.spec.js` |
+| F8–F11 | `tests/TC_24_…` to `tests/TC_27_…` | Old placeholders, to be rebuilt |
 | F12 Nursing RN/BSN with backup | `tests/TC_29_F12_…` | Built earlier (not in the workbook) |
 
 Known app bugs that affect the flows are noted in each spec's header.
