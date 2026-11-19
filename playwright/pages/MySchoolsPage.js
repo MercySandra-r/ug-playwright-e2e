@@ -91,6 +91,11 @@ class MySchoolsPage extends BasePage {
             instLastMonth: '#institute_last_date_month',
             instLastYear: '#institute_last_date_year',
             instDegree: '#institute_degree_awarded',
+            degreeConcentration: 'role=textbox[name="Degree concentration"]',
+            // Starbucks applicant with a bachelor's degree or higher (verified 2026-11-19): a warning
+            // with "Continue with no partner benefit"; Save institution stays disabled until it is clicked.
+            partnerBenefitWarning: 'role=alert',
+            continueWithoutPartnerBenefit: 'role=button[name="Continue with no partner benefit"]',
             currentStudent: 'role=checkbox[name="I am a current student."]',
             saveInstitutionButton: 'role=button[name="Save institution"]',
             addInstitutionButton: 'role=button[name="Add a school"]',
@@ -470,15 +475,19 @@ class MySchoolsPage extends BasePage {
      *           institution?: string, currentStudent?: boolean,
      *           firstAttended?: string | { month: string, year: string },
      *           lastAttended?: string | { month: string, year: string },
-     *           degreeAwarded?: string, eligible?: boolean, excludeInstitutions?: string[] }} [data]
+     *           degreeAwarded?: string, degreeConcentration?: string, eligible?: boolean,
+     *           excludeInstitutions?: string[], continueWithoutPartnerBenefit?: boolean }} [data]
      *   excludeInstitutions: with no institution given, pick the first listed one not in this list
-     * @returns {Promise<{ institution: string }>}
+     *   continueWithoutPartnerBenefit: when a partner benefit (Starbucks) warns that a degree
+     *   rules it out, click "Continue with no partner benefit" so the institution can be saved
+     * @returns {Promise<{ institution: string, partnerBenefitWarning?: string }>}
      */
     async addCollegeOrUniversity(data = {}) {
         const {
             credits = 12, country = 'United States', state = 'Arizona', city = 'Mesa', institution,
             currentStudent = false, firstAttended = 'August 2024', lastAttended = 'May 2025',
-            degreeAwarded = 'No Degree Awarded', eligible = true, excludeInstitutions = [],
+            degreeAwarded = 'No Degree Awarded', degreeConcentration, eligible = true, excludeInstitutions = [],
+            continueWithoutPartnerBenefit = false,
         } = data;
         await this.answerAttendedCollege(true);
         const add = this.page.locator(this.selectors.addInstitutionButton);
@@ -520,10 +529,20 @@ class MySchoolsPage extends BasePage {
             await this.choose(this.selectors.instLastYear, last.year);
         }
         await this.choose(this.selectors.instDegree, degreeAwarded);
+        const concentration = this.page.locator(this.selectors.degreeConcentration);
+        if (degreeConcentration && await concentration.isVisible().catch(() => false)) await concentration.fill(degreeConcentration);
+        /** @type {string|undefined} */
+        let partnerBenefitWarning;
+        const optOut = this.page.locator(this.selectors.continueWithoutPartnerBenefit);
+        if (await optOut.waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false)) {
+            partnerBenefitWarning = (await this.page.locator(this.selectors.partnerBenefitWarning).filter({ has: optOut }).innerText())
+                .replace(/\s*Continue with no partner benefit\s*$/, '').replace(/\s+/g, ' ').trim();
+            if (continueWithoutPartnerBenefit) await optOut.click();
+        }
         await this.page.locator(this.selectors.saveInstitutionButton).click();
         await this.savedRow(name).waitFor({ state: 'visible', timeout: this.navigationTimeout });
         await this.answerCollegeEligibility(eligible);
-        return { institution: name };
+        return { institution: name, ...(partnerBenefitWarning ? { partnerBenefitWarning } : {}) };
     }
 
     /**

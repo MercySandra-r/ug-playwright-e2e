@@ -8,7 +8,7 @@ Everything lives in the `playwright/` folder.
 
 ## What is covered
 
-The suite has 266 tests in 26 spec files (`playwright/tests/`), numbered in the order of the
+The suite has 271 tests in 27 spec files (`playwright/tests/`), numbered in the order of the
 application.
 
 | Spec | Area | Tests |
@@ -29,6 +29,7 @@ application.
 | TC_14–TC_24 | End-to-end flows F1–F11 (every flow in the workbook) | 70 |
 | TC_25 | End-to-end flow F12: Nursing RN/BSN with a backup program | 8 |
 | TC_26 | ASU Local: filtered programs, Pay later only, a second application | 5 |
+| TC_27 | Starbucks: a Starbucks application, then a non-Starbucks second application | 5 |
 
 The end-to-end flows are defined in [`playwright/docs/E2E_FLOWS.md`](playwright/docs/E2E_FLOWS.md):
 each one is a different kind of applicant taken through the whole application and submitted.
@@ -131,6 +132,7 @@ screenshots, traces and videos of failures to `playwright/test-results/`.
 | Setting (`.env`) | Effect |
 |---|---|
 | `REVIEW_ALLOW_SUBMIT=1` | TC_11's last test really submits the application. Submission cannot be undone. |
+| `STARBUCKS_PARTNER_NUMBER`, `STARBUCKS_FIRST_NAME`, `STARBUCKS_LAST_NAME` | Used only by the Starbucks flow (TC_27): a partner number QA verifies and the name it belongs to. |
 | `TEST_SSN` | Used only by the duplicate-application flow F7 (TC_20, `npm run test:dup-identity`): it must be the SSN of the application already submitted in QA. Other U.S. citizen applicants get a made-up number from a range that is never issued. |
 | `SUBMITTED_TEST_EMAIL` / `_PASSWORD` | An account with a submitted application for TC_12 and TC_13. Without it they create and submit one. |
 | `FORGOT_PASSWORD_TEST_EMAIL` | A spare account for the password-reset test. Without it the test creates one. |

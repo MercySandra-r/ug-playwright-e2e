@@ -144,6 +144,16 @@ class MyInformationPage extends BasePage {
             // Education benefits
             educationBenefitsGroup: 'role=radiogroup[name="Education benefits"]',
             benefitProvider: 'role=combobox[name=/Select your benefit provider/]',
+            // Starbucks only (verified 2026-11-19): required, under the College Achievement Plan note.
+            earnedBachelorGroup: 'role=radiogroup[name=/Have you earned a bachelor.s degree or higher/]',
+            starbucksPartnerTypeGroup: 'role=radiogroup[name=/Are you a Starbucks partner or a family member of a partner/]',
+            starbucksPartnerNumber: 'role=textbox[name="Enter your Starbucks partner number"]',
+            starbucksPartnerVerified: 'text=Partner number verified',
+            followingButton: 'xpath=following::button[1]',
+            // Shown once the partner number is verified: SCAP terms + FERPA consent, and the
+            // manager disclosure (Accept / Decline).
+            scapAcceptCheckbox: 'role=checkbox[name="I accept"]',
+            managerDisclosureHeading: 'role=heading[name="Manager disclosure"]',
 
             // Footer and help
             continueButton: 'button[type="submit"][form="page-form"]',
@@ -789,14 +799,54 @@ class MyInformationPage extends BasePage {
 
     /**
      * Education benefits from a partnered employer/organisation (required Yes/No).
-     * @param {{ usesBenefits: boolean, provider?: string }} data - provider: exact label,
-     *   or the first listed provider when omitted.
+     * Starbucks also asks "Have you earned a bachelor's degree or higher?" (required,
+     * `earnedBachelor`, default No) and then "Are you a Starbucks partner or a family member
+     * of a partner who is a veteran or in the military?" (required, `starbucksPartnerType`,
+     * default "Starbucks partner"; the other choice is "Eligible military partner family member"),
+     * which asks "Enter your Starbucks partner number" ("US -" prefix; `starbucksPartnerNumber`,
+     * required then: the app verifies it, so a made-up number is refused). Once it shows
+     * "Partner number verified", the SCAP terms and FERPA consent are accepted ("I accept") and
+     * the manager disclosure is answered (`managerDisclosure`, default "Accept").
+     * @param {{ usesBenefits: boolean, provider?: string, earnedBachelor?: boolean, starbucksPartnerType?: string,
+     *           starbucksPartnerNumber?: string, managerDisclosure?: 'Accept'|'Decline' }} data -
+     *   provider: exact label, or the first listed provider when omitted.
      * @returns {Promise<string|undefined>} provider chosen, if any
      */
-    async applyPartnerBenefits({ usesBenefits, provider }) {
+    async applyPartnerBenefits({ usesBenefits, provider, earnedBachelor = false, starbucksPartnerType = 'Starbucks partner', starbucksPartnerNumber = '', managerDisclosure = 'Accept' }) {
         await this.answerYesNo(this.selectors.educationBenefitsGroup, usesBenefits);
         if (!usesBenefits) return undefined;
-        return this.pickFromDropdown(this.page.locator(this.selectors.benefitProvider), provider);
+        const chosen = await this.pickFromDropdown(this.page.locator(this.selectors.benefitProvider), provider);
+        const bachelor = this.page.locator(this.selectors.earnedBachelorGroup);
+        if (await bachelor.waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false)) {
+            await this.answerYesNo(this.selectors.earnedBachelorGroup, earnedBachelor);
+        }
+        const partnerType = this.page.locator(this.selectors.starbucksPartnerTypeGroup);
+        if (await partnerType.waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false)) {
+            await this.radioIn(this.selectors.starbucksPartnerTypeGroup, starbucksPartnerType).click();
+        }
+        const partnerNumber = this.page.locator(this.selectors.starbucksPartnerNumber);
+        if (await partnerNumber.waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false)) {
+            // The number is verified by the app: it must be a real partner number QA accepts,
+            // with the applicant's name matching (set STARBUCKS_* in .env; never hard-coded).
+            if (!starbucksPartnerNumber) throw new Error('Starbucks asks for a partner number: pass starbucksPartnerNumber (STARBUCKS_PARTNER_NUMBER in .env)');
+            await partnerNumber.fill(starbucksPartnerNumber);
+            // The unlabelled button right after the box starts the check (Continue does too).
+            await partnerNumber.locator(this.selectors.followingButton).click();
+            await this.page.locator(this.selectors.starbucksPartnerVerified).waitFor({ state: 'visible', timeout: this.navigationTimeout });
+            const accept = this.page.locator(this.selectors.scapAcceptCheckbox);
+            if ((await accept.getAttribute('aria-checked')) !== 'true' && !(await accept.isChecked().catch(() => false))) await accept.click();
+            await this.page.locator(this.selectors.managerDisclosureHeading).scrollIntoViewIfNeeded();
+            await this.page.getByRole('radio', { name: managerDisclosure, exact: true }).click();
+        }
+        return chosen;
+    }
+
+    /**
+     * Whether the Starbucks partner number shows "Partner number verified".
+     * @returns {Promise<boolean>}
+     */
+    async isStarbucksPartnerVerified() {
+        return this.page.locator(this.selectors.starbucksPartnerVerified).isVisible().catch(() => false);
     }
 
     /**
@@ -838,7 +888,8 @@ class MyInformationPage extends BasePage {
         // Not asked for every visa (e.g. Student (F-1) replaces it with I-20 questions).
         if (data.partnerBenefits && data.partnerBenefits.hasPartnerBenefits !== undefined
             && await this.page.locator(this.selectors.educationBenefitsGroup).isVisible()) {
-            await this.applyPartnerBenefits({ usesBenefits: !!data.partnerBenefits.hasPartnerBenefits, provider: data.partnerBenefits.provider });
+            const { hasPartnerBenefits, ...partner } = data.partnerBenefits;
+            await this.applyPartnerBenefits({ ...partner, usesBenefits: !!hasPartnerBenefits });
         }
     }
 

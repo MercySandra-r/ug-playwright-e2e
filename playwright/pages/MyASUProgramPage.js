@@ -72,6 +72,7 @@ class MyASUProgramPage extends BasePage {
         this.selectors = {
             heading: 'role=heading[name="My ASU program"][level=1]',
             degreeIntent: '#group-degree-type-select',
+            degreeIntentCombobox: 'role=combobox[name="I want to.."]',
             option: 'role=option',
             radio: 'role=radio',
 
@@ -269,10 +270,31 @@ class MyASUProgramPage extends BasePage {
     async selectDegreeIntent(degreeType) {
         const label = INTENT[MyASUProgramPage.intentFor(degreeType)];
         const box = this.page.locator(this.selectors.degreeIntent);
-        if ((await box.innerText()).trim() === label) return;
+        // The box fills in (and, for Starbucks, locks) a moment after the page loads.
+        await expect.poll(async () => (await box.innerText().catch(() => '')).trim(), { timeout: this.navigationTimeout }).not.toBe('');
+        await this.page.waitForLoadState('networkidle').catch(() => {});
+        // Already set (the box's text can carry extra hint lines). A Starbucks applicant sees it
+        // locked to "pursue a degree" with "Why can't I change this?" (2026-11-19).
+        if ((await box.innerText()).split(/\n/).map((l) => l.trim()).includes(label)) return;
+        const combo = this.page.locator(this.selectors.degreeIntentCombobox).first();
+        if ((await combo.getAttribute('aria-disabled').catch(() => null)) === 'true' || await combo.isDisabled().catch(() => false)) return;
         await box.click();
         await this.option(label).click();
         await expect(box).toHaveText(label, { timeout: this.assertionTimeout });
+    }
+
+    /**
+     * Whether "I want to.." is locked (disabled, with "Why can't I change this?"), as for a
+     * Starbucks partner (verified 2026-11-19), and what it shows.
+     * @returns {Promise<{ intent: string, locked: boolean }>}
+     */
+    async getDegreeIntentLock() {
+        const combo = this.page.locator(this.selectors.degreeIntentCombobox).first();
+        await expect.poll(async () => (await combo.innerText().catch(() => '')).trim(), { timeout: this.navigationTimeout }).not.toBe('');
+        await this.page.waitForLoadState('networkidle').catch(() => {});
+        const intent = (await combo.innerText()).split(/\n/)[0].trim();
+        const locked = (await combo.getAttribute('aria-disabled').catch(() => null)) === 'true' || await combo.isDisabled().catch(() => false);
+        return { intent, locked };
     }
 
     /**
@@ -473,16 +495,25 @@ class MyASUProgramPage extends BasePage {
 
     /**
      * Pick the start-term radio that best matches the request:
-     * exact label, else "<year> <season>", else season, else the first one offered.
+     * exact label, else "<year> <season>", else season, else the first one offered that is not
+     * in `avoid` (e.g. the term of an application already submitted on the account, which the
+     * app refuses for a second application).
      * @param {import('@playwright/test').Locator} scope - dialog or form holding the radios
      * @param {string} [desired] - e.g. "2027 fall - (Session A)" or "Fall 2025"
+     * @param {string[]} [avoid] - terms not to choose when no `desired` term is given
      * @returns {Promise<string>} the label chosen
      */
-    async chooseStartTerm(scope, desired) {
+    async chooseStartTerm(scope, desired, avoid = []) {
         const radios = scope.locator(this.selectors.radio);
         await radios.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
-        const labels = [...new Set((await radios.evaluateAll((els) =>
-            els.map((e) => (e.getAttribute('aria-label') || e.textContent || '').trim()))).filter((l) => /\d{4}/.test(l)))];
+        const options = (await radios.evaluateAll((els) => els.map((e) => ({
+            label: (e.getAttribute('aria-label') || e.textContent || '').trim(),
+            // Terms the app refuses (e.g. one that clashes with an application already
+            // submitted on the account) are shown disabled.
+            disabled: e.getAttribute('aria-disabled') === 'true',
+        })))).filter((o) => /\d{4}/.test(o.label));
+        const labels = [...new Set(options.map((o) => o.label))];
+        const enabled = [...new Set(options.filter((o) => !o.disabled).map((o) => o.label))];
         let pick = desired && labels.find((l) => l === desired);
         const m = desired && desired.match(/(spring|summer|fall)\D*(\d{4})|(\d{4})\D*(spring|summer|fall)/i);
         if (!pick && m) {
@@ -491,7 +522,7 @@ class MyASUProgramPage extends BasePage {
             pick = labels.find((l) => l.startsWith(`${year} ${season}`)) || labels.find((l) => l.includes(season));
         }
         if (!pick) {
-            pick = labels[0];
+            pick = enabled.find((l) => !avoid.includes(l)) || enabled[0] || labels[0];
             if (desired) this.logger.warn(`Start term "${desired}" not offered; using "${pick}"`);
         }
         await this.radioIn(scope, pick).first().click();
@@ -500,10 +531,10 @@ class MyASUProgramPage extends BasePage {
 
     /**
      * Click "Choose this program" on a card and complete the 2-step dialog.
-     * @param {{ program: string, startTerm?: string, location?: string }} data
+     * @param {{ program: string, startTerm?: string, location?: string, avoidTerms?: string[] }} data
      * @returns {Promise<{ program: string, startTerm: string, location: string, backupRequired: boolean }>}
      */
-    async chooseProgram({ program, startTerm, location }) {
+    async chooseProgram({ program, startTerm, location, avoidTerms = [] }) {
         await this.waitForResults();
         let heading = this.programHeading(program);
         if (!(await heading.isVisible().catch(() => false))) {
@@ -534,7 +565,7 @@ class MyASUProgramPage extends BasePage {
                 await first.click();
             }
         }
-        const term = await this.chooseStartTerm(dialog, startTerm);
+        const term = await this.chooseStartTerm(dialog, startTerm, avoidTerms);
         await dialog.locator(this.selectors.dialogNextButton).click();
 
         const save = dialog.locator(this.selectors.saveChoiceButton);
@@ -576,7 +607,7 @@ class MyASUProgramPage extends BasePage {
      * For nondegree types it fills the nondegree form instead (no program cards).
      * When the first choice needs a backup, one is chosen unless autoBackup is false.
      * @param {number | { program?: string, degreeType?: string, startTerm?: string,
-     *   location?: string, backupProgram?: string, autoBackup?: boolean, visiting?: boolean }} arg
+     *   location?: string, backupProgram?: string, autoBackup?: boolean, visiting?: boolean, avoidTerms?: string[] }} arg
      * @param {'first'|'second'} [choice]
      * @returns {Promise<Record<string, any>>}
      */
@@ -596,7 +627,7 @@ class MyASUProgramPage extends BasePage {
             return this.selectNondegreeOptions({ visiting: data.visiting, location: data.location, startTerm: data.startTerm });
         }
         if (!data.program) throw new Error('selectProgram needs a program name for the degree path');
-        const first = await this.chooseProgram({ program: data.program, startTerm: data.startTerm, location: data.location });
+        const first = await this.chooseProgram({ program: data.program, startTerm: data.startTerm, location: data.location, avoidTerms: data.avoidTerms });
         /** @type {Record<string, any>} */
         const result = { first };
         if (first.backupRequired && data.autoBackup !== false) {

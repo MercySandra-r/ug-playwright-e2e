@@ -528,10 +528,23 @@ class ReviewPage extends BasePage {
         // Submitted = the app moved to the application's Next steps dashboard. If Review
         // refuses instead, it lists what to correct: fail with that list rather than wait.
         const deadline = Date.now() + timeoutMs;
+        // A click on Submit while the payment note is still opening can be lost (seen
+        // 2026-11-19): nothing is sent and the page stays as it was. If after 20s nothing has
+        // happened and Submit is still there and enabled, click it once more.
+        const retryAt = Date.now() + 20000;
+        let retried = false;
         while (Date.now() < deadline) {
             if (/\/ug-app\/\d+\/dashboard/.test(this.page.url())) return;
             const errors = await this.getSubmitErrors();
             if (errors.length) throw new Error(`Submit application was blocked by Review: ${errors.join('; ')}`);
+            if (!retried && Date.now() > retryAt) {
+                retried = true;
+                const submit = this.page.locator(this.selectors.submitButton);
+                if (await submit.isEnabled().catch(() => false)) {
+                    this.logger.warn('Still on Review 20s after Submit, with nothing listed to correct: clicking Submit again');
+                    await submit.click();
+                }
+            }
             await this.page.waitForTimeout(500);
         }
         throw new Error(`Application not submitted after ${timeoutMs / 1000}s: still at ${this.page.url()}`);

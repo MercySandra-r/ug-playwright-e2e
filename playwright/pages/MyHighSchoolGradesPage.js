@@ -348,7 +348,8 @@ class MyHighSchoolGradesPage extends BasePage {
      * @returns {Promise<boolean>}
      */
     async isSelfReportQuestionShown() {
-        return this.page.locator(this.selectors.selfReportGroup).isVisible().catch(() => false);
+        // Counted, not isVisible(): a second (hidden) match must not make the answer "no".
+        return (await this.page.locator(this.selectors.selfReportGroup).filter({ visible: true }).count()) > 0;
     }
 
     /**
@@ -394,20 +395,28 @@ class MyHighSchoolGradesPage extends BasePage {
      * @returns {Promise<'question'|'card'|'required'>} which way the step asked
      */
     async chooseSelfReporting() {
-        await this.page.locator(this.selectors.selfReportGroup)
-            .or(this.page.locator(this.selectors.seniorOnlyCard))
-            .or(this.page.locator(this.selectors.unweightedGpa))
-            .first()
-            .waitFor({ state: 'visible', timeout: this.navigationTimeout });
-        if (await this.isSelfReportQuestionShown()) {
-            await this.answerSelfReport(true);
-            return 'question';
+        const card = this.page.locator(this.selectors.seniorOnlyCard).filter({ visible: true });
+        const gpa = this.page.locator(this.selectors.unweightedGpa).filter({ visible: true });
+        // Keep looking until one layout is clearly there: the grade form alone counts only when
+        // the question and the cards have had time to appear and still have not.
+        const deadline = Date.now() + this.navigationTimeout;
+        while (Date.now() < deadline) {
+            if (await this.isSelfReportQuestionShown()) {
+                await this.answerSelfReport(true);
+                return 'question';
+            }
+            if (await card.count()) {
+                await this.chooseReportCard('seniorOnly');
+                return 'card';
+            }
+            if (await gpa.count()) {
+                await this.page.waitForTimeout(1500);
+                if (!(await this.isSelfReportQuestionShown()) && !(await card.count())) return 'required';
+                continue;
+            }
+            await this.page.waitForTimeout(300);
         }
-        if (await this.page.locator(this.selectors.seniorOnlyCard).isVisible().catch(() => false)) {
-            await this.chooseReportCard('seniorOnly');
-            return 'card';
-        }
-        return 'required';
+        throw new Error('My high school grades: no self-report question, report cards or grade form appeared');
     }
 
     /**
