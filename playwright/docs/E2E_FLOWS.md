@@ -64,7 +64,7 @@ accordion), waivers.
 | F8 | `tests/TC_21_F8_…` | Rebuilt (2026-11-19): landing "individual classes" with No to "already earned a bachelor's degree?" and No to "previously started courses ... at ASU"; nondegree form (not visiting, ASU Online); no transcript acknowledgement on My schools; grades "not necessary" and no grades section on Review; OOS; Review words the term "Spring 2027 - (Session A)" |
 | F9 | `tests/TC_22_F9_…` | Rebuilt (2026-11-19): in person, nondegree, Exchange Visitor (J-1) from Canada (No to "... currently in the United States on any kind of Student Visa?", which F-1 and J-1 must answer); no location is preselected in person (the first, Downtown Phoenix, is chosen); past graduation, no transcript acknowledgement; grades and residency "not necessary"; Review shows only Profile, My information, My program and My schools |
 | F10 | `tests/TC_23_F10_…` | Rebuilt (2026-11-19): online, visiting (Yes to "Are you visiting ASU from another college or university?"; Review: "Visiting University Student"), DACA, past graduation, no colleges, no transcript acknowledgement; grades "not necessary". The sheet says residency is skipped, but a DACA applicant with an Arizona high school is asked the Prop 308 questions (tester confirmed the app is right): Arizona, Yes, Yes |
-| F11 | (not yet) | Still to be built; it will take TC_24 |
+| F11 | `tests/TC_24_F11_…` | Rebuilt (2026-11-19): in person, visiting, U.S. citizen with an Arizona address; first in-person location; future graduation, no colleges, no transcript acknowledgement; grades "not necessary"; residency Arizona |
 | F12 Nursing RN/BSN with backup | `tests/TC_25_F12_…` | Built earlier (not in the workbook) |
 
 Known app bugs that affect the flows are noted in each spec's header.
