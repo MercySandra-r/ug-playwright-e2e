@@ -747,6 +747,28 @@ class MySchoolsPage extends BasePage {
     }
 
     /**
+     * What the open high-school form currently holds ('' for an empty or hidden field).
+     * Used to check that "Add a high school" opens an empty form: an earlier school's
+     * choices used to be carried over into it (fixed, tester 2026-11-19).
+     * @returns {Promise<{ open: boolean, country: string, state: string, city: string, name: string }>}
+     */
+    async readHighSchoolForm() {
+        /** @param {string} selector */
+        const read = async (selector) => {
+            const box = this.page.locator(selector);
+            if (!(await box.isVisible().catch(() => false))) return '';
+            return (await box.inputValue().catch(() => '')).replace(/\s+/g, ' ').trim();
+        };
+        return {
+            open: await this.page.locator(this.selectors.saveSchoolButton).isVisible().catch(() => false),
+            country: await read(this.selectors.hsCountry),
+            state: await read(this.selectors.hsState),
+            city: await read(this.selectors.hsCity),
+            name: await read(this.selectors.hsName),
+        };
+    }
+
+    /**
      * @returns {Promise<string|undefined>} the high-school country currently chosen
      */
     async getHighSchoolCountry() {
