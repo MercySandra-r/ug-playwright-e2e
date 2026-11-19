@@ -29,9 +29,8 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
  *      program continues.
  *   5. Submit with what Review offers for the fee, and the Next steps page.
  *
- * FEE: the workbook expects no payment option with the duplicate message; on 2026-11-19
- * Review still offered $75.00 with Pay now / Pay later. What Review offers is recorded
- * (annotation "fee section with the duplicate SSN"), not asserted.
+ * FEE: with the duplicate error, Review still shows the payment option ($75.00, Pay now /
+ * Pay later). That is expected (confirmed by the tester 2026-11-19), and checked.
  *
  * Needs TEST_SSN in playwright/.env (the SSN of the submitted application; 9 digits). It is
  * typed only, never logged or stored. Identity defaults: first name "Mercy", last name
@@ -180,8 +179,8 @@ test.describe('F7 Duplicate application: SSN of a submitted application, edited 
         await expect.poll(reviewErrors, { timeout: 30000 }).toContain(DUPLICATE_ON_REVIEW);
         expect(await reviewErrors()).toContain(DUPLICATE_ON_REVIEW_HELP);
 
-        const fee = { waived: await reviewPage.isFeeWaived(), paymentOffered: await reviewPage.isPaymentOffered() };
-        test.info().annotations.push({ type: 'fee section with the duplicate SSN', description: JSON.stringify(fee) });
+        // Expected: the payment option still shows alongside the error.
+        expect(await reviewPage.isPaymentOffered(), 'Review should still show the payment option with the duplicate error').toBe(true);
     });
 
     test('My program: Continue without a change shows the duplicate start date error', async () => {
