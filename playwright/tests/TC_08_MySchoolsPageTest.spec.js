@@ -104,16 +104,12 @@ test.describe('My Schools Page Tests', () => {
         expect(await schoolsPage.getSavedHighSchools()).not.toContain(HIGH_SCHOOL.name);
     });
 
-    test('Add multiple schools', async () => {
-        await schoolsPage.addHighSchool(HIGH_SCHOOL);
-        const saved = await schoolsPage.getSavedHighSchools();
-        expect(saved).toEqual(expect.arrayContaining(['Compadre High School', HIGH_SCHOOL.name]));
-        expect(saved.length).toBe(2);
-    });
-
     test('Remove a school', async () => {
-        // Remove the additional (previous) school. Removing the current/most recent one
+        // Add a second (previous) school and remove it. Removing the current/most recent one
         // makes the page ask for a current school again before it will continue.
+        // (Adding many schools is covered by the 10-school test below.)
+        await schoolsPage.addHighSchool(HIGH_SCHOOL);
+        expect(await schoolsPage.getSavedHighSchools()).toEqual(expect.arrayContaining(['Compadre High School', HIGH_SCHOOL.name]));
         await schoolsPage.removeSchool(HIGH_SCHOOL.name);
         expect(await schoolsPage.getSavedHighSchools()).toEqual(['Compadre High School']);
     });
