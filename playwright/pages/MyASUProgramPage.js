@@ -628,12 +628,17 @@ class MyASUProgramPage extends BasePage {
     async selectNondegreeOptions({ visiting = false, location, startTerm } = {}) {
         await this.radioIn(this.page.locator(this.selectors.visitingGroup), visiting ? 'Yes' : 'No').click();
         const locationBox = this.page.locator(this.selectors.nondegreeLocation);
-        if (location) {
+        const shownLocation = async () => (await locationBox.innerText().catch(() => '')).trim();
+        // Online comes with "ASU Online" already chosen; in person shows "Select a location"
+        // and the start terms only appear once a location is chosen (verified 2026-11-19).
+        if (location || /^(Select a location)?$/.test(await shownLocation())) {
             await locationBox.click();
-            await this.option(location).click();
+            const choice = location ? this.option(location) : this.page.locator(this.selectors.option).first();
+            await choice.waitFor({ state: 'visible', timeout: this.assertionTimeout });
+            await choice.click();
         }
         const term = await this.chooseStartTerm(this.page.locator(this.selectors.nondegreeStartTermGroup), startTerm);
-        return { visiting, location: await locationBox.inputValue().catch(() => location || ''), startTerm: term };
+        return { visiting, location: await shownLocation(), startTerm: term };
     }
 
     // ------------------------------------------------------------------ saved selections

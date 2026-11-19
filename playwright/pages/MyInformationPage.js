@@ -75,6 +75,8 @@ class MyInformationPage extends BasePage {
             birthCountry: '#group_birth_country',
             citizenshipCountry: 'role=combobox[name=/Country or territory of citizenship/]',
             visaType: 'role=combobox[name="What type of visa will you be holding?"]',
+            // Student (F-1) and Exchange Visitor (J-1): required Yes/No (verified 2026-11-19).
+            studentVisaInUsGroup: 'role=radiogroup[name=/currently in the United States on any kind of Student Visa/]',
             uniformedServices: '#group_us_uniformed_services',
             // Uniformed-services follow-ups (which ones show depends on the option chosen)
             serviceStatusGroup: 'role=radiogroup[name=/^Choose the status that best applies to you/]',
@@ -544,11 +546,16 @@ class MyInformationPage extends BasePage {
      * reveals two required dropdowns, country of citizenship and country of birth, plus
      * an optional "Social Security Number (if applicable)" that is left empty.
      *
+     * Student (F-1) and Exchange Visitor (J-1) also ask "For the purposes of issuing an I-20
+     * and obtaining a Student Visa, are you currently in the United States on any kind of
+     * Student Visa?" (required), answered with `inUsOnStudentVisa` (default No).
+     *
      * @param {{ isUsCitizen: boolean|string, countryOfBirth?: string,
-     *           countryOfCitizenship?: string, visaType?: string, ssn?: string }} data
+     *           countryOfCitizenship?: string, visaType?: string, ssn?: string,
+     *           inUsOnStudentVisa?: boolean }} data
      * @returns {Promise<{ visaType?: string, ssnFilled?: boolean }>}
      */
-    async selectCitizenshipStatus({ isUsCitizen, countryOfBirth, countryOfCitizenship = 'Canada', visaType, ssn }) {
+    async selectCitizenshipStatus({ isUsCitizen, countryOfBirth, countryOfCitizenship = 'Canada', visaType, ssn, inUsOnStudentVisa = false }) {
         const citizen = !!MyInformationPage.toBool(isUsCitizen);
         await this.chooseCitizenship(citizen);
         if (citizen) {
@@ -566,6 +573,9 @@ class MyInformationPage extends BasePage {
         }
         if (await this.page.locator(this.selectors.birthCountry).isVisible().catch(() => false)) {
             await this.chooseFromDropdown(this.selectors.birthCountry, countryOfBirth || countryOfCitizenship);
+        }
+        if (await this.page.locator(this.selectors.studentVisaInUsGroup).isVisible().catch(() => false)) {
+            await this.answerYesNo(this.selectors.studentVisaInUsGroup, inUsOnStudentVisa);
         }
         return { visaType: chosen };
     }
