@@ -13,7 +13,7 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
 /**
  * Flow F7: DuplicateApp_Submission_Check_PSwaiver
  * (row F7 of the "E2E Flows" sheet, "NAA App - Automation Test flows" workbook)
- * Replaces TC_15, the earlier duplicate check on My program.
+ * Replaces the earlier single duplicate check on My program (removed).
  *
  * The same person as an application already submitted in QA (same name and date of birth),
  * for the same program and term, applying from a new account:

@@ -37,7 +37,7 @@ const SERVICE_MEMBER_TYPES = ['Active Duty', 'Armed Forces Reserve', 'National G
 /**
  * Which fields the step asks, by applicant scenario (from the "Arizona residency flows"
  * sheet of the regression workbook). Names are getShownFields() names. Verified live
- * 2026-11-11. Flows pick a scenario and compare with getShownFields(); TC_10 checks each.
+ * 2026-11-11. Flows pick a scenario and compare with getShownFields(); TC_09 checks each.
  *
  *   asShown         before a permanent home state is chosen
  *   homeArizona     after choosing Arizona as the permanent home

@@ -798,7 +798,7 @@ class MyInformationPage extends BasePage {
     }
 
     /**
-     * Fill the step from flow-spec test data. Keys match the TC_17–TC_27 testData:
+     * Fill the step from flow-spec test data. Keys match the TC_14–TC_24 testData:
      * legalSex, primaryLanguage, address, hispanicLatino, races, usCitizenship,
      * countryOfBirth, visaType, ssn (U.S. citizens; default a made-up number), militaryStatus,
      * partnerBenefits.hasPartnerBenefits.

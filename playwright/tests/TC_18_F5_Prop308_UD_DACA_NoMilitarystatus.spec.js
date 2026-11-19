@@ -54,7 +54,7 @@ const testData = {
     feeWaiverReason: ReviewPage.FEE_WAIVER_OPTIONS[0],
 };
 const fullName = `${testData.applicant.firstName} ${testData.applicant.lastName}`;
-/** The only fields Prop 308 asks (as verified for the TC_10 Prop 308 scenario). */
+/** The only fields Prop 308 asks (as verified for the TC_09 Prop 308 scenario). */
 const PROP308_FIELDS = AZResidencyPage.RESIDENCY_SCENARIOS.prop308.asShown;
 
 test.describe('F5 Prop308 UD DACA NoMilitarystatus', () => {

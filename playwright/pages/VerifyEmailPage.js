@@ -88,7 +88,7 @@ class VerifyEmailPage extends BasePage {
      */
     async clickLoginButton() {
         try {
-            // Use the same selector that works in TC_02_VerifyEmailTest.spec.js
+            // Use the same selector that works in the old email verification test (removed)
             const loginButton = this.page.getByRole('button', { name: 'Log in' });
             
             // Wait for the button to be visible

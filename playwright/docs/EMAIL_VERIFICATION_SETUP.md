@@ -31,7 +31,7 @@ to the next number (up to 3 attempts). Optional env: `GMAIL_SEQUENCE_PREFIX` (de
 The IdP shows this when the sign-up form is opened directly at `login.asu.edu/signup`
 without the app starting the OAuth hand-off. Always enter through the app
 (`AsuIdpPage.startFromApp()`), which `authHelper` does.
-| `tests/TC_28_EmailVerifiedSignup.spec.js` | Reference test; skipped unless `GMAIL_TEST_ADDRESS` is set. |
+| `tests/TC_02_EmailVerifiedSignup.spec.js` | Reference test; skipped unless `GMAIL_TEST_ADDRESS` is set. |
 
 ## One-time setup
 
@@ -52,7 +52,7 @@ without the app starting the OAuth hand-off. Always enter through the app
 4. **First authorized run** opens a browser consent screen once and caches the token to
    `gmail-token.json`. Run the reference test locally (headed) to trigger it:
    ```
-   npx playwright test tests/TC_28_EmailVerifiedSignup.spec.js --project=chromium --headed
+   npx playwright test tests/TC_02_EmailVerifiedSignup.spec.js --project=chromium --headed
    ```
 
 ## Using it in a flow spec
@@ -74,7 +74,7 @@ and consider saving `storageState` once so every spec starts authenticated.
   subject **"Your Verification Code"** and a **6-digit code** (no link). `authHelper`
   filters on that sender and subject, and `gmailUtils` matches exactly 6 digits.
 - `submitVerificationCode()` entered the code and the OAuth callback returned to the app
-  authenticated. TC_28 passed headed in about 32s.
+  authenticated. TC_02 passed headed in about 32s.
 
 ## Things to watch
 

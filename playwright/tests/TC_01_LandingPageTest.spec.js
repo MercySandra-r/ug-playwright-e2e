@@ -4,7 +4,7 @@ const LandingPage = require('../pages/LandingPage');
 const FooterLinksPage = require('../pages/FooterLinksPage');
 
 // The landing page no longer hosts an account-creation form: sign-up moved to ASU's
-// IdP (login.asu.edu). Account creation is covered by TC_28_EmailVerifiedSignup.
+// IdP (login.asu.edu). Account creation is covered by TC_02_EmailVerifiedSignup.
 test.describe('Landing Page Tests', () => {
   /** @type {LandingPage} */
   let landingPage;

@@ -166,7 +166,7 @@ test.describe('F2 Lessthan18 US Res ActiveDuty FGD HiSetGED AZ GlobalAppFeewaive
                 description: `"${testData.applicant.highSchool.name}" was chosen on My schools, but Review shows the high school as "${highSchool}"`,
             });
         }
-        // "USA" or "United States": the country wording differs between pages (known, noted in TC_12)
+        // "USA" or "United States": the country wording differs between pages (known, noted in TC_11)
         expect(await reviewPage.getSectionValue('My schools', 'Location')).toMatch(/^Ajo, Arizona, (USA|United States)$/);
         expect(await reviewPage.getSectionValue('Arizona residency', 'Begin by selecting the state you consider to be your permanent home.'))
             .toBe(testData.residency.permanentState);
