@@ -46,18 +46,15 @@ skipped.
 
 ## Still to cover (listed in the workbook)
 
-Kaplan, and the ABOR fee waiver cases of "ABOR_Fee_Waiver_NewLogic_Test_Cases.xlsx" (21 cases):
+Kaplan.
 
-- Covered: 7 online (payment, no waiver list), 8 ASU Local (Pay later only), 17 CORP Amazon DSP
-  (F2), 19 Tempe campus waiver (F3).
-- Partly (fee recorded, not checked): 11 NDG/VUS (F8-F11), 16 SCAP (TC_27).
-- To build: eligible 1 AZ home address only, 2 AZ permanent home only, 3 AZ high school only
-  (future grad, non-US), 4 home school within 4 years, 5 HiSet/GED within 4 years, 6 Prop 308
-  with transfer credits < 12; ineligible 9 TRN, 10 RAD, 12 transfer credits >= 12, 13 F-1,
-  14 J-1 with credits >= 12, 15 AZ institution attended; 18 CORP Adidas (corporate waiver
-  disabled: the waiver list shows).
-- Need QA / PeopleSoft set-up: 20 term fee waiver (term 2264), 21 individual fee waiver. The
-  UG database and PeopleSoft columns of the sheet are outside the UI tests.
+Fee waivers are covered: ABOR is the waiver checkbox list on Review (F1: shown, no payment
+option, a reason needs a signature, submitted with the waiver; TC_11: the waiver choice and the
+signature are required, "None of these options apply to me" brings the payment option); global
+waivers by partner benefits (F2, CORP Amazon DSP) and by the Tempe campus (F3); SCAP (TC_27);
+ASU Local Pay later only (TC_26); online payment without a waiver list (TC_11, F4, F6).
+The ABOR eligibility matrix in "ABOR_Fee_Waiver_NewLogic_Test_Cases.xlsx" (who gets the list),
+the term and individual waivers and the UG database / PeopleSoft checks are not automated.
 
 There is no duplicate-application check on My information (tester, 2026-11-19).
 
