@@ -208,7 +208,8 @@ class PostAppSubmissionDashboardPage extends BasePage {
         const modal = this.page.locator(this.selectors.newApplicationModal);
         await modal.waitFor({ state: 'visible', timeout: this.navigationTimeout });
         await this.modalRadio(mode).click();
-        await modal.locator(this.selectors.degreeYesRadio).click();
+        // ASU Local shows "About ASU Local" and Continue, with no degree question (2026-11-19).
+        if (mode !== 'ASU Local') await modal.locator(this.selectors.degreeYesRadio).click();
         await modal.locator(this.selectors.continueButton).click();
         await this.page.waitForURL(/\/ug-app\/\d+\//, { timeout: this.navigationTimeout });
         const m = this.page.url().match(/\/ug-app\/(\d+)\//);

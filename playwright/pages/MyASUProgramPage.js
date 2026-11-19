@@ -905,6 +905,43 @@ class MyASUProgramPage extends BasePage {
     }
 
     /**
+     * The program list's location filter as an ASU Local applicant first sees it: the
+     * "Location (n)" button and whether the "ASU Local" chip is applied (verified 2026-11-19:
+     * "Location (6)" and the chip, i.e. the six ASU Local sites).
+     * @returns {Promise<{ locationButton: string, asuLocalChip: boolean }>}
+     */
+    async getAsuLocalFilterState() {
+        await this.waitForResults();
+        const locationButton = ((await this.page.locator(this.selectors.locationFilterButton).first().innerText().catch(() => '')) || '')
+            .replace(/\s+/g, ' ').trim();
+        // The chip is a button named "Remove ASU Local filter" (its text: "ASU Local").
+        const asuLocalChip = await this.page.getByRole('button', { name: 'Remove ASU Local filter', exact: true }).isVisible().catch(() => false);
+        return { locationButton, asuLocalChip };
+    }
+
+    /**
+     * Locations the program dialog offers for one program (opens "Choose this program",
+     * reads the location list, closes the dialog without choosing).
+     * @param {string} program - e.g. "Anthropology, BA"
+     * @returns {Promise<string[]>}
+     */
+    async getProgramLocations(program) {
+        await this.waitForResults();
+        if (!(await this.programHeading(program).isVisible().catch(() => false))) await this.searchProgram(program.replace(/,.*$/, ''));
+        await this.programCard(program).locator(this.selectors.chooseThisProgram).click();
+        const dialog = this.page.locator(this.selectors.programDialog);
+        await dialog.waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        await dialog.locator(this.selectors.locationToggle).click();
+        const options = this.page.locator(this.selectors.option);
+        await options.first().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        const names = (await options.allInnerTexts()).map((t) => t.replace(/\s+/g, ' ').replace(/ ✓$/, '').trim()).filter(Boolean);
+        await this.page.keyboard.press('Escape');
+        await this.page.keyboard.press('Escape');
+        await dialog.waitFor({ state: 'hidden', timeout: this.assertionTimeout }).catch(() => {});
+        return names;
+    }
+
+    /**
      * @returns {Promise<void>}
      */
     async clickContinue() {

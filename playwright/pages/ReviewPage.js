@@ -416,6 +416,21 @@ class ReviewPage extends BasePage {
     }
 
     /**
+     * The payment options Review lists, whatever the group is called: usually "Choose a
+     * payment option" with Pay now / Pay later; an ASU Local applicant gets "Payment option"
+     * with Pay later only (verified 2026-11-19). Empty when no payment is asked.
+     * @returns {Promise<string[]>}
+     */
+    async getPaymentOptions() {
+        /** @type {string[]} */
+        const shown = [];
+        for (const [label, selector] of [['Pay now', this.selectors.payNow], ['Pay later', this.selectors.payLater]]) {
+            if (await this.page.locator(selector).isVisible().catch(() => false)) shown.push(label);
+        }
+        return shown;
+    }
+
+    /**
      * Is the fee waiver list offered on this Review page?
      * @returns {Promise<boolean>}
      */

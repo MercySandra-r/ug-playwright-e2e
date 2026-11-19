@@ -8,7 +8,7 @@ Everything lives in the `playwright/` folder.
 
 ## What is covered
 
-The suite has 261 tests in 25 spec files (`playwright/tests/`), numbered in the order of the
+The suite has 266 tests in 26 spec files (`playwright/tests/`), numbered in the order of the
 application.
 
 | Spec | Area | Tests |
@@ -28,6 +28,7 @@ application.
 | TC_13 | Preview of the submitted application | 16 |
 | TC_14–TC_24 | End-to-end flows F1–F11 (every flow in the workbook) | 70 |
 | TC_25 | End-to-end flow F12: Nursing RN/BSN with a backup program | 8 |
+| TC_26 | ASU Local: filtered programs, Pay later only, a second application | 5 |
 
 The end-to-end flows are defined in [`playwright/docs/E2E_FLOWS.md`](playwright/docs/E2E_FLOWS.md):
 each one is a different kind of applicant taken through the whole application and submitted.
