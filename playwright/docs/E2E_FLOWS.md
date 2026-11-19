@@ -46,7 +46,20 @@ skipped.
 
 ## Still to cover (listed in the workbook)
 
-Kaplan, duplicate-application check on My information, waivers.
+Kaplan, and the ABOR fee waiver cases of "ABOR_Fee_Waiver_NewLogic_Test_Cases.xlsx" (21 cases):
+
+- Covered: 7 online (payment, no waiver list), 8 ASU Local (Pay later only), 17 CORP Amazon DSP
+  (F2), 19 Tempe campus waiver (F3).
+- Partly (fee recorded, not checked): 11 NDG/VUS (F8-F11), 16 SCAP (TC_27).
+- To build: eligible 1 AZ home address only, 2 AZ permanent home only, 3 AZ high school only
+  (future grad, non-US), 4 home school within 4 years, 5 HiSet/GED within 4 years, 6 Prop 308
+  with transfer credits < 12; ineligible 9 TRN, 10 RAD, 12 transfer credits >= 12, 13 F-1,
+  14 J-1 with credits >= 12, 15 AZ institution attended; 18 CORP Adidas (corporate waiver
+  disabled: the waiver list shows).
+- Need QA / PeopleSoft set-up: 20 term fee waiver (term 2264), 21 individual fee waiver. The
+  UG database and PeopleSoft columns of the sheet are outside the UI tests.
+
+There is no duplicate-application check on My information (tester, 2026-11-19).
 
 CORP (a corporate partner benefit, e.g. Amazon DSP: the fee is waived) is covered by F2
 (`tests/TC_15_F2_…`): Education benefits Amazon DSP, Review shows the fee waived and no
