@@ -8,7 +8,7 @@ Everything lives in the `playwright/` folder.
 
 ## What is covered
 
-The suite has 271 tests in 27 spec files (`playwright/tests/`), numbered in the order of the
+The suite has 280 tests in 28 spec files (`playwright/tests/`), numbered in the order of the
 application.
 
 | Spec | Area | Tests |
@@ -30,6 +30,7 @@ application.
 | TC_25 | End-to-end flow F12: Nursing RN/BSN with a backup program | 8 |
 | TC_26 | ASU Local: filtered programs, Pay later only, a second application | 5 |
 | TC_27 | Starbucks: a Starbucks application, then a non-Starbucks second application | 5 |
+| TC_28 | Need help per application type (online, in person, ASU Local, SCAP) and the error pages (500, 404) | 9 |
 
 The end-to-end flows are defined in [`playwright/docs/E2E_FLOWS.md`](playwright/docs/E2E_FLOWS.md):
 each one is a different kind of applicant taken through the whole application and submitted.
@@ -166,3 +167,5 @@ more), so each suite starts on its own page.
   its first save.
 - **A duplicate high school is not rejected** on My schools when Save school is clicked.
 - **Duplicate application**: Review shows the error and still offers the payment option (expected).
+- **The 404 page's Need help** lists the in-person contacts (Admission Services, After hours) even for an online applicant.
+- **Opening another applicant's application** (`/ug-app/<their id>/...`) signs the user out.
