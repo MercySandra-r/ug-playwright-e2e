@@ -8,7 +8,7 @@ Everything lives in the `playwright/` folder.
 
 ## What is covered
 
-The suite has 282 tests in 29 spec files (`playwright/tests/`), numbered in the order of the
+The suite has 291 tests in 30 spec files (`playwright/tests/`), numbered in the order of the
 application.
 
 | Spec | Area | Tests |
@@ -23,7 +23,7 @@ application.
 | TC_08 | My high school grades | 18 |
 | TC_09 | Arizona residency, including 10 applicant scenarios | 44 |
 | TC_10 | Profile | 12 |
-| TC_11 | Review | 13 |
+| TC_11 | Review, including the Submit validations (certification, payment option, fee waiver choice and signature) | 17 |
 | TC_12 | Post-submission dashboard ("Next steps") | 12 |
 | TC_13 | Preview of the submitted application | 16 |
 | TC_14–TC_24 | End-to-end flows F1–F11 (every flow in the workbook) | 70 |
@@ -32,6 +32,7 @@ application.
 | TC_27 | Starbucks: a Starbucks application, then a non-Starbucks second application | 5 |
 | TC_28 | Need help per application type (online, in person, ASU Local, SCAP) and the error pages (500, 404) | 9 |
 | TC_29 | Multiple applications on one account until no start date is left (degree; NDG / VUS) | 2 |
+| TC_30 | Multiple applications: prefill (My information, Arizona residency) and profile editing | 5 |
 
 The end-to-end flows are defined in [`playwright/docs/E2E_FLOWS.md`](playwright/docs/E2E_FLOWS.md):
 each one is a different kind of applicant taken through the whole application and submitted.
@@ -169,4 +170,6 @@ more), so each suite starts on its own page.
 - **A duplicate high school is not rejected** on My schools when Save school is clicked.
 - **Duplicate application**: Review shows the error and still offers the payment option (expected).
 - **The 404 page's Need help** lists the in-person contacts (Admission Services, After hours) even for an online applicant.
+- **Only one application can be in progress at a time**: the dashboard offers its Continue, not a new application.
+- **Profile editing**: nothing editable with no application in progress; legal name and birthday read-only once the account has several applications.
 - **Opening another applicant's application** (`/ug-app/<their id>/...`) signs the user out.

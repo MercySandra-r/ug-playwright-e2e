@@ -438,6 +438,26 @@ class AZResidencyPage extends BasePage {
         return [...shown].sort();
     }
 
+    /**
+     * Every answer the step currently shows, for comparing two applications (Arizona residency
+     * is prefilled on a later application of the same account): the permanent home, the
+     * parents' state, each Yes/No question and the financial support total.
+     * @returns {Promise<Record<string, string|number|undefined>>}
+     */
+    async readAnswers() {
+        await this.page.locator(this.selectors.permanentState).waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        await this.page.waitForLoadState('networkidle').catch(() => {});
+        const fields = await this.getShownFields();
+        /** @type {Record<string, string|number|undefined>} */
+        const out = { permanentState: await this.getPermanentState() };
+        if (fields.includes('parentState')) out.parentState = await this.getDropdownValue(this.selectors.parentState);
+        for (const field of fields) {
+            if (field in QUESTIONS) out[field] = await this.getAnswer(field);
+        }
+        if (fields.includes('financialSupport')) out.supportTotal = await this.getSupportTotal();
+        return out;
+    }
+
     // ------------------------------------------------------------------ spouses/dependents of service members
 
     /**

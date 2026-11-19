@@ -178,7 +178,10 @@ class ProfilePage extends BasePage {
     async verifyPageLoaded() {
         await expect(this.page).toHaveURL(/\/profile$/, { timeout: this.navigationTimeout });
         await expect(this.page.locator(this.selectors.pageLabel)).toBeVisible({ timeout: this.navigationTimeout });
-        await expect(this.page.locator(this.selectors.editLinks).first()).toBeVisible({ timeout: this.navigationTimeout });
+        // Loaded = the welcome line and the details are there. Not an Edit link: with no
+        // application in progress the profile has none (verified 2026-11-19).
+        await expect(this.page.locator(this.selectors.welcomeText).first()).toBeVisible({ timeout: this.navigationTimeout });
+        await this.page.waitForLoadState('networkidle').catch(() => {});
     }
 
     /**
@@ -226,9 +229,13 @@ class ProfilePage extends BasePage {
     }
 
     /**
-     * Fields that should be editable for a number of in-progress applications (see the
-     * class notes). Contact email is never editable and isn't listed.
-     * @param {number} inProgressCount
+     * Fields that should be editable (see the class notes). Contact email is never editable
+     * and isn't listed. Verified 2026-11-19 (TC_30):
+     *   0  no application in progress (e.g. the only one submitted): nothing editable
+     *   1  the account's only application, in progress: everything editable
+     *   2  several applications on the account, one in progress (e.g. one submitted, one
+     *      started): legal name and birthday read-only, the rest editable
+     * @param {number} inProgressCount - 0, 1, or 2 for "several applications"
      * @returns {Array<keyof FIELDS>}
      */
     static expectedEditableFields(inProgressCount) {

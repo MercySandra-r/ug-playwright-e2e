@@ -218,13 +218,14 @@ class PostAppSubmissionDashboardPage extends BasePage {
      * Open a second application: resume the in-progress draft if there is one (so reruns
      * don't pile up drafts), otherwise "Start a new application" -> "Continue with new
      * application" and answer the learning-mode / degree modal. Never submits anything.
-     * @param {{ mode?: 'In-person'|'Online'|'ASU Local', degreeType?: 'pursue'|'individual' }} [opts]
+     * @param {{ mode?: 'In-person'|'Online'|'ASU Local', degreeType?: 'pursue'|'individual', resumeDraft?: boolean }} [opts]
+     *   resumeDraft false: always start a new application, even with one in progress
      *   degreeType 'individual': a nondegree / visiting application ("No, I want to take
      *   individual classes ...", then No to the two follow-up questions when asked)
      * @returns {Promise<{ applicationId: string, resumed: boolean }>}
      */
-    async startOrResumeNewApplication({ mode = 'Online', degreeType = 'pursue' } = {}) {
-        const draftId = await this.getDraftApplicationId();
+    async startOrResumeNewApplication({ mode = 'Online', degreeType = 'pursue', resumeDraft = true } = {}) {
+        const draftId = resumeDraft ? await this.getDraftApplicationId() : undefined;
         if (draftId) {
             const card = this.line(new RegExp(`Application ID:\\s*${draftId}(?!\\d)`)).first().locator(this.selectors.draftCardFromLine);
             await card.locator(this.selectors.continueButton).click();
@@ -289,6 +290,24 @@ class PostAppSubmissionDashboardPage extends BasePage {
         await this.page.locator(this.selectors.profileMenu).locator(this.selectors.signOutItem).click();
         await this.page.waitForURL((u) => !/\/dashboard|\/ug-app\//.test(u.pathname), { timeout: this.navigationTimeout });
         await this.settle();
+    }
+
+    /**
+     * On the main dashboard: whether "Start a new application" is offered, and whether an
+     * in-progress application offers "Continue". With an application in progress the dashboard
+     * shows only its "Continue your application" card (verified 2026-11-19).
+     * @returns {Promise<{ startNewOffered: boolean, continueOffered: boolean }>}
+     */
+    async getMainDashboardOptions() {
+        if (!/\/dashboard\/?$/.test(new URL(this.page.url()).pathname) || /\/ug-app\//.test(this.page.url())) {
+            await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
+        }
+        await this.page.locator(this.selectors.anyH1).first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        await this.page.waitForLoadState('networkidle').catch(() => {});
+        return {
+            startNewOffered: await this.page.locator(this.selectors.startNewApplicationButton).first().isVisible().catch(() => false),
+            continueOffered: await this.page.locator(this.selectors.continueButton).first().isVisible().catch(() => false),
+        };
     }
 
     /**

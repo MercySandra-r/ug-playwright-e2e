@@ -25,6 +25,16 @@ const { isSignupAddress } = require('../utils/inboxes');
  * POM: every element comes from ReviewPage (its selectors, sectionButton() and read-back
  * methods); this spec has no locators of its own.
  */
+/** The affidavit certification, as Submit names it (the journey's applicant is Qa Automation). */
+const CERTIFY = 'certify that all information is correct and complete';
+/**
+ * The fields Submit marks "This is a required field.", the certification shortened to CERTIFY
+ * (page-level notes, such as the Pay later note, are left out).
+ * @param {Array<{ field: string, message: string }>} errors
+ */
+const requiredFields = (errors) => errors.filter((e) => e.message === 'This is a required field.')
+    .map((e) => (e.field.includes(CERTIFY) ? CERTIFY : e.field));
+
 test.describe('Review Page Tests', () => {
     test.describe.configure({ mode: 'serial', timeout: 120000 });
     const allowSubmit = process.env.REVIEW_ALLOW_SUBMIT === '1';
@@ -57,12 +67,17 @@ test.describe('Review Page Tests', () => {
         await reviewPage.validateReview();
     });
 
-    test('Submit application before certifying shows field validations', async () => {
+    test('Submit with nothing chosen: the certification and the payment option are required', async () => {
         await freshPage();
-        // Refuses to click unless the certification is unticked, so nothing is submitted.
-        const errors = await reviewPage.captureSubmitValidations();
+        // Refuses to click unless the certification is unticked, so nothing is submitted;
         // captureSubmitValidations throws if the page leaves Review.
-        expect(errors.length, 'Submit with nothing certified should flag at least one field').toBeGreaterThan(0);
+        expect(requiredFields(await reviewPage.captureSubmitValidations())).toEqual([CERTIFY, 'Choose a payment option']);
+    });
+
+    test('Submit with Pay later chosen but not certified: only the certification is required', async () => {
+        await freshPage();
+        await reviewPage.selectPaymentMethod('later');
+        expect(requiredFields(await reviewPage.captureSubmitValidations())).toEqual([CERTIFY]);
     });
 
     test('Verify Profile section details', async () => {
@@ -161,5 +176,56 @@ test.describe('Review Page Tests', () => {
         }
         await reviewPage.submitApplication({ certify: true, paymentOption: 'later' });
         await reviewPage.waitForSubmitted();
+    });
+});
+
+/**
+ * Review validations for an applicant who is offered the fee waiver list (in person, a U.S.
+ * citizen: the ABOR waiver). The certification is never ticked, so nothing is submitted.
+ * Verified 2026-11-19.
+ */
+test.describe('Review validations: fee waiver list (in person)', () => {
+    test.describe.configure({ mode: 'serial', timeout: 120000 });
+
+    /** @type {import('@playwright/test').BrowserContext} */
+    let context;
+    /** @type {ReviewPage} */
+    let reviewPage;
+
+    test.beforeAll(async ({ browser }, testInfo) => {
+        testInfo.setTimeout(600000);
+        context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
+        const page = await context.newPage();
+        reviewPage = new ReviewPage(page);
+        reviewPage.applicationId = await startApplicationAt(page, 'review', { captureValidations: false, mode: 'in-person', applicant: { usCitizen: true } });
+    });
+
+    test.afterAll(async () => {
+        await context?.close();
+    });
+
+    test('Nothing chosen: the certification and the fee waiver choice are required', async () => {
+        await reviewPage.navigateToReviewPage();
+        expect(await reviewPage.isFeeWaiverOffered()).toBe(true);
+        expect(await reviewPage.getPaymentOptions()).toEqual([]);
+        // The waiver choice is flagged on its last option, "None of these options apply to me."
+        expect(requiredFields(await reviewPage.captureSubmitValidations())).toEqual([CERTIFY, ReviewPage.FEE_WAIVER_NONE]);
+    });
+
+    test('A waiver reason ticked without signing: the signature is required', async () => {
+        await reviewPage.navigateToReviewPage();
+        await reviewPage.setFeeWaivers(await reviewPage.getSelectedFeeWaivers(), false);
+        await reviewPage.setFeeWaivers([ReviewPage.FEE_WAIVER_OPTIONS[0]]);
+        expect(requiredFields(await reviewPage.captureSubmitValidations())).toEqual([CERTIFY, 'Fee waiver signature']);
+        await reviewPage.setFeeWaivers([ReviewPage.FEE_WAIVER_OPTIONS[0]], false);
+    });
+
+    test('"None of these options apply to me": the payment option appears and is required', async () => {
+        await reviewPage.navigateToReviewPage();
+        await reviewPage.setFeeWaivers(await reviewPage.getSelectedFeeWaivers(), false);
+        await reviewPage.setFeeWaivers([ReviewPage.FEE_WAIVER_NONE]);
+        await expect.poll(() => reviewPage.getPaymentOptions()).toEqual(['Pay now', 'Pay later']);
+        expect(requiredFields(await reviewPage.captureSubmitValidations())).toEqual([CERTIFY, 'Choose a payment option']);
+        await reviewPage.setFeeWaivers([ReviewPage.FEE_WAIVER_NONE], false);
     });
 });
