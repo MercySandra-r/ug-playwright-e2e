@@ -127,13 +127,18 @@ class PreviewPage extends BasePage {
         if ((await btn.getAttribute('aria-expanded')) !== 'true') await btn.click();
         await expect(btn).toHaveAttribute('aria-expanded', 'true', { timeout: this.assertionTimeout });
         const panelId = await btn.getAttribute('aria-controls');
-        return this.page.evaluate((id) => {
+        const read = () => this.page.evaluate((id) => {
             const panel = id && document.getElementById(id);
             if (!panel) return [];
             return [...panel.querySelectorAll('p')]
-                .map((p) => (p.textContent || '').replace(/\s+/g, ' ').trim().replace(/^"(.*)"$/, '$1'))
-                .filter(Boolean);
+                .map((p) => (p.textContent || '').replace(/\s+/g, ' ').trim().replace(/^"(.*)"$/, '$1'));
         }, panelId);
+        // Parts of a section load after it opens: My schools first shows "Graduating school"
+        // over an empty paragraph, and the school's details fill it in a moment later
+        // (seen 2026-11-19). Wait until no paragraph is empty, then read.
+        await expect.poll(async () => (await read()).filter((t) => !t).length, { timeout: this.assertionTimeout })
+            .toBe(0).catch(() => {});
+        return (await read()).filter(Boolean);
     }
 
     /**
