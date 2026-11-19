@@ -15,15 +15,15 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
  * The TC-0nn numbers below are the case IDs in that ASU Local sheet, not spec files.
  *
  *   Landing             the ASU Local landing link /?asulocal= preselects ASU Local
- *   My information      U.S. citizen with an Arizona home address. There is no ASU Local
- *                       question here any more (the sheet's TC-002/TC-003 are out of date)
+ *   My information      U.S. citizen with an Arizona home address. The ASU Local question the
+ *                       sheet's TC-002/TC-003 describe was removed from My information on purpose
+ *                       (tester, 2026-11-19): ASU Local is chosen on the landing link instead
  *   My program          (TC-010) the program list starts filtered to the six ASU Local sites
- *                       ("Location (6)" with an "ASU Local" chip); (TC-011) Anthropology, BA at
- *                       ASU Local at Los Angeles is chosen and saved. Seen 2026-11-19 and NOT
- *                       asserted: the program's own location list also offers Tempe and ASU
- *                       Online (the sheet expects ASU Local sites only), and there is no "You're
- *                       an ASU Local student..." guideline (TC-009); both are recorded as
- *                       annotations
+ *                       ("Location (6)" with an "ASU Local" chip): that filter is how ASU Local is
+ *                       applied (tester, 2026-11-19); the program's own location list may also
+ *                       offer other locations. (TC-011) Anthropology, BA at ASU Local at Los
+ *                       Angeles is chosen and saved. No "You're an ASU Local student..."
+ *                       guideline (TC-009) was seen; not checked
  *   My schools          Tempe High School, past graduation, no colleges
  *   Grades / residency  self-report; Arizona resident
  *   Review              (TC-014) the only payment option is "Pay later"; submitted with it
@@ -141,13 +141,10 @@ test.describe('ASU Local: filtered programs, Pay later only, second application'
         await programPage.navigateToMyASUProgram();
         expect(await programPage.getAsuLocalFilterState()).toEqual({ locationButton: `Location (${testData.asuLocalSites.length})`, asuLocalChip: true });
 
-        // Recorded, not asserted: what the program itself offers, and whether an ASU Local
-        // guideline is shown (the sheet expects ASU Local sites only, and a guideline).
+        // The program can be taken at an ASU Local site (its list may offer other locations too).
         const offered = await programPage.getProgramLocations(testData.program);
         test.info().annotations.push({ type: `${testData.program} locations offered`, description: JSON.stringify(offered) });
         expect(offered).toEqual(expect.arrayContaining([testData.location]));
-        const others = offered.filter((l) => !/^ASU Local at /.test(l));
-        if (others.length) test.info().annotations.push({ type: 'note', description: `Besides the ASU Local sites the program also offers: ${others.join(', ')}` });
     });
 
     test('My program: choose a program at an ASU Local site and continue', async () => {
