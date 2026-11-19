@@ -385,14 +385,26 @@ class MyHighSchoolGradesPage extends BasePage {
 
     /**
      * Start self-reporting whichever way the step asks: "Yes" to the question, or the
-     * senior-year card for future graduates.
-     * @returns {Promise<void>}
+     * senior-year card for future graduates. When self-reporting is required (e.g. a DACA
+     * applicant, Prop 308: a "Self-report grades" section with no question and no cards),
+     * the form is already open and there is nothing to choose.
+     * @returns {Promise<'question'|'card'|'required'>} which way the step asked
      */
     async chooseSelfReporting() {
-        await this.page.locator(this.selectors.selfReportGroup).or(this.page.locator(this.selectors.seniorOnlyCard)).first()
+        await this.page.locator(this.selectors.selfReportGroup)
+            .or(this.page.locator(this.selectors.seniorOnlyCard))
+            .or(this.page.locator(this.selectors.unweightedGpa))
+            .first()
             .waitFor({ state: 'visible', timeout: this.navigationTimeout });
-        if (await this.isSelfReportQuestionShown()) await this.answerSelfReport(true);
-        else await this.chooseReportCard('seniorOnly');
+        if (await this.isSelfReportQuestionShown()) {
+            await this.answerSelfReport(true);
+            return 'question';
+        }
+        if (await this.page.locator(this.selectors.seniorOnlyCard).isVisible().catch(() => false)) {
+            await this.chooseReportCard('seniorOnly');
+            return 'card';
+        }
+        return 'required';
     }
 
     /**

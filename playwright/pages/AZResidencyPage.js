@@ -919,6 +919,22 @@ class AZResidencyPage extends BasePage {
         return this.fillResidencyInformation({ isArizonaResident: false, parentInfo: data.parentInfo });
     }
 
+    /**
+     * Prop 308 (DACA or undocumented applicant with an Arizona high school): the step asks
+     * only the permanent home and whether the applicant graduated (or will graduate) from an
+     * Arizona high school; no financial support table, no parent questions. Answering Yes
+     * adds "Did you (or will you) attend an Arizona ... high school ... for a minimum of two
+     * years?", answered with `attendedTwoYears`.
+     * @param {{ permanentState?: string, graduatedArizonaHighSchool?: boolean, attendedTwoYears?: boolean }} [data]
+     *   defaults: Arizona, Yes, Yes
+     * @returns {Promise<string[]>} ids answered after the graduation question (the two-year one)
+     */
+    async fillProp308Residency({ permanentState = 'Arizona', graduatedArizonaHighSchool = true, attendedTwoYears = true } = {}) {
+        await this.selectPermanentState(permanentState);
+        await this.answer('graduatedArizonaHighSchool', graduatedArizonaHighSchool);
+        return this.answerRemainingQuestions(2, { answer: attendedTwoYears });
+    }
+
     // ------------------------------------------------------------------ footer
 
     /**
