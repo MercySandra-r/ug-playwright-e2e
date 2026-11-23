@@ -25,7 +25,8 @@ const path = require('path');
  * @typedef {{ file: string, title: string, group: string, line: number, outcome: Outcome, project?: string,
  *             durationMs: number, retries: number, errors: string[],
  *             notes: Array<{ type: string, description: string }>,
- *             images: Array<{ name: string, src: string }> }} TestRow
+ *             images: Array<{ name: string, src: string }>,
+ *             traces?: Array<{ name: string, src: string }> }} TestRow
  * @typedef {{ title: string, startedAt: string, durationMs: number, browser: string,
  *             workers: number|string, retries: number|string, baseURL: string,
  *             source: string, tests: TestRow[] }} RunModel
@@ -364,6 +365,24 @@ class TestRunSummaryReporter {
                     images.push({ name: a.name, src: `data/${name}` });
                 }
             }
+            // A failed test's trace (recorded on its first retry, so look through every attempt).
+            // test-results/ is emptied by the next run, so the trace is copied next to the report.
+            /** @type {Array<{ name: string, src: string }>} */
+            const traces = [];
+            if (o === 'failed') {
+                const withTrace = [...test.results].reverse()
+                    .map((r) => r.attachments.find((a) => a.name === 'trace' && a.path && fs.existsSync(a.path)))
+                    .find(Boolean);
+                if (withTrace && withTrace.path) {
+                    const base = `${path.basename(test.location.file).replace(/\.spec\.[cm]?[jt]s$/, '').split('_').slice(0, 3).join('_')}-${test.title}`
+                        .replace(/[^A-Za-z0-9_-]+/g, '-').replace(/-+/g, '-').slice(0, 70).replace(/-$/, '');
+                    let name = `${base}-${titles[0] || 'browser'}-trace.zip`;
+                    for (let n = 2; fs.existsSync(path.join(outDir, 'data', name)); n++) name = `${base}-${titles[0] || 'browser'}-trace-${n}.zip`;
+                    fs.mkdirSync(path.join(outDir, 'data'), { recursive: true });
+                    fs.copyFileSync(withTrace.path, path.join(outDir, 'data', name));
+                    traces.push({ name, src: `data/${name}` });
+                }
+            }
             const notes = [...test.annotations, ...((last && /** @type {any} */ (last).annotations) || [])]
                 .filter((n, i, all) => all.findIndex((m) => m.type === n.type && m.description === n.description) === i)
                 .map((n) => ({ type: n.type, description: n.description || '' }));
@@ -379,6 +398,7 @@ class TestRunSummaryReporter {
                 errors: last ? last.errors.map((e) => stripAnsi(e.message || e.value || '').trim()).filter(Boolean).map((m) => (m.length > 2000 ? `${m.slice(0, 2000)}…` : m)) : [],
                 notes,
                 images,
+                traces,
             });
         }
         const project = this.config.projects[0];

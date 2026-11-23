@@ -176,6 +176,15 @@ duration, browsers, site, and the failed or flaky tests with their first error l
 Run Summary page is attached. It is sent by `utils/reporters/slackReporter.js` (registered in
 `playwright.config.js`), and a Slack error never fails the run.
 
+When tests fail, each failed test's trace is attached as well (for example
+`TC_14_F1-<test title>-chromium-trace.zip`). Download it from Slack, then drop it on
+https://trace.playwright.dev (the file stays in the browser) or run
+`npx playwright show-trace <file>` to replay the test step by step with screenshots, network
+calls and errors. Up to 15 MB of traces are attached (`TRACE_LIMIT_MB` in `.env` changes this;
+an email can't exceed 25 MB). Any left out are named in the message and are in
+`playwright/reports/test-run-summary/data/` on the machine that ran the tests. Traces are only
+recorded for tests that fail and are retried, so a run with retries turned off has none.
+
 It is sent by email, so no Slack app is needed:
 
 1. In Slack, open the channel's settings, then **Integrations → Send emails to this channel**,

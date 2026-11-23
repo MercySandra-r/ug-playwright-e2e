@@ -22,6 +22,10 @@ const path = require('path');
  *
  *   SLACK_NOTIFY=off    turns posting off without removing the settings
  *
+ * The traces of failed tests (copied next to the summary by the Test Run Summary reporter) are
+ * attached too, as downloads, up to TRACE_LIMIT_MB in all (the email must stay under Gmail's
+ * 25 MB); any left out are named in the message. A webhook can't carry files.
+ *
  * A Slack error is logged and never fails the run.
  */
 
@@ -37,10 +41,11 @@ const md = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace
 /**
  * The Slack message for a run.
  * @param {RunModel} model
- * @param {{ reportPath?: string }} [options]
+ * @param {{ reportPath?: string, traces?: { attached: string[], left: string[] } }} [options]
+ *   traces: file names of the attached traces and of those left out (too large)
  * @returns {{ text: string, blocks: any[] }}
  */
-function buildSlackMessage(model, { reportPath } = {}) {
+function buildSlackMessage(model, { reportPath, traces } = {}) {
     const tests = model.tests;
     /** @param {string} o */
     const n = (o) => tests.filter((t) => t.outcome === o).length;
@@ -84,6 +89,18 @@ function buildSlackMessage(model, { reportPath } = {}) {
         if (attention.length > 10) lines.push(`…and ${attention.length - 10} more in the report`);
         blocks.push({ type: 'divider' }, { type: 'section', text: { type: 'mrkdwn', text: `*Needs attention*\n${lines.join('\n')}` } });
     }
+    if (traces && (traces.attached.length || traces.left.length)) {
+        /** @type {string[]} */
+        const lines = [];
+        if (traces.attached.length) {
+            lines.push(`*Traces attached (${traces.attached.length})*: download one, then drop it on https://trace.playwright.dev or run \`npx playwright show-trace <file>\` to replay the failed test step by step.`);
+        }
+        if (traces.left.length) {
+            const names = traces.left.map((t) => `\`${md(t)}\``).join(', ');
+            lines.push(`Not attached (too large): ${names}, in \`reports/test-run-summary/data/\` on the machine that ran the tests.`);
+        }
+        blocks.push({ type: 'section', text: { type: 'mrkdwn', text: lines.join('\n') } });
+    }
     blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `${started ? `Started ${md(started)} · ` : ''}${reportPath ? `Report: \`${md(reportPath)}\`` : ''}` }] });
     const text = `NAA Automation: ${failed ? `${failed} of ${total} tests failed` : `${total === 1 ? '1 test' : `all ${total} tests`} passed`} (${rate}% pass rate, ${fmt(model.durationMs)})`;
     return { text, blocks };
@@ -92,10 +109,10 @@ function buildSlackMessage(model, { reportPath } = {}) {
 /**
  * Send the message (and, with a bot token, the report page) to Slack.
  * @param {{ text: string, blocks: any[] }} message
- * @param {{ htmlPath?: string }} [options]
+ * @param {{ htmlPath?: string, files?: string[] }} [options] files: extra attachments (traces)
  * @returns {Promise<string>} how it was sent
  */
-async function sendToSlack(message, { htmlPath } = {}) {
+async function sendToSlack(message, { htmlPath, files = [] } = {}) {
     const webhook = process.env.SLACK_WEBHOOK_URL;
     const token = process.env.SLACK_BOT_TOKEN;
     const channel = process.env.SLACK_CHANNEL;
@@ -108,6 +125,11 @@ async function sendToSlack(message, { htmlPath } = {}) {
             await client.filesUploadV2({ channel_id: channel, thread_ts: posted.ts, file: fs.createReadStream(htmlPath),
                 filename: path.basename(htmlPath), title: 'Test Run Summary' });
         }
+        for (const file of files) {
+            if (!posted.ts || !fs.existsSync(file)) continue;
+            await client.filesUploadV2({ channel_id: channel, thread_ts: posted.ts, file: fs.createReadStream(file),
+                filename: path.basename(file), title: path.basename(file) });
+        }
         return `bot token, channel ${channel}`;
     }
     if (webhook && /^https:\/\/hooks\.slack\.com\//.test(webhook)) {
@@ -117,7 +139,7 @@ async function sendToSlack(message, { htmlPath } = {}) {
     }
     const channelEmail = process.env.SLACK_CHANNEL_EMAIL;
     if (channelEmail && EMAIL.test(channelEmail)) {
-        await sendByEmail(message, channelEmail, { htmlPath });
+        await sendByEmail(message, channelEmail, { htmlPath, files });
         return 'email to the channel';
     }
     throw new Error('Slack is not set up: set SLACK_WEBHOOK_URL, SLACK_BOT_TOKEN and SLACK_CHANNEL, or SLACK_CHANNEL_EMAIL in .env');
@@ -148,10 +170,10 @@ function mdToText(s) {
  * The Gmail token needs the gmail.send permission as well as gmail.readonly.
  * @param {{ text: string, blocks: any[] }} message
  * @param {string} to
- * @param {{ htmlPath?: string }} [options]
+ * @param {{ htmlPath?: string, files?: string[] }} [options] files: zip attachments (traces)
  * @returns {Promise<void>}
  */
-async function sendByEmail(message, to, { htmlPath } = {}) {
+async function sendByEmail(message, to, { htmlPath, files = [] } = {}) {
     const GmailUtils = require('../integrations/gmailUtils');
     const gmail = new GmailUtils({
         credentialsPath: process.env.GMAIL_CREDENTIALS_PATH, tokenPath: process.env.GMAIL_TOKEN_PATH,
@@ -188,15 +210,45 @@ async function sendByEmail(message, to, { htmlPath } = {}) {
             `Content-Disposition: attachment; filename="${path.basename(htmlPath)}"`, 'Content-Transfer-Encoding: base64', '',
             b64(fs.readFileSync(htmlPath)));
     }
+    for (const file of files) {
+        if (!fs.existsSync(file)) continue;
+        const name = path.basename(file);
+        lines.push(`--${mixed}`, `Content-Type: application/zip; name="${name}"`,
+            `Content-Disposition: attachment; filename="${name}"`, 'Content-Transfer-Encoding: base64', '',
+            b64(fs.readFileSync(file)));
+    }
     lines.push(`--${mixed}--`);
-    const raw = Buffer.from(lines.join('\r\n')).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
     try {
-        await gmail.gmail.users.messages.send({ userId: 'me', requestBody: { raw } });
+        // Sent as an upload rather than inline JSON, so a message with traces can be up to Gmail's limit.
+        await gmail.gmail.users.messages.send({ userId: 'me', requestBody: {}, media: { mimeType: 'message/rfc822', body: lines.join('\r\n') } });
     } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         if (/insufficient.*scope/i.test(msg)) throw new Error('the Gmail token may only read mail: renew it with the gmail.send permission (one sign-in)');
         throw e;
     }
+}
+
+/**
+ * The failed tests' trace files to attach, in test order, until TRACE_LIMIT_MB (default 15 MB of
+ * files, about 20 MB once encoded for email) is reached.
+ * @param {RunModel} model
+ * @param {string} dataDir - folder of run-data.json (trace paths are relative to it)
+ * @returns {{ attached: string[], left: string[] }} attached: full paths; left: file names
+ */
+function pickTraces(model, dataDir) {
+    const limit = (Number(process.env.TRACE_LIMIT_MB) || 15) * 1024 * 1024;
+    /** @type {string[]} */ const attached = [];
+    /** @type {string[]} */ const left = [];
+    let total = 0;
+    for (const t of model.tests) {
+        for (const tr of t.traces || []) {
+            const file = path.resolve(dataDir, tr.src);
+            if (!fs.existsSync(file)) continue;
+            const size = fs.statSync(file).size;
+            if (total + size <= limit) { attached.push(file); total += size; } else left.push(tr.name);
+        }
+    }
+    return { attached, left };
 }
 
 /** Whether Slack is set up and not turned off. */
@@ -235,7 +287,10 @@ class SlackReporter {
         try {
             /** @type {RunModel} */
             const model = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
-            const how = await sendToSlack(buildSlackMessage(model, { reportPath: this.report }), { htmlPath: path.resolve(this.root, this.report) });
+            const traces = pickTraces(model, path.dirname(dataPath));
+            const message = buildSlackMessage(model, { reportPath: this.report,
+                traces: { attached: traces.attached.map((f) => path.basename(f)), left: traces.left } });
+            const how = await sendToSlack(message, { htmlPath: path.resolve(this.root, this.report), files: traces.attached });
             console.log(`Slack: run summary posted (${how})`);
         } catch (e) {
             console.warn(`Slack: could not post the run summary: ${e instanceof Error ? e.message : String(e)}`);
@@ -250,4 +305,5 @@ class SlackReporter {
 SlackReporter.buildSlackMessage = buildSlackMessage;
 SlackReporter.sendToSlack = sendToSlack;
 SlackReporter.slackEnabled = slackEnabled;
+SlackReporter.pickTraces = pickTraces;
 module.exports = SlackReporter;
