@@ -8,6 +8,7 @@ const MyHighSchoolGradesPage = require('../pages/MyHighSchoolGradesPage');
 const AZResidencyPage = require('../pages/AZResidencyPage');
 const ReviewPage = require('../pages/ReviewPage');
 const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashboardPage');
+const { STARBUCKS } = require('../utils/partnerTestData');
 
 /**
  * Flow F14: Starbucks partner flow (the "To cover" list of the E2E Flows workbook; the Starbucks warning
@@ -33,8 +34,8 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
  *                      partner benefit"
  *     Review           the normal fee: Pay now / Pay later; submitted with Pay later
  *
- * Needs in playwright/.env: STARBUCKS_PARTNER_NUMBER (a partner number QA verifies) and
- * STARBUCKS_FIRST_NAME / STARBUCKS_LAST_NAME (the name it belongs to). They are never logged.
+ * Partner test data (a partner number QA verifies and the name it belongs to) comes from
+ * utils/partnerTestData.js; STARBUCKS_* in .env override it.
  *
  * THIS FLOW SUBMITS TWO APPLICATIONS (it cannot be undone).
  *
@@ -46,8 +47,8 @@ const STARBUCKS_WARNING = 'You cannot use the Starbucks College Achievement Plan
 const testData = {
     mode: /** @type {'online'} */ ('online'),
     applicant: {
-        firstName: process.env.STARBUCKS_FIRST_NAME || '',
-        lastName: process.env.STARBUCKS_LAST_NAME || '',
+        firstName: STARBUCKS.firstName,
+        lastName: STARBUCKS.lastName,
         birth: { month: 'June', day: '15', year: String(new Date().getFullYear() - 25) },
     },
     provider: 'Starbucks',
@@ -84,9 +85,6 @@ test.describe('Starbucks partner: a Starbucks application, then a non-Starbucks 
     }
 
     test.beforeAll(async ({ browser }, testInfo) => {
-        // Only the tester can supply a partner number QA verifies: without it, fail with this message.
-        expect(process.env.STARBUCKS_PARTNER_NUMBER, 'Set STARBUCKS_PARTNER_NUMBER, STARBUCKS_FIRST_NAME and STARBUCKS_LAST_NAME in playwright/.env').toBeTruthy();
-        expect(testData.applicant.firstName && testData.applicant.lastName, 'Set STARBUCKS_FIRST_NAME and STARBUCKS_LAST_NAME in playwright/.env').toBeTruthy();
         testInfo.setTimeout(600000);
         context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
         page = await context.newPage();
@@ -108,7 +106,7 @@ test.describe('Starbucks partner: a Starbucks application, then a non-Starbucks 
         const { info } = pagesFor(firstId);
         await info.navigateToMyInformation();
         await info.completeRequiredFields({ usCitizenship: 'Yes', countryOfBirth: 'United States',
-            partnerBenefits: { hasPartnerBenefits: true, provider: testData.provider, starbucksPartnerNumber: process.env.STARBUCKS_PARTNER_NUMBER } });
+            partnerBenefits: { hasPartnerBenefits: true, provider: testData.provider, starbucksPartnerNumber: STARBUCKS.partnerNumber } });
         await info.saveAndContinue();
         done.info = true;
     }
@@ -179,7 +177,7 @@ test.describe('Starbucks partner: a Starbucks application, then a non-Starbucks 
         const { info } = pagesFor(firstId);
         await info.navigateToMyInformation();
         await info.completeRequiredFields({ usCitizenship: 'Yes', countryOfBirth: 'United States',
-            partnerBenefits: { hasPartnerBenefits: true, provider: testData.provider, starbucksPartnerNumber: process.env.STARBUCKS_PARTNER_NUMBER } });
+            partnerBenefits: { hasPartnerBenefits: true, provider: testData.provider, starbucksPartnerNumber: STARBUCKS.partnerNumber } });
         expect(await info.isStarbucksPartnerVerified()).toBe(true);
         expect((await info.readFormValues()).benefitProvider).toBe(testData.provider);
         await info.saveAndContinue();

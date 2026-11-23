@@ -828,8 +828,8 @@ class MyInformationPage extends BasePage {
         const partnerNumber = this.page.locator(this.selectors.starbucksPartnerNumber);
         if (await partnerNumber.waitFor({ state: 'visible', timeout: 3000 }).then(() => true).catch(() => false)) {
             // The number is verified by the app: it must be a real partner number QA accepts,
-            // with the applicant's name matching (set STARBUCKS_* in .env; never hard-coded).
-            if (!starbucksPartnerNumber) throw new Error('Starbucks asks for a partner number: pass starbucksPartnerNumber (STARBUCKS_PARTNER_NUMBER in .env)');
+            // with the applicant's name matching (test data in utils/partnerTestData.js).
+            if (!starbucksPartnerNumber) throw new Error('Starbucks asks for a partner number: pass starbucksPartnerNumber (see utils/partnerTestData.js)');
             await partnerNumber.fill(starbucksPartnerNumber);
             // The unlabelled button right after the box starts the check (Continue does too).
             await partnerNumber.locator(this.selectors.followingButton).click();

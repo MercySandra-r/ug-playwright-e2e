@@ -174,7 +174,7 @@ A Slack error is logged and never fails the run.
 | Setting (`.env`) | Effect |
 |---|---|
 | `REVIEW_ALLOW_SUBMIT=1` | TC_11's last test really submits the application. Submission cannot be undone. |
-| `STARBUCKS_PARTNER_NUMBER`, `STARBUCKS_FIRST_NAME`, `STARBUCKS_LAST_NAME` | Used only by the Starbucks flow (F14, TC_27): a partner number QA verifies and the name it belongs to. |
+| `STARBUCKS_PARTNER_NUMBER`, `STARBUCKS_FIRST_NAME`, `STARBUCKS_LAST_NAME` | Optional. The Starbucks flows (F14 TC_27, the SCAP part of F15 TC_28) use the QA test partner in `utils/partnerTestData.js`; set these only to use a different partner number and name. |
 | `TEST_SSN` | Used only by the duplicate-application flow F7 (TC_20, `npm run test:dup-identity`): it must be the SSN of the application already submitted in QA. Other U.S. citizen applicants get a made-up number from a range that is never issued. |
 | `SUBMITTED_TEST_EMAIL` / `_PASSWORD` | An account with a submitted application for TC_12 and TC_13. Without it they create and submit one. |
 | `FORGOT_PASSWORD_TEST_EMAIL` | A spare account for the password-reset test. Without it the test creates one. |

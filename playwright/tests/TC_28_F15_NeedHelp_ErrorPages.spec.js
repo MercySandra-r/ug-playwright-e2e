@@ -1,5 +1,6 @@
 // @ts-check
 const { test, expect } = require('@playwright/test');
+const { STARBUCKS } = require('../utils/partnerTestData');
 const { startApplicationAt } = require('../utils/applicationJourney');
 const MyInformationPage = require('../pages/MyInformationPage');
 const MyASUProgramPage = require('../pages/MyASUProgramPage');
@@ -20,8 +21,8 @@ const ErrorPage = require('../pages/ErrorPage');
  *   both             "Return to dashboard" goes to /dashboard
  *   someone else's application (/ug-app/1/...) signs the user out
  *
- * The SCAP group needs STARBUCKS_PARTNER_NUMBER / _FIRST_NAME / _LAST_NAME in .env (it is
- * skipped without them). Nothing is submitted.
+ * The SCAP group uses the partner test data in utils/partnerTestData.js (STARBUCKS_* in .env
+ * override it). Nothing is submitted.
  *
  * POM: every element comes from the page objects; this spec has no locators of its own.
  */
@@ -88,8 +89,6 @@ needHelpGroup('ASU Local', {
 
 test.describe('Need help: SCAP (Starbucks) application', () => {
     test.describe.configure({ mode: 'serial', timeout: 240000 });
-    const hasPartner = !!(process.env.STARBUCKS_PARTNER_NUMBER && process.env.STARBUCKS_FIRST_NAME && process.env.STARBUCKS_LAST_NAME);
-    test.skip(!hasPartner, 'Set STARBUCKS_PARTNER_NUMBER, STARBUCKS_FIRST_NAME and STARBUCKS_LAST_NAME in .env');
 
     /** @type {import('@playwright/test').BrowserContext} */
     let context;
@@ -105,7 +104,7 @@ test.describe('Need help: SCAP (Starbucks) application', () => {
         context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
         page = await context.newPage();
         id = await startApplicationAt(page, 'my-information', { captureValidations: false, mode: 'online',
-            applicant: { firstName: process.env.STARBUCKS_FIRST_NAME, lastName: process.env.STARBUCKS_LAST_NAME } });
+            applicant: { firstName: STARBUCKS.firstName, lastName: STARBUCKS.lastName } });
         testInfo.annotations.push({ type: 'application', description: id });
         help = new NeedHelpPanel(page);
     });
@@ -117,7 +116,7 @@ test.describe('Need help: SCAP (Starbucks) application', () => {
         info.applicationId = id;
         await info.navigateToMyInformation();
         await info.completeRequiredFields({ usCitizenship: 'Yes', countryOfBirth: 'United States',
-            partnerBenefits: { hasPartnerBenefits: true, provider: 'Starbucks', starbucksPartnerNumber: process.env.STARBUCKS_PARTNER_NUMBER } });
+            partnerBenefits: { hasPartnerBenefits: true, provider: 'Starbucks', starbucksPartnerNumber: STARBUCKS.partnerNumber } });
         await info.saveAndContinue();
         benefitSaved = true;
     }
