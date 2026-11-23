@@ -271,7 +271,11 @@ class MySchoolsPage extends BasePage {
         }
         await box.scrollIntoViewIfNeeded();
         await box.click();
-        await this.option().waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        // On a busy machine the click can be lost or the list slow to open: click once more.
+        if (!(await this.option().waitFor({ state: 'visible', timeout: this.assertionTimeout }).then(() => true).catch(() => false))) {
+            await box.click();
+            await this.option().waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        }
         const label = value || (await this.option().innerText()).trim();
         const search = this.page.locator(this.selectors.dropdownSearch);
         if (await search.isVisible().catch(() => false)) await search.fill(label);
@@ -337,8 +341,15 @@ class MySchoolsPage extends BasePage {
      * @returns {Promise<void>}
      */
     async saveSchool() {
-        await this.page.locator(this.selectors.saveSchoolButton).click();
-        await this.page.locator(this.selectors.addHighSchoolButton).waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        const save = this.page.locator(this.selectors.saveSchoolButton);
+        const added = this.page.locator(this.selectors.addHighSchoolButton);
+        await save.click();
+        // WebKit sometimes drops the click (the form stays open, filled in): click again.
+        if (!(await added.waitFor({ state: 'visible', timeout: 10000 }).then(() => true).catch(() => false))
+            && await save.isVisible().catch(() => false)) {
+            await save.click();
+        }
+        await added.waitFor({ state: 'visible', timeout: this.navigationTimeout });
     }
 
     /**

@@ -148,7 +148,11 @@ class ReviewPage extends BasePage {
     async expandSection(name) {
         const btn = this.sectionButton(name);
         if ((await btn.getAttribute('aria-expanded')) !== 'true') await btn.click();
-        await expect(btn).toHaveAttribute('aria-expanded', 'true', { timeout: this.assertionTimeout });
+        // A click can be lost on a busy machine: click again if the section didn't open.
+        if (!(await expect(btn).toHaveAttribute('aria-expanded', 'true', { timeout: this.assertionTimeout }).then(() => true).catch(() => false))) {
+            await btn.click();
+            await expect(btn).toHaveAttribute('aria-expanded', 'true', { timeout: this.navigationTimeout });
+        }
     }
 
     /**

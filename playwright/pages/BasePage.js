@@ -64,6 +64,10 @@ class BasePage {
     this.actionTimeout = timeoutManager.getTimeout('action') || 10000;
     /** @type {number} */
     this.assertionTimeout = timeoutManager.getTimeout('assertion') || 10000;
+    // Firefox and WebKit render this app more slowly than Chromium: give their checks at least
+    // 10 s (Chromium keeps the shorter wait, so its runs stay fast).
+    const browserName = page.context().browser()?.browserType().name();
+    if (browserName && browserName !== 'chromium') this.assertionTimeout = Math.max(this.assertionTimeout, 10000);
     /**
      * Application ID for /ug-app/<id>/ routes, when the test already knows it.
      * @type {string|undefined}
@@ -156,6 +160,21 @@ class BasePage {
     const m = this.page.url().match(/\/ug-app\/(\d+)\//);
     if (!m) throw new Error(`Could not resolve application ID from ${this.page.url()}`);
     return m[1];
+  }
+
+  /**
+   * Click a radio or checkbox until it reports checked. Firefox and WebKit sometimes lose a
+   * click on these custom controls (the answer stays empty and the step then fails
+   * validation; seen 2026-11-23).
+   * @param {Locator} control
+   * @returns {Promise<void>}
+   */
+  async clickUntilChecked(control) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await control.click();
+      if (await expect(control).toBeChecked({ timeout: 3000 }).then(() => true).catch(() => false)) return;
+    }
+    await expect(control).toBeChecked({ timeout: this.assertionTimeout });
   }
 
   /**

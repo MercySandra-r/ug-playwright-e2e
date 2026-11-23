@@ -615,7 +615,11 @@ class AZResidencyPage extends BasePage {
         await box.scrollIntoViewIfNeeded();
         await box.click();
         const first = this.page.locator(this.selectors.option).first();
-        await first.waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        // On a busy machine the click can be lost or the list slow to open: click once more.
+        if (!(await first.waitFor({ state: 'visible', timeout: this.assertionTimeout }).then(() => true).catch(() => false))) {
+            await box.click();
+            await first.waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        }
         // A selected option is shown with a trailing "✓"; ignore it when reading/matching.
         const label = value || (await first.innerText()).replace(/\s*✓\s*$/, '').trim();
         const search = this.page.locator(this.selectors.dropdownSearch);

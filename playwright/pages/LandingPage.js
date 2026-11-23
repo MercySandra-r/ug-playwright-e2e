@@ -198,11 +198,15 @@ class LandingPage extends BasePage {
     // Wait for the degree type options to be visible
     await this.page.waitForSelector(this.selectors.pursueDegreeRadio, { state: 'visible' });
     
-    // Select the appropriate radio button
-    if (degreeType.toLowerCase() === 'pursue') {
-      await this.click(this.selectors.pursueDegreeRadio);
-    } else {
-      await this.click(this.selectors.individualCoursesRadio);
+    // Select the appropriate radio button. In Firefox and WebKit the click can be lost (the
+    // card stays unticked and Continue never shows; seen 2026-11-23): click until it is ticked.
+    const choice = this.page.locator(degreeType.toLowerCase() === 'pursue' ? this.selectors.pursueDegreeRadio : this.selectors.individualCoursesRadio).first();
+    for (let attempt = 0; attempt < 3; attempt++) {
+      await choice.click();
+      if (await expect(choice).toHaveAttribute('aria-checked', 'true', { timeout: 3000 }).then(() => true).catch(() => false)) break;
+    }
+    await expect(choice).toHaveAttribute('aria-checked', 'true', { timeout: this.assertionTimeout });
+    if (degreeType.toLowerCase() !== 'pursue') {
       // Nondegree: "Have you already earned a bachelor's degree?" (Yes sends the applicant to
       // the graduate application) and "Have you previously started courses to pursue an
       // associate or bachelor's degree at ASU but didn't complete your degree?". Both No.

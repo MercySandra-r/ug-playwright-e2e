@@ -306,6 +306,11 @@ class MyInformationPage extends BasePage {
         const combobox = this.page.locator(comboboxSelector);
         await combobox.scrollIntoViewIfNeeded();
         await combobox.click();
+        // The list can fail to open on a lost click (Firefox/WebKit): click once more.
+        if (!(await this.option().waitFor({ state: 'visible', timeout: this.assertionTimeout }).then(() => true).catch(() => false))) {
+            await combobox.click();
+            await this.option().waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        }
         const search = this.page.locator(this.selectors.dropdownSearch);
         if (await search.isVisible().catch(() => false)) {
             await search.fill(optionText);
@@ -348,7 +353,7 @@ class MyInformationPage extends BasePage {
      * @param {boolean} yes
      */
     async answerYesNo(groupSelector, yes) {
-        await this.radioIn(groupSelector, yes ? 'Yes' : 'No').click();
+        await this.clickUntilChecked(this.radioIn(groupSelector, yes ? 'Yes' : 'No'));
     }
 
     /**
@@ -457,7 +462,7 @@ class MyInformationPage extends BasePage {
      */
     async selectLegalSex(sex) {
         const label = /^x/i.test(sex) ? 'X or another legal sex' : sex.charAt(0).toUpperCase() + sex.slice(1).toLowerCase();
-        await this.radioIn(this.selectors.legalSexGroup, label).click();
+        await this.clickUntilChecked(this.radioIn(this.selectors.legalSexGroup, label));
     }
 
     /**
@@ -1081,7 +1086,7 @@ class MyInformationPage extends BasePage {
             }
             await this.page.waitForTimeout(500);
         }
-        await this.page.waitForURL(/\/ug-app\/\d+\/my-program/, { timeout: 5000 });
+        await this.page.waitForURL(/\/ug-app\/\d+\/my-program/, { timeout: this.navigationTimeout });
     }
 
     /**

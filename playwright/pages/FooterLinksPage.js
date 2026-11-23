@@ -89,6 +89,17 @@ class FooterLinksPage extends BasePage {
     }
 
     /**
+     * Whether the footer links can be clicked through to their new tabs in this browser.
+     * Not in WebKit: on Windows its page process crashes after about ten new tabs (whatever
+     * they load), taking the app's tab with it. There the links' address and target are
+     * checked (readLink) without opening them.
+     * @returns {boolean}
+     */
+    canOpenLinks() {
+        return this.page.context().browser()?.browserType().name() !== 'webkit';
+    }
+
+    /**
      * Click a link and return the URL its new tab settles on (then close the tab).
      * Waits for the expected destination (`lands`), not the external page's full load.
      * @param {FooterLink} link
@@ -103,8 +114,8 @@ class FooterLinksPage extends BasePage {
             await tab.waitForURL(link.lands, { waitUntil: 'commit', timeout: this.navigationTimeout }).catch(() => {});
             return tab.url();
         } finally {
-            // WebKit can hang closing a tab whose external page is still loading (and then the
-            // test's teardown times out): stop the load first and don't wait on the close forever.
+            // A tab whose external page is still loading can be slow to close: stop the load
+            // first and don't wait on the close forever.
             await tab.evaluate(() => window.stop()).catch(() => {});
             await Promise.race([tab.close().catch(() => {}), new Promise((resolve) => setTimeout(resolve, 5000))]);
         }
