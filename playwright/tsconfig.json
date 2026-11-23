@@ -15,14 +15,12 @@
     "baseUrl": ".",
     "noEmit": true,
     "typeRoots": [
-      "./node_modules/@types",
-      "./types"
+      "./node_modules/@types"
     ]
   },
   "include": [
     "**/*.js",
-    "**/*.ts",
-    "types/**/*.d.ts"
+    "**/*.ts"
   ],
   "exclude": [
     "node_modules",
