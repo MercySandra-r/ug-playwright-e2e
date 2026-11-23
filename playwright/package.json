@@ -6,6 +6,9 @@
   "scripts": {
     "test": "playwright test",
     "test:chrome": "playwright test --project=chromium",
+    "test:smoke": "playwright test --project=chromium --grep @smoke --workers=6 --retries=1",
+    "test:regression": "playwright test --project=chromium --grep @regression --workers=8 --retries=1",
+    "test:full": "playwright test --project=chromium",
     "test:firefox": "playwright test --project=firefox",
     "test:safari": "playwright test --project=webkit",
     "test:edge": "playwright test --project=msedge",

@@ -149,7 +149,7 @@ class ProfilePage extends BasePage {
      * @returns {Promise<void>}
      */
     async navigateToProfile() {
-        await this.page.goto('/profile', { timeout: this.navigationTimeout });
+        await this.gotoPath('/profile');
         await this.verifyPageLoaded();
     }
 
@@ -168,7 +168,7 @@ class ProfilePage extends BasePage {
      * @returns {Promise<void>}
      */
     async openProfileFromDashboard() {
-        await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
+        await this.gotoPath('/dashboard');
         await this.openProfile();
     }
 

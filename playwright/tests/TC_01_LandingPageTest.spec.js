@@ -19,7 +19,7 @@ test.describe('Landing Page Tests', () => {
     await landingPage.navigateToLandingPage();
   });
 
-  test('Verify footer links', async () => {
+  test('Verify footer links', { tag: '@regression' }, async () => {
     // This test corresponds to verifyFooter() in the original test
     const { FOOTER_LINKS } = FooterLinksPage;
     await footerLinksPage.scrollToFooter();
@@ -47,7 +47,7 @@ test.describe('Landing Page Tests', () => {
     }
   });
 
-  test('Verify landing page elements and navigation', async ({ page }) => {
+  test('Verify landing page elements and navigation', { tag: ['@smoke', '@regression'] }, async ({ page }) => {
     // This test corresponds to verifyLandingPage() in the original test
     await test.step('should validate view application details', async () => {
       await landingPage.validateViewAppDetails();
@@ -65,7 +65,7 @@ test.describe('Landing Page Tests', () => {
     });
   });
 
-  test('Choose In-person MOL option', async ({ page }) => {
+  test('Choose In-person MOL option', { tag: '@regression' }, async ({ page }) => {
     // This test corresponds to ChooseInperson_MOL() in the original test
     await test.step('should select in-person MOL option', async () => {
       const selectedMOL = await landingPage.chooseInPersonMOL();
@@ -75,7 +75,7 @@ test.describe('Landing Page Tests', () => {
     });
   });
 
-  test('Choose Online MOL option', async ({ page }) => {
+  test('Choose Online MOL option', { tag: '@regression' }, async ({ page }) => {
     // This test corresponds to ChooseOnline_MOL() in the original test
     await test.step('should select online MOL option', async () => {
       const selectedMOL = await landingPage.chooseOnlineMOL();
@@ -84,7 +84,7 @@ test.describe('Landing Page Tests', () => {
     });
   });
 
-  test('Choose random MOL option', async ({ page }) => {
+  test('Choose random MOL option', { tag: '@regression' }, async ({ page }) => {
     // This test corresponds to ChooseRandom_MOL() in the original test
     await test.step('should select a random MOL option', async () => {
       const selectedMOL = await landingPage.chooseRandomMOL();

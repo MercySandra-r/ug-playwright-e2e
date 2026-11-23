@@ -25,7 +25,7 @@ test.describe('Login Tests', () => {
         await loginPage.navigateToLoginPage();
     });
 
-    test('Verify login with invalid email format', async () => {
+    test('Verify login with invalid email format', { tag: '@regression' }, async () => {
         await loginPage.enterCredentials(invalidEmail, 'anypassword');
 
         // The IdP validates the format inline and keeps Sign in disabled
@@ -33,7 +33,7 @@ test.describe('Login Tests', () => {
         await expect(loginPage.signInButton()).toBeDisabled();
     });
 
-    test('Verify login with non-existent email', async () => {
+    test('Verify login with non-existent email', { tag: '@regression' }, async () => {
         await loginPage.enterCredentials(nonExistentEmail, 'anypassword');
         await loginPage.clickLogin();
 
@@ -41,21 +41,21 @@ test.describe('Login Tests', () => {
         expect(await loginPage.isIncorrectCredentialsErrorVisible()).toBeTruthy();
     });
 
-    test('Verify login with incorrect password', async () => {
+    test('Verify login with incorrect password', { tag: '@regression' }, async () => {
         await loginPage.enterCredentials(testEmail, 'IncorrectPassword123!');
         await loginPage.clickLogin();
 
         expect(await loginPage.isIncorrectCredentialsErrorVisible()).toBeTruthy();
     });
 
-    test('Verify login with ASURITE', async () => {
+    test('Verify login with ASURITE', { tag: '@regression' }, async () => {
         // "Sign In with ASURITE ID" hands off to ASU web login (weblogin.asu.edu)
         await loginPage.clickLoginWithAsurite();
 
         expect(await loginPage.isAsuLoginPageDisplayed()).toBeTruthy();
     });
 
-    test('Verify login form validation', async () => {
+    test('Verify login form validation', { tag: ['@smoke', '@regression'] }, async () => {
         // Touch and leave both fields empty: the IdP flags them and keeps Sign in disabled
         await loginPage.touchEmptyFields();
         await loginPage.verifyRequiredFieldErrors();
@@ -85,7 +85,7 @@ test.describe('Forgot Password Tests', () => {
         forgot = await loginPage.openForgotPassword();
     });
 
-    test('Verify Forgot password opens the reset page and Return to sign in goes back', async () => {
+    test('Verify Forgot password opens the reset page and Return to sign in goes back', { tag: '@regression' }, async () => {
         expect(await forgot.readEmailStep()).toEqual({
             heading: true, instructions: true, email: true, sendCode: true, returnToSignIn: true,
         });
@@ -94,14 +94,14 @@ test.describe('Forgot Password Tests', () => {
         expect(await loginPage.isSignInOptionsPageDisplayed()).toBeTruthy();
     });
 
-    test('Verify Send verification code with an empty email', async () => {
+    test('Verify Send verification code with an empty email', { tag: '@regression' }, async () => {
         await forgot.requestCode('');
 
         expect(await forgot.isErrorShown('emailRequired')).toBeTruthy();
         expect((await forgot.readResetStep()).reset).toBeFalsy();
     });
 
-    test('Verify an unregistered email still moves on to the reset step', async () => {
+    test('Verify an unregistered email still moves on to the reset step', { tag: '@regression' }, async () => {
         // The IdP doesn't reveal which addresses have accounts.
         await forgot.requestCode(unregisteredEmail);
         await forgot.waitForResetStep();
@@ -111,7 +111,7 @@ test.describe('Forgot Password Tests', () => {
         expect(await forgot.getPasswordRules()).toEqual(Object.fromEntries(PASSWORD_RULES.map((r) => [r, false])));
     });
 
-    test('Verify the new password rules update as you type', async () => {
+    test('Verify the new password rules update as you type', { tag: '@regression' }, async () => {
         await forgot.requestCode(unregisteredEmail);
         await forgot.waitForResetStep();
 
@@ -122,7 +122,7 @@ test.describe('Forgot Password Tests', () => {
         expect(await forgot.checkPasswordRules('Abcdefghi1')).toEqual({ [length]: true, [lower]: true, [upper]: true, [number]: true });
     });
 
-    test('Verify reset step validation: empty code, weak password, mismatch, wrong code', async () => {
+    test('Verify reset step validation: empty code, weak password, mismatch, wrong code', { tag: '@regression' }, async () => {
         await forgot.requestCode(unregisteredEmail);
         await forgot.waitForResetStep();
 

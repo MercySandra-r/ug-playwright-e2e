@@ -62,25 +62,25 @@ test.describe('Review Page Tests', () => {
 
     const freshPage = () => reviewPage.navigateToReviewPage();
 
-    test('Verify Review page loads successfully', async () => {
+    test('Verify Review page loads successfully', { tag: '@regression' }, async () => {
         await freshPage();
         await reviewPage.validateReview();
     });
 
-    test('Submit with nothing chosen: the certification and the payment option are required', async () => {
+    test('Submit with nothing chosen: the certification and the payment option are required', { tag: '@regression' }, async () => {
         await freshPage();
         // Refuses to click unless the certification is unticked, so nothing is submitted;
         // captureSubmitValidations throws if the page leaves Review.
         expect(requiredFields(await reviewPage.captureSubmitValidations())).toEqual([CERTIFY, 'Choose a payment option']);
     });
 
-    test('Submit with Pay later chosen but not certified: only the certification is required', async () => {
+    test('Submit with Pay later chosen but not certified: only the certification is required', { tag: '@regression' }, async () => {
         await freshPage();
         await reviewPage.selectPaymentMethod('later');
         expect(requiredFields(await reviewPage.captureSubmitValidations())).toEqual([CERTIFY]);
     });
 
-    test('Verify Profile section details', async () => {
+    test('Verify Profile section details', { tag: '@regression' }, async () => {
         await freshPage();
         expect(await reviewPage.getSectionValue('Profile', 'Legal name')).toBe('Qa Automation');
         expect(await reviewPage.getSectionValue('Profile', 'Date of birth')).toBe('2000-06-15');
@@ -90,7 +90,7 @@ test.describe('Review Page Tests', () => {
         expect(await reviewPage.getSectionValue('Profile', 'Phone')).toBe('+1 (202) 555-1234');
     });
 
-    test('Verify My Information section details', async () => {
+    test('Verify My Information section details', { tag: '@regression' }, async () => {
         await freshPage();
         expect(await reviewPage.getSectionValue('My information', 'Legal sex')).toBe('Female');
         expect(await reviewPage.getSectionValue('My information', 'Primary language spoken at home')).toBe('English');
@@ -98,7 +98,7 @@ test.describe('Review Page Tests', () => {
         expect(await reviewPage.getSectionValue('My information', 'Home address')).toContain('Tempe, AZ');
     });
 
-    test('Verify My Program section details', async () => {
+    test('Verify My Program section details', { tag: '@regression' }, async () => {
         await freshPage();
         // "Program" for a single choice; "First choice"/"Second choice" with a backup.
         const { first } = await reviewPage.getChosenPrograms();
@@ -107,7 +107,7 @@ test.describe('Review Page Tests', () => {
         expect(await reviewPage.getSectionValue('My program', 'Starting term')).toMatch(/^(Spring|Summer|Fall) \d{4}/);
     });
 
-    test('Verify My Schools section details', async () => {
+    test('Verify My Schools section details', { tag: '@regression' }, async () => {
         await freshPage();
         expect(await reviewPage.getSectionValue('My schools', 'High school name')).toBe('Tempe High School');
         // The country shows as "USA" on Review, though My schools itself says "United States".
@@ -122,38 +122,38 @@ test.describe('Review Page Tests', () => {
         }
     });
 
-    test('Verify High School Grades section details', async () => {
+    test('Verify High School Grades section details', { tag: '@regression' }, async () => {
         await freshPage();
         expect(await reviewPage.getSectionValue('My high school grades', 'Self-reported')).toMatch(/^(Yes|No)$/);
     });
 
-    test('Verify Arizona Residency section details', async () => {
+    test('Verify Arizona Residency section details', { tag: '@regression' }, async () => {
         await freshPage();
         const state = await reviewPage.getSectionValue('Arizona residency', 'Begin by selecting the state you consider to be your permanent home.');
         expect(['California', 'Arizona']).toContain(state);
     });
 
-    test('Edit a section opens its step', async () => {
+    test('Edit a section opens its step', { tag: '@regression' }, async () => {
         await freshPage();
         await reviewPage.clickEditSection('My schools');
         await new MySchoolsPage(page).verifyPageLoaded();
     });
 
-    test('Verify Application Affidavit section', async () => {
+    test('Verify Application Affidavit section', { tag: '@regression' }, async () => {
         await freshPage();
         await reviewPage.verifyApplicationAffidavit();
         await reviewPage.certifyAffidavit(true);
         await reviewPage.certifyAffidavit(false);
     });
 
-    test('Verify external links', async () => {
+    test('Verify external links', { tag: '@regression' }, async () => {
         await freshPage();
         const { acd401, reportIt } = await reviewPage.verifyExternalLinks();
         expect(acd401).toMatch(/asu\.edu/);
         expect(reportIt).toMatch(/asu\.edu\/reportit/);
     });
 
-    test('Verify Application Fee section', async () => {
+    test('Verify Application Fee section', { tag: '@regression' }, async () => {
         await freshPage();
         const { amount, options } = await reviewPage.verifyApplicationFeeSection();
         expect(amount).toMatch(/^\$\d+\.\d{2}$/);

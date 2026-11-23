@@ -61,18 +61,18 @@ test.describe('My Information Page Tests', () => {
         await myInfoPage.navigateToMyInformation();
     });
 
-    test('Verify required field validations', async () => {
+    test('Verify required field validations', { tag: '@regression' }, async () => {
         await myInfoPage.verifyRequiredFieldValidation();
         // Legal sex, language, home address, citizenship, ASU affiliation,
         // uniformed services and education benefits are all required.
         expect(await myInfoPage.getRequiredFieldErrorCount()).toBeGreaterThanOrEqual(5);
     });
 
-    test('Verify My Information page loads successfully', async () => {
+    test('Verify My Information page loads successfully', { tag: ['@smoke', '@regression'] }, async () => {
         await myInfoPage.verifyAllSectionsVisible();
     });
 
-    test('Update personal information (legal sex and primary language)', async () => {
+    test('Update personal information (legal sex and primary language)', { tag: '@regression' }, async () => {
         await myInfoPage.selectLegalSex('Female');
         await expect(myInfoPage.radioIn(myInfoPage.selectors.legalSexGroup, 'Female')).toBeChecked();
 
@@ -80,7 +80,7 @@ test.describe('My Information Page Tests', () => {
         await expect(page.locator(myInfoPage.selectors.primaryLanguage)).toHaveValue('Spanish');
     });
 
-    test('Add and manage former names', async () => {
+    test('Add and manage former names', { tag: '@regression' }, async () => {
         // Unique last name so reruns on a reused account don't collide with saved names.
         const lastName = faker.person.lastName().replace(/[^A-Za-z]/g, '');
         await myInfoPage.addFormerName({ firstName: 'Taylor', lastName });
@@ -93,18 +93,18 @@ test.describe('My Information Page Tests', () => {
         expect(await myInfoPage.isFormerNameDisplayed(`Jordan ${lastName}`, 2000)).toBeFalsy();
     });
 
-    test('Contact information is managed in Profile', async () => {
+    test('Contact information is managed in Profile', { tag: '@regression' }, async () => {
         // Phone and SMS moved off this step; it points applicants to their profile.
         await myInfoPage.verifyContactInfoPointsToProfile();
     });
 
-    test('Update address information', async () => {
+    test('Update address information', { tag: '@regression' }, async () => {
         const address = { country: 'United States', line1: '1151 S Forest Ave', line2: 'Apt 2', city: 'Tempe', state: 'Arizona', zip: '85281' };
         await myInfoPage.fillAddressInformation(address);
         expect((await myInfoPage.readFormValues()).address).toEqual(address);
     });
 
-    test('Update ethnicity and race information', async () => {
+    test('Update ethnicity and race information', { tag: '@regression' }, async () => {
         const { raceOrigins, primaryRace } = await myInfoPage.selectEthnicityAndRace({ hispanicLatino: 'No', races: ['Asian', 'White'] });
         expect(await myInfoPage.readFormValues()).toMatchObject({
             hispanicLatino: 'No',
@@ -114,14 +114,14 @@ test.describe('My Information Page Tests', () => {
         });
     });
 
-    test('Citizenship: U.S. citizen is asked for country of birth and SSN', async () => {
+    test('Citizenship: U.S. citizen is asked for country of birth and SSN', { tag: '@regression' }, async () => {
         await myInfoPage.chooseCitizenship(true);
         await expect(page.locator(myInfoPage.selectors.birthCountry)).toBeVisible();
         // Required for citizens; checked for presence only, never filled here.
         await expect(page.locator(myInfoPage.selectors.ssnHeading)).toBeVisible();
     });
 
-    test('Citizenship: non-citizen is asked for visa type and countries', async () => {
+    test('Citizenship: non-citizen is asked for visa type and countries', { tag: '@regression' }, async () => {
         const { visaType } = await myInfoPage.selectCitizenshipStatus({ isUsCitizen: false, countryOfCitizenship: 'Canada' });
         expect(visaType).toBeTruthy();
         expect(await myInfoPage.readFormValues()).toMatchObject({
@@ -130,17 +130,17 @@ test.describe('My Information Page Tests', () => {
         await expect(page.locator(myInfoPage.selectors.ssnOptionalLabel)).toBeVisible();
     });
 
-    test('Update previous ASU affiliation', async () => {
+    test('Update previous ASU affiliation', { tag: '@regression' }, async () => {
         await myInfoPage.addAsuAffiliateInfo({ affiliations: ['neverAffiliated'] });
         await expect(page.locator(myInfoPage.selectors.affiliation.neverAffiliated)).toBeChecked();
     });
 
-    test('Update military affiliation', async () => {
+    test('Update military affiliation', { tag: '@regression' }, async () => {
         await myInfoPage.selectMilitaryAffiliation();
         await expect(page.locator(myInfoPage.selectors.uniformedServices)).toHaveValue(myInfoPage.NO_UNIFORMED_SERVICES);
     });
 
-    test('Education benefits: Yes asks for a benefit provider', async () => {
+    test('Education benefits: Yes asks for a benefit provider', { tag: '@regression' }, async () => {
         const provider = await myInfoPage.applyPartnerBenefits({ usesBenefits: true });
         expect(provider).toBeTruthy();
         await expect(page.locator(myInfoPage.selectors.benefitProvider)).toHaveValue(/** @type {string} */ (provider));
@@ -226,7 +226,7 @@ test.describe('My Information Page Tests', () => {
         await myInfoPage.deleteGuardian('Valid Parent');
     });
 
-    test('Floating help opens', async () => {
+    test('Floating help opens', { tag: '@regression' }, async () => {
         await myInfoPage.validateFloatingHelp();
     });
 

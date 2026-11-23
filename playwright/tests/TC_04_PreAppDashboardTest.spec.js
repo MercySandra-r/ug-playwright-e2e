@@ -65,39 +65,39 @@ test.describe('Pre-Application Dashboard Tests', () => {
 
     const freshPage = () => dashboard.navigateToDashboard();
 
-    test('Verify Pre-Application Dashboard page loads successfully', async () => {
+    test('Verify Pre-Application Dashboard page loads successfully', { tag: ['@smoke', '@regression'] }, async () => {
         await freshPage();
         await dashboard.verifyFormVisible();
     });
 
-    test('Contact email is the account email and is read-only', async () => {
+    test('Contact email is the account email and is read-only', { tag: '@regression' }, async () => {
         await freshPage();
         await dashboard.verifyContactEmail(accountEmail);
     });
 
-    test('Verify form validation for required fields', async () => {
+    test('Verify form validation for required fields', { tag: '@regression' }, async () => {
         await freshPage();
         await dashboard.verifyRequiredFieldErrors();
     });
 
-    test('Verify phone number validation', async () => {
+    test('Verify phone number validation', { tag: '@regression' }, async () => {
         await freshPage();
         await dashboard.verifyInvalidPhoneError('123');
     });
 
-    test('Birth years run from 5 years ago back 100 years', async () => {
+    test('Birth years run from 5 years ago back 100 years', { tag: '@regression' }, async () => {
         await freshPage();
         const years = await dashboard.getBirthYearOptions();
         expect(years[0]).toBe(String(dashboard.currentYear - 5));
         expect(years).toHaveLength(100);
     });
 
-    test('Suffix is optional and offers choices', async () => {
+    test('Suffix is optional and offers choices', { tag: '@regression' }, async () => {
         await freshPage();
         expect((await dashboard.getSuffixOptions()).length).toBeGreaterThan(0);
     });
 
-    test('Fill every field, optional ones included', async () => {
+    test('Fill every field, optional ones included', { tag: '@regression' }, async () => {
         await freshPage();
         const [suffix] = await dashboard.getSuffixOptions();
         await dashboard.fillPersonalInformation({ ...APPLICANT, suffix });
@@ -115,7 +115,7 @@ test.describe('Pre-Application Dashboard Tests', () => {
         });
     });
 
-    test('Application FAQ answers expand', async () => {
+    test('Application FAQ answers expand', { tag: '@regression' }, async () => {
         await freshPage();
         expect(await dashboard.expandFaq('Is there an application fee?')).not.toBe('');
     });

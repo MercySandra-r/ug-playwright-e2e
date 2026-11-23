@@ -57,25 +57,25 @@ test.describe('My Schools Page Tests', () => {
 
     const freshPage = () => schoolsPage.navigateToMySchools();
 
-    test('Verify error message for required fields', async () => {
+    test('Verify error message for required fields', { tag: '@regression' }, async () => {
         await freshPage();
         await schoolsPage.clickContinue();
         await schoolsPage.verifyErrorMessage('This is a required field.');
     });
 
-    test('Verify My Schools page loads successfully', async () => {
+    test('Verify My Schools page loads successfully', { tag: '@regression' }, async () => {
         await freshPage();
         await schoolsPage.validateMySchools();
     });
 
-    test('Select random high school country', async () => {
+    test('Select random high school country', { tag: '@regression' }, async () => {
         await freshPage();
         const country = await schoolsPage.selectRandomHighSchoolCountry();
         expect(country).toBeTruthy();
         expect(await schoolsPage.getHighSchoolCountry()).toBe(country);
     });
 
-    test('Verify school search functionality', async () => {
+    test('Verify school search functionality', { tag: '@regression' }, async () => {
         await freshPage();
         await schoolsPage.choose(schoolsPage.selectors.hsCountry, 'United States');
         await schoolsPage.choose(schoolsPage.selectors.hsState, 'Arizona');
@@ -85,7 +85,7 @@ test.describe('My Schools Page Tests', () => {
         expect(schools).toContain('Tempe High School');
     });
 
-    test('A filled school must be saved before continuing', async () => {
+    test('A filled school must be saved before continuing', { tag: '@regression' }, async () => {
         await freshPage();
         await schoolsPage.fillHighSchool(HIGH_SCHOOL);
         await schoolsPage.markNoCollegeAttended();
@@ -94,20 +94,20 @@ test.describe('My Schools Page Tests', () => {
         await schoolsPage.verifySaveSchoolReminder();
     });
 
-    test('Add and validate a graduating school', async () => {
+    test('Add and validate a graduating school', { tag: '@regression' }, async () => {
         await freshPage();
         await schoolsPage.addHighSchool(HIGH_SCHOOL);
         await schoolsPage.validateGraduatingSchool({ name: HIGH_SCHOOL.name });
         expect(await schoolsPage.getSavedHighSchools()).toEqual([HIGH_SCHOOL.name]);
     });
 
-    test('Edit a school', async () => {
+    test('Edit a school', { tag: '@regression' }, async () => {
         await schoolsPage.editSchool(HIGH_SCHOOL.name, { name: 'Compadre High School' });
         await schoolsPage.validateGraduatingSchool({ name: 'Compadre High School' });
         expect(await schoolsPage.getSavedHighSchools()).not.toContain(HIGH_SCHOOL.name);
     });
 
-    test('Remove a school', async () => {
+    test('Remove a school', { tag: '@regression' }, async () => {
         // Add a second (previous) school and remove it. Removing the current/most recent one
         // makes the page ask for a current school again before it will continue.
         // (Adding many schools is covered by the 10-school test below.)
@@ -117,7 +117,7 @@ test.describe('My Schools Page Tests', () => {
         expect(await schoolsPage.getSavedHighSchools()).toEqual(['Compadre High School']);
     });
 
-    test('Add and remove a college or university', async () => {
+    test('Add and remove a college or university', { tag: '@regression' }, async () => {
         const { institution } = await schoolsPage.addCollegeOrUniversity({ state: 'Arizona', city: 'Mesa' });
         expect(await schoolsPage.getSavedInstitutions()).toContain(institution);
 
@@ -126,7 +126,7 @@ test.describe('My Schools Page Tests', () => {
         await schoolsPage.markNoCollegeAttended();
     });
 
-    test('Transcript requirements dialog', async () => {
+    test('Transcript requirements dialog', { tag: '@regression' }, async () => {
         const text = await schoolsPage.openTranscriptRequirements();
         expect(text).toContain('High school transcripts only');
         await schoolsPage.closeDialog();

@@ -32,7 +32,7 @@ class ErrorPage extends BasePage {
      * @returns {Promise<void>}
      */
     async open(path) {
-        await this.page.goto(path, { timeout: this.navigationTimeout });
+        await this.gotoPath(path);
     }
 
     /**

@@ -145,7 +145,7 @@ class PostAppSubmissionDashboardPage extends BasePage {
         if (this.applicationId) return this.applicationId;
         const fromUrl = this.page.url().match(/\/ug-app\/(\d+)\//);
         if (fromUrl) return fromUrl[1];
-        await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
+        await this.gotoPath('/dashboard');
         const card = await this.submittedCard();
         const m = (await card.innerText()).match(/Application ID:\s*(\d+)/);
         if (!m) throw new Error('No submitted application found on the dashboard');
@@ -188,7 +188,7 @@ class PostAppSubmissionDashboardPage extends BasePage {
      * @returns {Promise<string|undefined>}
      */
     async getDraftApplicationId() {
-        await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
+        await this.gotoPath('/dashboard');
         await this.page.locator(this.selectors.anyH1).first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
         await this.settle();
         const heading = this.page.locator(this.selectors.inProgressHeading);
@@ -300,7 +300,7 @@ class PostAppSubmissionDashboardPage extends BasePage {
      */
     async getMainDashboardOptions() {
         if (!/\/dashboard\/?$/.test(new URL(this.page.url()).pathname) || /\/ug-app\//.test(this.page.url())) {
-            await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
+            await this.gotoPath('/dashboard');
         }
         await this.page.locator(this.selectors.anyH1).first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
         await this.page.waitForLoadState('networkidle').catch(() => {});
@@ -323,7 +323,7 @@ class PostAppSubmissionDashboardPage extends BasePage {
             await this.page.waitForURL(/\/dashboard/, { timeout: this.navigationTimeout }).catch(() => {});
         }
         if (!/\/dashboard\/?(\?|$)/.test(new URL(this.page.url()).pathname + new URL(this.page.url()).search) || /\/ug-app\//.test(this.page.url())) {
-            await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
+            await this.gotoPath('/dashboard');
         }
         await this.page.locator(this.selectors.startNewApplicationButton).first().waitFor({ state: 'visible', timeout: this.navigationTimeout });
     }
@@ -338,7 +338,7 @@ class PostAppSubmissionDashboardPage extends BasePage {
         // Observed 2026-11-10: a direct visit to /ug-app/<id>/dashboard intermittently lands
         // on the main /dashboard instead. Retry once, then go through "View application".
         for (let attempt = 0; attempt < 2 && !onNextSteps(); attempt++) {
-            await this.page.goto(`/ug-app/${id}/dashboard`, { timeout: this.navigationTimeout });
+            await this.gotoPath(`/ug-app/${id}/dashboard`);
             await this.settle();
             await this.page.waitForTimeout(1000);
         }
@@ -401,10 +401,10 @@ class PostAppSubmissionDashboardPage extends BasePage {
     async getApplicationStatus() {
         const id = await this.getSubmittedApplicationId();
         const back = this.page.url();
-        await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
+        await this.gotoPath('/dashboard');
         const card = await this.submittedCard(id);
         const status = (((await card.innerText()).match(/Submitted on [^\n]+/) || [''])[0]).trim();
-        if (/\/ug-app\//.test(back)) await this.page.goto(back, { timeout: this.navigationTimeout });
+        if (/\/ug-app\//.test(back)) await this.gotoPath(back);
         return status;
     }
 

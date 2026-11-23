@@ -209,8 +209,9 @@ class LandingPage extends BasePage {
       await this.answerNondegreeQuestions();
     }
 
-    // Wait for the form to update (no Continue button needed)
-    await this.page.waitForLoadState('networkidle');
+    // Give the form a moment to update. Don't insist on a quiet network: the page's analytics
+    // keep requests open, which Firefox never reports as idle (seen 2026-11-23).
+    await this.page.waitForLoadState('networkidle', { timeout: 10000 }).catch(() => {});
   }
 
   /**

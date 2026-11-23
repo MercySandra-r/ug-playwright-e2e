@@ -66,19 +66,19 @@ test.describe('My ASU Program Page Tests', () => {
     // start from a fresh load; tests 10-13 continue the unsaved session test 9 started.
     const freshPage = () => programPage.navigateToMyASUProgram();
 
-    test('Verify error messages for required fields', async () => {
+    test('Verify error messages for required fields', { tag: '@regression' }, async () => {
         await freshPage();
         await programPage.clickContinue();
         await programPage.verifyErrorMessage('Please select a first choice program.');
     });
 
-    test('Verify My ASU Program page loads successfully', async () => {
+    test('Verify My ASU Program page loads successfully', { tag: '@regression' }, async () => {
         await freshPage();
         await programPage.verifySelectedDegreeType('Bachelor');
         await programPage.verifyDegreeSearchVisible();
     });
 
-    test('Get and verify program list', async () => {
+    test('Get and verify program list', { tag: '@regression' }, async () => {
         await freshPage();
         const programs = await programPage.getProgramList();
         expect(programs.length).toBeGreaterThan(0);
@@ -86,7 +86,7 @@ test.describe('My ASU Program Page Tests', () => {
         for (const name of programs) expect(name).toMatch(/, [A-Z]{2,4}$/);
     });
 
-    test('Search for a program', async () => {
+    test('Search for a program', { tag: '@regression' }, async () => {
         await freshPage();
         await programPage.searchProgram('Computer Science');
         const results = await programPage.getProgramList();
@@ -96,7 +96,7 @@ test.describe('My ASU Program Page Tests', () => {
         expect((await programPage.getProgramList()).length).toBeGreaterThanOrEqual(results.length);
     });
 
-    test('Filter programs by interest area and college', async () => {
+    test('Filter programs by interest area and college', { tag: '@regression' }, async () => {
         await freshPage();
         await programPage.applyFilters({ interestArea: 'Computing and Mathematics' });
         const byInterest = await programPage.getProgramList();
@@ -111,7 +111,7 @@ test.describe('My ASU Program Page Tests', () => {
         expect((await programPage.getProgramList()).length).toBeGreaterThanOrEqual(byInterest.length);
     });
 
-    test('Verify program details display', async () => {
+    test('Verify program details display', { tag: '@regression' }, async () => {
         await freshPage();
         await programPage.searchProgram('Computer Science');
         const details = await programPage.openProgramDetails(FIRST_CHOICE);
@@ -121,14 +121,14 @@ test.describe('My ASU Program Page Tests', () => {
         await programPage.closeDialog();
     });
 
-    test('Verify academic calendar link', async () => {
+    test('Verify academic calendar link', { tag: '@regression' }, async () => {
         await freshPage();
         const calendar = await programPage.openAcademicCalendar();
         expect(programPage.verifyAcademicCalendar(calendar)).toBeTruthy();
         await programPage.closeDialog();
     });
 
-    test('Switch between degree and nondegree', async () => {
+    test('Switch between degree and nondegree', { tag: '@regression' }, async () => {
         await freshPage();
         await programPage.selectDegreeIntent('Non-Degree');
         await programPage.verifyNondegreeFormVisible();
@@ -138,7 +138,7 @@ test.describe('My ASU Program Page Tests', () => {
         await programPage.waitForResults();
     });
 
-    test('Select a program as first choice', async () => {
+    test('Select a program as first choice', { tag: '@regression' }, async () => {
         await freshPage();
         const { first } = await programPage.selectProgram({
             program: FIRST_CHOICE, degreeType: 'Bachelor', startTerm: START_TERM, autoBackup: false,
@@ -152,7 +152,7 @@ test.describe('My ASU Program Page Tests', () => {
         expect(await programPage.isBackupRequested()).toBe(true);
     });
 
-    test('Verify program selection as second choice', async () => {
+    test('Verify program selection as second choice', { tag: '@regression' }, async () => {
         const backup = await programPage.chooseBackupProgram({ program: BACKUP, startTerm: START_TERM });
         expect(backup.program).toBe(BACKUP);
 
@@ -161,7 +161,7 @@ test.describe('My ASU Program Page Tests', () => {
         expect(selected.backup?.program).toBe(BACKUP);
     });
 
-    test('Change the backup program', async () => {
+    test('Change the backup program', { tag: '@regression' }, async () => {
         await programPage.changeProgram('backup');
         await programPage.chooseBackupProgram({ program: BACKUP_CHANGED, startTerm: START_TERM });
 
@@ -169,7 +169,7 @@ test.describe('My ASU Program Page Tests', () => {
         expect(selected.backup?.program).toBe(BACKUP_CHANGED);
     });
 
-    test('Select optional interests', async () => {
+    test('Select optional interests', { tag: '@regression' }, async () => {
         await programPage.selectInterests(['Pre-law interest']);
         expect(await programPage.isInterestSelected('Pre-law interest')).toBe(true);
     });

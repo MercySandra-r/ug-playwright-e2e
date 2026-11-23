@@ -48,7 +48,7 @@ test.describe('AZ Residency Page Tests', () => {
 
     const freshPage = () => residencyPage.navigateToAZResidency();
 
-    test('Verify error message for required fields', async () => {
+    test('Verify error message for required fields', { tag: '@regression' }, async () => {
         await freshPage();
         await residencyPage.clickContinue();
         await residencyPage.verifyErrorMessage('This is a required field.');
@@ -56,14 +56,14 @@ test.describe('AZ Residency Page Tests', () => {
         expect(await residencyPage.getRequiredFieldErrorCount()).toBeGreaterThanOrEqual(6);
     });
 
-    test('Verify AZ Residency page loads successfully', async () => {
+    test('Verify AZ Residency page loads successfully', { tag: '@regression' }, async () => {
         await freshPage();
         await residencyPage.validateAZresidencyPage();
         // This applicant has no uniformed-services affiliation, so no veteran questions.
         expect(await residencyPage.isVeteranSectionShown()).toBe(false);
     });
 
-    test('Answer permanent home question (non-AZ resident)', async () => {
+    test('Answer permanent home question (non-AZ resident)', { tag: '@regression' }, async () => {
         await freshPage();
         await residencyPage.answerPermanentHomeQuestion(false);
         expect(await residencyPage.getPermanentState()).toBe('California');
@@ -71,7 +71,7 @@ test.describe('AZ Residency Page Tests', () => {
         expect(await residencyPage.isQuestionVisible('married')).toBeFalsy();
     });
 
-    test('Answer permanent home question (AZ resident)', async () => {
+    test('Answer permanent home question (AZ resident)', { tag: '@regression' }, async () => {
         await freshPage();
         await residencyPage.answerPermanentHomeQuestion(true);
         expect(await residencyPage.getPermanentState()).toBe('Arizona');
@@ -80,7 +80,7 @@ test.describe('AZ Residency Page Tests', () => {
         expect(await residencyPage.getAnswer('livedInAz12Months')).toBe('Yes');
     });
 
-    test('Financial support must total 100%', async () => {
+    test('Financial support must total 100%', { tag: '@regression' }, async () => {
         await freshPage();
         await residencyPage.setFinancialSupport({ parent: 60, employment: 20 });
         expect(await residencyPage.getSupportTotal()).toBe(80);
@@ -92,7 +92,7 @@ test.describe('AZ Residency Page Tests', () => {
         await expect.poll(() => residencyPage.isSupportTotalErrorShown()).toBe(false);
     });
 
-    test('Answer parent/guardian question', async () => {
+    test('Answer parent/guardian question', { tag: '@regression' }, async () => {
         await freshPage();
         await residencyPage.answerParentGuardianQuestion(true);
         // Parents living in Arizona reveals the parent block.
@@ -102,7 +102,7 @@ test.describe('AZ Residency Page Tests', () => {
         expect(await residencyPage.getDropdownValue(residencyPage.selectors.parentRelationship)).toBe('Mother');
     });
 
-    test('Employment follow-up question', async () => {
+    test('Employment follow-up question', { tag: '@regression' }, async () => {
         await freshPage();
         expect(await residencyPage.isQuestionVisible('employedLast12Months')).toBeFalsy();
         await residencyPage.answer('employed', false);

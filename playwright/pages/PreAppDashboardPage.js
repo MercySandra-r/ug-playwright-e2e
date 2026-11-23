@@ -155,7 +155,7 @@ class PreAppDashboardPage extends BasePage {
      * @returns {Promise<void>}
      */
     async navigateToDashboard(mode = 'online') {
-        await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
+        await this.gotoPath('/dashboard');
         await this.answerLearningModeIfAsked(mode);
         await this.verifyPageLoaded();
         // The form re-initialises shortly after load and can wipe values typed too early.
@@ -478,7 +478,7 @@ class PreAppDashboardPage extends BasePage {
         } = data;
 
         if (!/\/dashboard/.test(this.page.url())) {
-            await this.page.goto('/dashboard', { timeout: this.navigationTimeout });
+            await this.gotoPath('/dashboard');
         }
         await this.answerLearningModeIfAsked(mode);
 

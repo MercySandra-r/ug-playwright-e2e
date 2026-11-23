@@ -330,7 +330,9 @@ class MyInformationPage extends BasePage {
      * @returns {Promise<string>} the chosen option's label
      */
     async pickFromDropdown(combobox, optionText) {
-        await combobox.waitFor({ state: 'visible', timeout: this.assertionTimeout });
+        // A dropdown that appears after an answer (e.g. the visa type after "not a U.S. citizen")
+        // can take longer than 5 s to render in Firefox.
+        await combobox.waitFor({ state: 'visible', timeout: this.navigationTimeout });
         await combobox.scrollIntoViewIfNeeded();
         await combobox.click();
         const option = this.option(optionText);
@@ -832,8 +834,17 @@ class MyInformationPage extends BasePage {
             if (!starbucksPartnerNumber) throw new Error('Starbucks asks for a partner number: pass starbucksPartnerNumber (see utils/partnerTestData.js)');
             await partnerNumber.fill(starbucksPartnerNumber);
             // The unlabelled button right after the box starts the check (Continue does too).
+            const verified = this.page.locator(this.selectors.starbucksPartnerVerified);
             await partnerNumber.locator(this.selectors.followingButton).click();
-            await this.page.locator(this.selectors.starbucksPartnerVerified).waitFor({ state: 'visible', timeout: this.navigationTimeout });
+            // In Firefox the first click can be ignored (seen 2026-11-23): type the number again,
+            // leave the field and click once more.
+            if (!(await verified.waitFor({ state: 'visible', timeout: 15000 }).then(() => true).catch(() => false))) {
+                await partnerNumber.fill('');
+                await partnerNumber.pressSequentially(starbucksPartnerNumber);
+                await partnerNumber.press('Tab');
+                await partnerNumber.locator(this.selectors.followingButton).click();
+            }
+            await verified.waitFor({ state: 'visible', timeout: this.navigationTimeout });
             const accept = this.page.locator(this.selectors.scapAcceptCheckbox);
             if ((await accept.getAttribute('aria-checked')) !== 'true' && !(await accept.isChecked().catch(() => false))) await accept.click();
             await this.page.locator(this.selectors.managerDisclosureHeading).scrollIntoViewIfNeeded();

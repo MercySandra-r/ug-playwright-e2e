@@ -55,11 +55,11 @@ test.describe('Profile Page Tests', () => {
 
     const freshPage = () => profilePage.navigateToProfile();
 
-    test('Profile menu "Edit profile" opens the profile', async () => {
+    test('Profile menu "Edit profile" opens the profile', { tag: '@regression' }, async () => {
         await profilePage.openProfileFromDashboard();
     });
 
-    test('One in-progress application: every field is editable, email is not', async () => {
+    test('One in-progress application: every field is editable, email is not', { tag: '@regression' }, async () => {
         // TEST_EMAIL's account has exactly one in-progress application. With none, nothing
         // is editable; with several, legal name and birthday are read-only.
         await freshPage();
@@ -67,7 +67,7 @@ test.describe('Profile Page Tests', () => {
         expect(await profilePage.isContactEmailEditable()).toBe(false);
     });
 
-    test('Profile shows the account and its details', async () => {
+    test('Profile shows the account and its details', { tag: ['@smoke', '@regression'] }, async () => {
         await freshPage();
         const profile = await profilePage.readProfile();
         expect(profile.contactEmail).toBe(email);
@@ -81,7 +81,7 @@ test.describe('Profile Page Tests', () => {
         expect(await profilePage.validateEmail(email)).toBe(true);
     });
 
-    test('Legal name editor shows the current name; Cancel keeps it', async () => {
+    test('Legal name editor shows the current name; Cancel keeps it', { tag: '@regression' }, async () => {
         await freshPage();
         const before = await profilePage.readProfile();
         await profilePage.openEditor('legalName');
@@ -91,7 +91,7 @@ test.describe('Profile Page Tests', () => {
         expect((await profilePage.readProfile()).legalName).toBe(before.legalName);
     });
 
-    test('Legal name: empty Save shows field validations', async () => {
+    test('Legal name: empty Save shows field validations', { tag: '@regression' }, async () => {
         await freshPage();
         await profilePage.openEditor('legalName');
         await profilePage.clearLegalName();
@@ -100,7 +100,7 @@ test.describe('Profile Page Tests', () => {
         await profilePage.cancel();
     });
 
-    test('Preferred first name can be set and cleared', async () => {
+    test('Preferred first name can be set and cleared', { tag: '@regression' }, async () => {
         await freshPage();
         // The account is shared between runs: always clear the name again, even if a check
         // fails, so the next run starts without one.
@@ -118,7 +118,7 @@ test.describe('Profile Page Tests', () => {
         expect(cleared.welcomeName).toBe(cleared.legalName);
     });
 
-    test('Birthday editor shows the current birthday; Cancel keeps it', async () => {
+    test('Birthday editor shows the current birthday; Cancel keeps it', { tag: '@regression' }, async () => {
         await freshPage();
         const { birthday } = await profilePage.readProfile();
         await profilePage.openEditor('birthday');
@@ -127,7 +127,7 @@ test.describe('Profile Page Tests', () => {
         await profilePage.cancel();
     });
 
-    test('Pronouns: options and saving a choice', async () => {
+    test('Pronouns: options and saving a choice', { tag: '@regression' }, async () => {
         await freshPage();
         await profilePage.openEditor('pronouns');
         expect(await profilePage.getRadioOptions(profilePage.selectors.pronounsGroup)).toEqual(['He/Him', 'She/Her', 'They/Them']);
@@ -136,7 +136,7 @@ test.describe('Profile Page Tests', () => {
         expect((await profilePage.readProfile()).pronouns).toBe('They/Them');
     });
 
-    test('Gender identity: options and saving a choice', async () => {
+    test('Gender identity: options and saving a choice', { tag: '@regression' }, async () => {
         await freshPage();
         await profilePage.openEditor('genderIdentity');
         expect(await profilePage.getRadioOptions(profilePage.selectors.genderGroup))
@@ -146,7 +146,7 @@ test.describe('Profile Page Tests', () => {
         expect((await profilePage.readProfile()).genderIdentity).toBe('Prefer not to disclose');
     });
 
-    test('Phone editor shows the current number and answers; Cancel keeps them', async () => {
+    test('Phone editor shows the current number and answers; Cancel keeps them', { tag: '@regression' }, async () => {
         await freshPage();
         const before = await profilePage.readProfile();
         await profilePage.openEditor('phoneNumber');
@@ -157,7 +157,7 @@ test.describe('Profile Page Tests', () => {
         await profilePage.cancel();
     });
 
-    test('Phone: empty Save shows field validations', async () => {
+    test('Phone: empty Save shows field validations', { tag: '@regression' }, async () => {
         await freshPage();
         await profilePage.openEditor('phoneNumber');
         await profilePage.clearPhone();
@@ -166,7 +166,7 @@ test.describe('Profile Page Tests', () => {
         await profilePage.cancel();
     });
 
-    test('Return to dashboard', async () => {
+    test('Return to dashboard', { tag: '@regression' }, async () => {
         await freshPage();
         await profilePage.returnToDashboard();
     });

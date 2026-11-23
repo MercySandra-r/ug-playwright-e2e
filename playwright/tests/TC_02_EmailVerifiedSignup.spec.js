@@ -14,7 +14,7 @@ const { signUpVerifiedAccount } = require('../utils/authHelper');
 test.describe('Email-verified sign-up (Gmail API)', () => {
     test.describe.configure({ timeout: 180000 });
 
-    test('signs up, verifies via emailed code/link, returns authenticated', async ({ page }) => {
+    test('signs up, verifies via emailed code/link, returns authenticated', { tag: ['@smoke', '@regression'] }, async ({ page }) => {
         const { email } = await signUpVerifiedAccount(page);
         expect(email).toContain('@');
         await expect(page).toHaveURL(/apply-qa\.apps\.asu\.edu/);

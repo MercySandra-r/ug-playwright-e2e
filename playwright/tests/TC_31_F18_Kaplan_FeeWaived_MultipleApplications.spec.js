@@ -42,7 +42,7 @@ const PROGRAM = 'Anthropology, BA';
 const HIGH_SCHOOL = { country: 'United States', state: 'Arizona', city: 'Tempe', name: 'Tempe High School', graduationDate: `May ${new Date().getFullYear() - 1}` };
 
 test.describe('Kaplan landing and log-in pages (no account)', () => {
-    test('The landing page creates the account with the email only; "Log in" opens the Kaplan log-in page (email only)', async ({ page }) => {
+    test('The landing page creates the account with the email only; "Log in" opens the Kaplan log-in page (email only)', { tag: ['@smoke', '@regression'] }, async ({ page }) => {
         const kaplan = new KaplanPage(page);
         await kaplan.openLanding();
         expect(await kaplan.readEntryPage()).toEqual({ kaplanLogo: true, passwordAsked: false });

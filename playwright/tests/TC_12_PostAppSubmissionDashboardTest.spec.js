@@ -43,17 +43,17 @@ test.describe('Post-Application Submission Dashboard Tests', () => {
 
     const freshPage = () => dashboard.navigateToDashboard();
 
-    test('Verify Post-Application Dashboard loads successfully', async () => {
+    test('Verify Post-Application Dashboard loads successfully', { tag: ['@smoke', '@regression'] }, async () => {
         await freshPage();
         await expect(page.locator(dashboard.selectors.congratulations)).toBeVisible();
     });
 
-    test('Validate Post-Application Dashboard content', async () => {
+    test('Validate Post-Application Dashboard content', { tag: '@regression' }, async () => {
         await freshPage();
         await dashboard.validatePostDashboard();
     });
 
-    test('Verify application summary', async () => {
+    test('Verify application summary', { tag: '@regression' }, async () => {
         await freshPage();
         const summary = await dashboard.getApplicationSummary();
         expect(summary.applicationId).toBe(dashboard.applicationId);
@@ -62,14 +62,14 @@ test.describe('Post-Application Submission Dashboard Tests', () => {
         expect(summary.term).toMatch(/^(Spring|Summer|Fall) \d{4}/);
     });
 
-    test('Verify contact information is displayed correctly', async () => {
+    test('Verify contact information is displayed correctly', { tag: '@regression' }, async () => {
         await freshPage();
         await dashboard.verifyPhoneNumber('866-277-6589');
         await dashboard.verifyEmailAddress('enrollmentonline@asu.edu');
         await dashboard.verifyPhoneNumber('855-278-5080'); // after-hours support
     });
 
-    test('Check QTR alert presence for AZ Online students', async () => {
+    test('Check QTR alert presence for AZ Online students', { tag: '@regression' }, async () => {
         // Closing the alert is remembered for the rest of the browser session, so this
         // test checks the alert and its link first, then closes it.
         await freshPage();
@@ -80,7 +80,7 @@ test.describe('Post-Application Submission Dashboard Tests', () => {
         await dashboard.closeQtrAlert();
     });
 
-    test('Verify next-step links (My ASU, transcripts, FAFSA)', async () => {
+    test('Verify next-step links (My ASU, transcripts, FAFSA)', { tag: '@regression' }, async () => {
         await freshPage();
         const links = await dashboard.verifyAllExternalLinks();
         const byName = Object.fromEntries(links.map((l) => [l.name, l]));
@@ -91,27 +91,27 @@ test.describe('Post-Application Submission Dashboard Tests', () => {
         for (const link of links) expect(link.target).toBe('_blank');
     });
 
-    test('Pay application fee step shows for Pay later', async () => {
+    test('Pay application fee step shows for Pay later', { tag: '@regression' }, async () => {
         await freshPage();
         expect(await dashboard.getFeeStatus()).toBe('unpaid');
     });
 
-    test('Verify application status is displayed', async () => {
+    test('Verify application status is displayed', { tag: '@regression' }, async () => {
         await freshPage();
         expect(await dashboard.getApplicationStatus()).toMatch(/^Submitted on [A-Z][a-z]+ \d{1,2}, \d{4}$/);
     });
 
-    test('Verify Preview Application link functionality', async () => {
+    test('Verify Preview Application link functionality', { tag: '@regression' }, async () => {
         await freshPage();
         await dashboard.clickPreviewLink();
     });
 
-    test('Submitted application can no longer be edited', async () => {
+    test('Submitted application can no longer be edited', { tag: '@regression' }, async () => {
         await dashboard.gotoApplicationStep('my-information');
         await dashboard.verifyPageLoaded(); // redirected back to Next steps
     });
 
-    test('Verify responsive design on a phone viewport', async () => {
+    test('Verify responsive design on a phone viewport', { tag: '@regression' }, async () => {
         await page.setViewportSize({ width: 375, height: 812 });
         try {
             await freshPage();
@@ -121,7 +121,7 @@ test.describe('Post-Application Submission Dashboard Tests', () => {
         }
     });
 
-    test('Verify basic accessibility of the dashboard page', async () => {
+    test('Verify basic accessibility of the dashboard page', { tag: '@regression' }, async () => {
         await freshPage();
         expect(await dashboard.getAccessibilitySummary()).toEqual({ h1Count: 1, unnamedControls: 0 });
     });

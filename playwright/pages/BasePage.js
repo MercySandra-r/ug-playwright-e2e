@@ -14,6 +14,26 @@ const { logger } = require('../utils/testLogger');
 const configLoader = require('../utils/configLoader');
 const timeoutManager = require('../utils/timeoutManager');
 
+/**
+ * The app's own API requests still in flight, per page (analytics and assets are ignored).
+ * Leaving a page while these run makes Firefox cancel them, and the app then treats the
+ * cancelled call as "not signed in" and logs the user out (seen 2026-11-23).
+ * @type {WeakMap<Page, Set<import('@playwright/test').Request>>}
+ */
+const appRequests = new WeakMap();
+const APP_API = /api-qa\.adms-aaa\.apps\.asu\.edu|api-tst\.myasuplat-dpl\.asu\.edu/;
+/** @param {Page} page */
+function trackAppRequests(page) {
+  let pending = appRequests.get(page);
+  if (pending) return pending;
+  const set = new Set();
+  appRequests.set(page, set);
+  page.on('request', (r) => { if (APP_API.test(r.url())) set.add(r); });
+  page.on('requestfinished', (r) => set.delete(r));
+  page.on('requestfailed', (r) => set.delete(r));
+  return set;
+}
+
 class BasePage {
   /**
    * Create a new BasePage instance
@@ -34,7 +54,9 @@ class BasePage {
     this.logger = logger;
     /** @type {string} */
     this.baseUrl = configLoader.getBaseUrl() || '';
-    
+    /** The app's API requests in flight on this page (see trackAppRequests). */
+    this.appRequests = trackAppRequests(page);
+
     // Default timeouts with fallbacks
     /** @type {number} */
     this.navigationTimeout = timeoutManager.getTimeout('navigation') || 30000;
@@ -137,20 +159,44 @@ class BasePage {
   }
 
   /**
-   * page.goto that tolerates the app re-opening the same address while it loads. WebKit
-   * reports that as "interrupted by another navigation" (seen 2026-11-23); when the page then
-   * ends on the requested path it is not an error.
+   * Wait until the app's own API requests on this page have finished (up to `timeoutMs`), so
+   * leaving the page doesn't cancel them; see trackAppRequests.
+   * @param {number} [timeoutMs]
+   * @returns {Promise<void>}
+   */
+  async waitForAppRequests(timeoutMs = 15000) {
+    const deadline = Date.now() + timeoutMs;
+    let quiet = 0;
+    while (Date.now() < deadline) {
+      quiet = this.appRequests.size === 0 ? quiet + 1 : 0;
+      if (quiet >= 2) return;
+      await new Promise((resolve) => setTimeout(resolve, 150));
+    }
+  }
+
+  /**
+   * page.goto that tolerates the browser abandoning a navigation because the app navigates at
+   * the same time (seen 2026-11-23). WebKit reports "interrupted by another navigation", Firefox
+   * NS_BINDING_ABORTED, NS_ERROR_FAILURE or a detached frame. If the page still ended on the
+   * requested path that is fine; otherwise the navigation is tried once more.
    * @param {string} url - path such as /ug-app/123/my-information
    * @returns {Promise<void>}
    */
   async gotoPath(url) {
-    try {
-      await this.page.goto(url, { timeout: this.navigationTimeout });
-    } catch (e) {
-      if (!/interrupted by another navigation/.test(e instanceof Error ? e.message : String(e))) throw e;
-      await this.page.waitForLoadState('load', { timeout: this.navigationTimeout }).catch(() => {});
-      const wanted = url.split('?')[0];
-      if (!new URL(this.page.url()).pathname.startsWith(wanted)) throw e;
+    await this.waitForAppRequests();
+    const abandoned = /interrupted by another navigation|NS_BINDING_ABORTED|NS_ERROR_FAILURE|frame was detached/;
+    const wanted = new URL(url, 'https://placeholder').pathname;
+    for (let attempt = 1; ; attempt++) {
+      try {
+        await this.page.goto(url, { timeout: this.navigationTimeout });
+        return;
+      } catch (e) {
+        if (!abandoned.test(e instanceof Error ? e.message : String(e))) throw e;
+        await this.page.waitForLoadState('load', { timeout: this.navigationTimeout }).catch(() => {});
+        if (new URL(this.page.url()).pathname.startsWith(wanted)) return;
+        if (attempt >= 2) throw e;
+        await this.page.waitForTimeout(1000);
+      }
     }
   }
 
