@@ -26,9 +26,11 @@ const STEPS = ['my-information', 'my-program', 'my-schools', 'my-high-school-gra
  * @param {'my-information'|'my-program'|'my-schools'|'my-high-school-grades'|'arizona-residency'|'review'} step
  * @param {{ captureValidations?: boolean, veteran?: boolean, spouseOfServiceMember?: boolean,
  *           graduationDate?: string, applicant?: Applicant, mode?: 'online'|'in-person'|'asu-local',
- *           degreeType?: 'pursue'|'individual', org?: 'kaplan' }} [options]
+ *           degreeType?: 'pursue'|'individual', org?: 'kaplan', landing?: string }} [options]
  *   org: 'kaplan' signs up through the Kaplan landing link (/?org=kaplaninc) instead of the ASU
  *   sign-in service
+ *   landing: start from this landing link instead of '/', e.g. '/?partner=SCAP' (Starbucks,
+ *   which preselects the SCAP partner benefit)
  *   mode: how the applicant attends, chosen on the landing page (default 'online'); 'asu-local'
  *   opens the ASU Local landing link
  *   degreeType: on the landing page, 'pursue' a degree (default) or take 'individual' courses
@@ -44,7 +46,7 @@ const STEPS = ['my-information', 'my-program', 'my-schools', 'my-high-school-gra
  *   veteran" (Arizona residency then asks which describes the service member)
  * @returns {Promise<string>} the application ID
  */
-async function startApplicationAt(page, step, { captureValidations = true, veteran = false, spouseOfServiceMember = false, graduationDate = 'May 2026', applicant = {}, mode = 'online', degreeType = 'pursue', org } = {}) {
+async function startApplicationAt(page, step, { captureValidations = true, veteran = false, spouseOfServiceMember = false, graduationDate = 'May 2026', applicant = {}, mode = 'online', degreeType = 'pursue', org, landing } = {}) {
     const target = STEPS.indexOf(step);
     if (target < 0) throw new Error(`startApplicationAt: unknown or unsupported step "${step}"`);
 
@@ -53,7 +55,7 @@ async function startApplicationAt(page, step, { captureValidations = true, veter
         if (mode !== 'online' && mode !== 'in-person') throw new Error(`Kaplan applicants attend online or in person, not "${mode}"`);
         await signUpKaplanAccount(page, { mode, degreeType });
     } else {
-        await signUpVerifiedAccount(page, { mode, degreeType });
+        await signUpVerifiedAccount(page, { mode, degreeType, landing });
     }
     const applicationId = await new PreAppDashboardPage(page).startApplication({
         captureValidations, birth: applicant.birth, mode,

@@ -71,6 +71,7 @@ class AsuIdpPage extends BasePage {
      * @param {'in-person'|'online'|'asu-local'|'random'} [opts.mode] - When set, take the new-applicant
      *   path: landing -> learning mode -> degree type -> Continue. Otherwise click "Sign in".
      * @param {'pursue'|'individual'} [opts.degreeType]
+     * @param {string} [opts.landing] - landing link to start from instead of '/', e.g. '/?partner=SCAP'
      */
     async startFromApp(opts = {}) {
         await this.page.goto('/', { timeout: this.navigationTimeout });
@@ -79,12 +80,15 @@ class AsuIdpPage extends BasePage {
             await this.page.context().clearCookies();
             await this.page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
             // ASU Local has its own landing link (?asulocal=), which preselects it.
-            await this.page.goto(opts.mode === 'asu-local' ? '/?asulocal=' : '/', { timeout: this.navigationTimeout });
+            await this.page.goto(opts.landing || (opts.mode === 'asu-local' ? '/?asulocal=' : '/'), { timeout: this.navigationTimeout });
             // Lazy require: LandingPage -> authHelper -> AsuIdpPage would otherwise be circular.
             const LandingPage = require('./LandingPage');
             const landing = new LandingPage(this.page);
             const degreeType = opts.degreeType || 'pursue';
-            if (opts.mode === 'asu-local') await landing.verifyAsuLocalMOL();
+            // A partner landing link (e.g. /?partner=SCAP) can preselect the learning mode and degree
+            // type: then only Continue is shown and there is nothing to choose.
+            if (opts.landing && await landing.arePreselected()) { /* nothing to choose */ }
+            else if (opts.mode === 'asu-local') await landing.verifyAsuLocalMOL();
             else if (opts.mode === 'in-person') await landing.chooseInPersonMOL({ degreeType });
             else if (opts.mode === 'online') await landing.chooseOnlineMOL({ degreeType });
             else await landing.chooseRandomMOL({ degreeType });

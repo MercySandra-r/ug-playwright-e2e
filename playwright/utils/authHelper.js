@@ -60,6 +60,8 @@ async function reserveFreshEmail(gmail, inboxAddress, maxSkips = 20) {
  * @param {'in-person'|'online'|'asu-local'|'random'} [opts.mode] - Learning mode chosen on the landing
  *   page before Continue (default 'online'). The app carries it into the new application.
  * @param {'pursue'|'individual'} [opts.degreeType] - Default 'pursue'.
+ * @param {string} [opts.landing] - Landing link to start from instead of '/', e.g. '/?partner=SCAP'
+ *   (the Starbucks link, which preselects the SCAP partner benefit).
  * @returns {Promise<{ email: string, password: string }>}
  */
 async function signUpVerifiedAccount(page, opts = {}) {
@@ -80,7 +82,7 @@ async function signUpVerifiedAccount(page, opts = {}) {
     // Each attempt starts from the app again (startFromApp clears the remembered learning
     // mode), so a rejected attempt's error message can't be mistaken for the next one's.
     for (let attempt = 1, switches = 0; attempt <= maxAttempts + switches; attempt++) {
-        await idp.startFromApp({ mode, degreeType });
+        await idp.startFromApp({ mode, degreeType, landing: opts.landing });
         await idp.openSignupFromIdp();
 
         const gmail = opts.gmail && inbox === getInboxes()[0] ? opts.gmail : await gmailFor(inbox);

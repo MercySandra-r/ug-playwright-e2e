@@ -265,6 +265,45 @@ class LandingPage extends BasePage {
   }
 
   /**
+   * Open a landing link (e.g. the Starbucks link /?partner=SCAP) as a first-time visitor:
+   * nothing remembered from an earlier visit.
+   * @param {string} link - path and query, e.g. '/?partner=SCAP'
+   * @returns {Promise<void>}
+   */
+  async openLandingLink(link) {
+    await this.page.goto(link, { timeout: this.navigationTimeout });
+    await this.page.context().clearCookies();
+    await this.page.evaluate(() => { localStorage.clear(); sessionStorage.clear(); });
+    await this.page.goto(link, { timeout: this.navigationTimeout });
+  }
+
+  /**
+   * Whether the landing page arrived with its choices already made (a partner link such as
+   * /?partner=SCAP preselects "Online" and "pursue a degree"): no learning-mode cards are
+   * shown, only the answers with Edit links and Continue. Waits for the page to settle first.
+   * @returns {Promise<boolean>}
+   */
+  async arePreselected() {
+    await this.waitForPageLoad();
+    const radio = this.page.locator(this.selectors.onlineRadioButton).first();
+    const continueButton = this.page.locator(this.selectors.degreeTypeContinueBtn).first();
+    await radio.or(continueButton).first().waitFor({ state: 'visible', timeout: this.navigationTimeout }).catch(() => {});
+    return !(await radio.isVisible().catch(() => false)) && continueButton.isVisible().catch(() => false);
+  }
+
+  /**
+   * The landing page's answers as shown when they are preselected: the learning mode
+   * ("Online") and the degree answer ("Yes, I want to pursue an associate or bachelor's degree.").
+   * @returns {Promise<{ mode: string, degree: string }>}
+   */
+  async readPreselectedChoices() {
+    const text = (await this.page.locator('main').innerText()).replace(/\r/g, '');
+    const mode = (text.match(/How would you like to attend ASU\?\s*\n\s*(.+?)\s*Edit/) || [])[1] || '';
+    const degree = (text.match(/only interested in taking classes\?\s*\n\s*(.+?)\s*Edit/) || [])[1] || '';
+    return { mode: mode.trim(), degree: degree.trim() };
+  }
+
+  /**
    * ASU Local: opened through its own landing link (/?asulocal=), which preselects the mode
    * ("ASU Local" with an Edit link) and asks no degree question; Continue is next.
    * @returns {Promise<string>} the selected MOL text

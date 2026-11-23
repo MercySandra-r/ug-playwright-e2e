@@ -9,13 +9,18 @@ const AZResidencyPage = require('../pages/AZResidencyPage');
 const ReviewPage = require('../pages/ReviewPage');
 const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashboardPage');
 const { STARBUCKS } = require('../utils/partnerTestData');
+const LandingPage = require('../pages/LandingPage');
 
 /**
  * Flow F14: Starbucks partner flow (the "To cover" list of the E2E Flows workbook; the Starbucks warning
  * on My schools is case TS_12 of "Kaplan_Regression .xlsx"). Two applications on one account,
  * both submitted, as the tester described (2026-11-19):
  *
- *   First application (Starbucks)
+ *   Starbucks link      /?partner=SCAP preselects "Online" and "pursue a degree" on the landing
+ *                       page (only Continue is left) and, after sign-up, the SCAP partner benefit
+ *                       on My information (Education benefits Yes, provider Starbucks)
+ *
+ *   First application (Starbucks, started from the Starbucks link)
  *     My information   Education benefits Yes, provider Starbucks: "Have you earned a bachelor's
  *                      degree or higher?" No; "Starbucks partner"; the partner number (verified
  *                      by the app: "Partner number verified"); SCAP terms and FERPA consent
@@ -52,6 +57,8 @@ const testData = {
         birth: { month: 'June', day: '15', year: String(new Date().getFullYear() - 25) },
     },
     provider: 'Starbucks',
+    /** The Starbucks (SCAP) landing link: preselects Online, pursue a degree and the SCAP benefit. */
+    landing: '/?partner=SCAP',
     program: 'Anthropology, BA',
     location: 'ASU Online',
     highSchool: { country: 'United States', state: 'Arizona', city: 'Tempe', name: 'Tempe High School', graduationDate: `May ${new Date().getFullYear() - 7}` },
@@ -61,6 +68,15 @@ const testData = {
     feeWaiverReason: ReviewPage.FEE_WAIVER_OPTIONS[0],
 };
 const fullName = `${testData.applicant.firstName} ${testData.applicant.lastName}`;
+
+test.describe('Starbucks link (no account)', () => {
+    test('/?partner=SCAP preselects "Online" and "pursue a degree"; only Continue is left', async ({ page }) => {
+        const landing = new LandingPage(page);
+        await landing.openLandingLink(testData.landing);
+        expect(await landing.arePreselected()).toBe(true);
+        expect(await landing.readPreselectedChoices()).toEqual({ mode: 'Online', degree: "Yes, I want to pursue an associate or bachelor's degree." });
+    });
+});
 
 test.describe('Starbucks partner: a Starbucks application, then a non-Starbucks second application', () => {
     test.describe.configure({ mode: 'serial', timeout: 240000 });
@@ -88,8 +104,9 @@ test.describe('Starbucks partner: a Starbucks application, then a non-Starbucks 
         testInfo.setTimeout(600000);
         context = await browser.newContext({ baseURL: testInfo.project.use.baseURL });
         page = await context.newPage();
-        // Landing (online), sign-up and pre-app with the partner's name; My information is filled by the tests.
-        firstId = await startApplicationAt(page, 'my-information', { captureValidations: false, mode: testData.mode, applicant: testData.applicant });
+        // The Starbucks link (Online and pursue a degree preselected), sign-up and pre-app with the
+        // partner's name; My information is filled by the tests.
+        firstId = await startApplicationAt(page, 'my-information', { captureValidations: false, mode: testData.mode, landing: testData.landing, applicant: testData.applicant });
         testInfo.annotations.push({ type: 'first application', description: `${firstId} (${fullName})` });
     });
 
@@ -173,9 +190,12 @@ test.describe('Starbucks partner: a Starbucks application, then a non-Starbucks 
         done.first = true;
     }
 
-    test('My information: Starbucks partner benefit; the partner number is verified', async () => {
+    test('My information: the Starbucks link preselected the SCAP benefit; the partner number is verified', async () => {
         const { info } = pagesFor(firstId);
         await info.navigateToMyInformation();
+        // Started from /?partner=SCAP: Education benefits Yes with Starbucks, before anything is filled.
+        await expect.poll(async () => { const v = await info.readFormValues(); return { benefits: v.educationBenefits, provider: v.benefitProvider }; }, { timeout: 20000 })
+            .toEqual({ benefits: 'Yes', provider: testData.provider });
         await info.completeRequiredFields({ usCitizenship: 'Yes', countryOfBirth: 'United States',
             partnerBenefits: { hasPartnerBenefits: true, provider: testData.provider, starbucksPartnerNumber: STARBUCKS.partnerNumber } });
         expect(await info.isStarbucksPartnerVerified()).toBe(true);

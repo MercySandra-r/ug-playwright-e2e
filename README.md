@@ -8,7 +8,7 @@ Everything lives in the `playwright/` folder.
 
 ## What is covered
 
-The suite has 301 tests in 31 spec files (`playwright/tests/`), numbered in the order of the
+The suite has 302 tests in 31 spec files (`playwright/tests/`), numbered in the order of the
 application.
 
 | Spec | Area | Tests |
@@ -29,7 +29,7 @@ application.
 | TC_14–TC_24 | End-to-end flows F1–F11 (the flows of the automation flows workbook) | 70 |
 | TC_25 | End-to-end flow F12: Nursing RN/BSN with a backup program | 8 |
 | TC_26 | Flow F13, ASU Local: filtered programs, Pay later only, a second application | 5 |
-| TC_27 | Flow F14, Starbucks: a Starbucks application, then a non-Starbucks second application | 5 |
+| TC_27 | Flow F14, Starbucks: the Starbucks link `/?partner=SCAP`, a Starbucks application, then a non-Starbucks second application | 6 |
 | TC_28 | Flow F15, Need help per application type (online, in person, ASU Local, SCAP) and the error pages (500, 404) | 9 |
 | TC_29 | Flow F16, multiple applications on one account until no start date is left (degree; NDG / VUS) | 2 |
 | TC_30 | Flow F17, multiple applications: prefill (My information, Arizona residency) and profile editing | 5 |
@@ -55,7 +55,7 @@ carry the flow number after the TC number (e.g. `TC_31_F18_Kaplan_…`).
 | F11 | Visiting student, in person, U.S. citizen, future graduate; grades not needed, Arizona residency |
 | F12 | Online, Nursing RN/BSN, which asks for a backup program |
 | F13 | ASU Local (`/?asulocal=`): programs filtered to the ASU Local sites, Pay later only, then a second application |
-| F14 | Starbucks partner (SCAP, verified partner number), fee waived; a second application with a bachelor's degree loses the benefit and pays |
+| F14 | Starbucks link `/?partner=SCAP` (preselects Online, pursue a degree and the SCAP benefit), Starbucks partner (verified partner number), fee waived; a second application with a bachelor's degree loses the benefit and pays |
 | F15 | Need help per application type (online, in person, ASU Local, SCAP) and the error pages (500, 404, another applicant's application) |
 | F16 | Multiple applications on one account until no start date is left (degree; nondegree / visiting) |
 | F17 | Multiple applications: prefill (My information, Arizona residency) and profile editing by number of applications |
