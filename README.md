@@ -101,7 +101,8 @@ accounts can be created without a limit. To set it up on a new machine:
 1. Put the Google OAuth client file in `playwright/credentials/credentials.json`.
 2. In `playwright/.env`, set `GMAIL_TEST_ADDRESS=ugnaaqaautomation@gmail.com`.
 3. Run any test that signs up (for example TC_02). The first time, a Google consent screen
-   opens: sign in as the test inbox and allow read-only access. The access token is saved in
+   opens: sign in as the test inbox and allow access (read, plus send when the Slack summary
+   is set up; see [Slack run summary](#slack-run-summary)). The access token is saved in
    `playwright/credentials/gmail-token.json`.
 
 Full details: [`playwright/docs/EMAIL_VERIFICATION_SETUP.md`](playwright/docs/EMAIL_VERIFICATION_SETUP.md).
@@ -167,6 +168,28 @@ The Test Run Summary is written by `utils/reporters/testRunSummaryReporter.js` (
 `playwright.config.js`); its data is also saved as `reports/test-run-summary/run-data.json`.
 Passing `--reporter` on the command line replaces the configured reporters, so neither HTML
 report is written for that run.
+
+### Slack run summary
+
+After every run, a short summary is posted to the team's Slack channel: the result, pass rate,
+duration, browsers, site, and the failed or flaky tests with their first error line. The Test
+Run Summary page is attached. It is sent by `utils/reporters/slackReporter.js` (registered in
+`playwright.config.js`), and a Slack error never fails the run.
+
+It is sent by email, so no Slack app is needed:
+
+1. In Slack, open the channel's settings, then **Integrations → Send emails to this channel**,
+   and copy the channel's email address.
+2. In `playwright/.env`, set `SLACK_CHANNEL_EMAIL=<that address>`.
+3. The summary is emailed from the test inbox, so its Gmail token needs read **and** send
+   permission. With `SLACK_CHANNEL_EMAIL` set, the first Gmail consent asks for both. If the
+   token was created earlier with read-only access, delete
+   `playwright/credentials/gmail-token.json` and run a test that signs up (for example TC_02),
+   then sign in as the test inbox and allow both.
+
+Set `SLACK_NOTIFY=off` in `.env` to stop posting without removing the address (for example
+while debugging a single test). An incoming webhook (`SLACK_WEBHOOK_URL`) or a bot token
+(`SLACK_BOT_TOKEN` and `SLACK_CHANNEL`) can be used instead of the email address.
 
 ### Settings that change what runs
 

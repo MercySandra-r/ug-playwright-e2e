@@ -12,7 +12,8 @@ const { authenticate } = require('@google-cloud/local-auth');
  * Auth follows the same pattern as GoogleDriveUtils: a Google OAuth *desktop/web*
  * client `credentials/credentials.json`, with the authorized-user token cached in
  * `credentials/gmail-token.json`. The credentials/ folder is git-ignored.
- * The only difference is the scope: `gmail.readonly`.
+ * The only difference is the scope: `gmail.readonly`, plus `gmail.send` when the run
+ * summary is emailed to Slack (SLACK_CHANNEL_EMAIL set), so one consent covers both.
  *
  * Because the token is scope-bound, Gmail and Drive need SEPARATE token files.
  *
@@ -29,12 +30,16 @@ class GmailUtils {
      * @param {Object} [options]
      * @param {string} [options.credentialsPath] - Path to the OAuth client credentials JSON.
      * @param {string} [options.tokenPath] - Path to save/load the cached auth token.
-     * @param {string[]} [options.scopes] - OAuth2 scopes (default: gmail.readonly).
+     * @param {string[]} [options.scopes] - OAuth2 scopes (default: gmail.readonly, and gmail.send
+     *   when SLACK_CHANNEL_EMAIL is set).
      */
     constructor({
         credentialsPath = process.env.GMAIL_CREDENTIALS_PATH || 'credentials/credentials.json',
         tokenPath = process.env.GMAIL_TOKEN_PATH || 'credentials/gmail-token.json',
-        scopes = ['https://www.googleapis.com/auth/gmail.readonly'],
+        scopes = [
+            'https://www.googleapis.com/auth/gmail.readonly',
+            ...(process.env.SLACK_CHANNEL_EMAIL ? ['https://www.googleapis.com/auth/gmail.send'] : []),
+        ],
     } = {}) {
         // Relative paths are taken from the playwright/ folder, whatever the working directory.
         const projectDir = path.join(__dirname, '..', '..');
