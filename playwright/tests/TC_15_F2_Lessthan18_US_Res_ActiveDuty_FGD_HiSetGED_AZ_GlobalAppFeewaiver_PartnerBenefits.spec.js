@@ -14,9 +14,9 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
  *   ActiveDuty          U.S. service member, status Active Duty (My information)
  *   PartnerBenefits     Education benefits = Yes, provider "Amazon DSP" (My information)
  *   FGD                 future graduation date (My schools)
- *   HiSetGED            high school equivalency: "HiSet" from the school list of Ajo, Arizona
- *                       (the app shows it as "GED" once the step is saved; see the note in
- *                       the Review test)
+ *   HiSetGED            high school equivalency: "HiSet" from the school list of Ajo, Arizona;
+ *                       Review shows "HiSet" (it used to turn into "GED" once the step was
+ *                       saved; fixed in the app, tester 2026-11-20)
  *   AZ                  Arizona resident: permanent home Arizona on Arizona residency
  *   GlobalAppFeewaiver  the partner benefits waive the application fee: Review says "Your
  *                       application fee has been waived" and asks for no payment
@@ -155,17 +155,9 @@ test.describe('F2 Lessthan18 US Res ActiveDuty FGD HiSetGED AZ GlobalAppFeewaive
         expect(first).toBe(testData.program);
         expect(await reviewPage.getSectionValue('My program', 'Location')).toBe(testData.applicant.campus);
 
-        // APP BUG (seen 2026-11-12): "HiSet" is chosen and the saved row says "HiSet", but once
-        // My schools is continued the app shows it as "GED" (there and on Review). Either is
-        // accepted; "GED" is recorded as a note on the test instead of failing it.
-        const highSchool = (await reviewPage.getSectionValue('My schools', 'High school name')) || '';
-        expect(highSchool).toMatch(/^(HiSet|GED)$/);
-        if (highSchool !== testData.applicant.highSchool.name) {
-            test.info().annotations.push({
-                type: 'note',
-                description: `"${testData.applicant.highSchool.name}" was chosen on My schools, but Review shows the high school as "${highSchool}"`,
-            });
-        }
+        // "HiSet" stays "HiSet" (it used to turn into "GED" once My schools was continued;
+        // fixed in the app, tester 2026-11-20).
+        expect(await reviewPage.getSectionValue('My schools', 'High school name')).toBe(testData.applicant.highSchool.name);
         // "USA" or "United States": the country wording differs between pages (known, noted in TC_11)
         expect(await reviewPage.getSectionValue('My schools', 'Location')).toMatch(/^Ajo, Arizona, (USA|United States)$/);
         expect(await reviewPage.getSectionValue('Arizona residency', 'Begin by selecting the state you consider to be your permanent home.'))

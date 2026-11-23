@@ -262,12 +262,20 @@ class MySchoolsPage extends BasePage {
      */
     async choose(selector, value) {
         const box = typeof selector === 'string' ? this.page.locator(selector) : selector;
+        // Close a list still open from the previous dropdown (e.g. the city list right after a
+        // city is chosen): read too early, "the first option" was that list's first city
+        // ("Acton") instead of this dropdown's first entry (seen 2026-11-19, TC_09).
+        if (await this.page.locator(this.selectors.option).first().isVisible().catch(() => false)) {
+            await this.page.keyboard.press('Escape');
+            await this.page.locator(this.selectors.option).first().waitFor({ state: 'hidden', timeout: this.assertionTimeout }).catch(() => {});
+        }
         await box.scrollIntoViewIfNeeded();
         await box.click();
         await this.option().waitFor({ state: 'visible', timeout: this.assertionTimeout });
         const label = value || (await this.option().innerText()).trim();
         const search = this.page.locator(this.selectors.dropdownSearch);
         if (await search.isVisible().catch(() => false)) await search.fill(label);
+        await this.moveMouseAway(box);
         await this.option(label).click();
         return label;
     }
@@ -582,8 +590,8 @@ class MySchoolsPage extends BasePage {
      * Add high schools until `total` are saved, choosing different schools from the
      * site's list for the city and different attendance years for each. The first saved
      * school is the current one (graduation date); the rest are previous schools.
-     * A school already saved is never picked again: the page does not reject a duplicate
-     * high school on "Save school" (reported as an open issue).
+     * A school already saved is never picked again (the app no longer lists a saved high
+     * school for the next one; checked 2026-11-20).
      * @param {number} total - e.g. 10
      * @param {{ country?: string, state?: string, city?: string }} [where]
      * @returns {Promise<string[]>} names of the schools this call added

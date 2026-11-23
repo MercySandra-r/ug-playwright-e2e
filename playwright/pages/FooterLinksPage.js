@@ -103,7 +103,10 @@ class FooterLinksPage extends BasePage {
             await tab.waitForURL(link.lands, { waitUntil: 'commit', timeout: this.navigationTimeout }).catch(() => {});
             return tab.url();
         } finally {
-            await tab.close();
+            // WebKit can hang closing a tab whose external page is still loading (and then the
+            // test's teardown times out): stop the load first and don't wait on the close forever.
+            await tab.evaluate(() => window.stop()).catch(() => {});
+            await Promise.race([tab.close().catch(() => {}), new Promise((resolve) => setTimeout(resolve, 5000))]);
         }
     }
 }

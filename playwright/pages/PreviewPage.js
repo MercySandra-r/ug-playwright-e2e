@@ -53,10 +53,9 @@ class PreviewPage extends BasePage {
      * the Next steps dashboard, then "Review what you submitted". Uses this.applicationId,
      * else the "Your applications" card (via the post-submission dashboard page object).
      *
-     * APP BUG (seen 2026-11-12): loading /ug-app/<id>/preview directly, or reloading it, shows
-     * "No data has been entered" for My information's Legal sex and Primary language, though
-     * both have values (they show when the page is reached through the link). So never open
-     * the preview by URL here.
+     * Opened through the link, as an applicant does. (Loading /ug-app/<id>/preview directly or
+     * reloading it used to show "No data has been entered" for Legal sex and Primary language;
+     * fixed in the app, checked 2026-11-20.)
      * @returns {Promise<void>}
      */
     async navigateToPreviewPage() {

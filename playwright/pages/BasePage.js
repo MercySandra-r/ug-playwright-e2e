@@ -82,6 +82,38 @@ class BasePage {
   }
 
   /**
+   * Wait for the app's full-page loading spinner (#overlay) to go away. While it shows,
+   * nothing on the page can be clicked. It waits for the app's API calls; on 2026-11-20 the
+   * QA program-list call took about 34 s, longer than a click's 15 s timeout.
+   * @param {number} [timeoutMs] - default 2 minutes
+   * @returns {Promise<void>}
+   */
+  async waitForLoadingOverlay(timeoutMs = 120000) {
+    const overlay = this.page.locator('#overlay');
+    if (!(await overlay.isVisible().catch(() => false))) return;
+    const started = Date.now();
+    await overlay.waitFor({ state: 'hidden', timeout: timeoutMs });
+    const waited = Date.now() - started;
+    if (waited > 10000) this.logger.warn(`Loading spinner showed for ${Math.round(waited / 1000)} s`);
+  }
+
+  /**
+   * Rest the mouse on `anchor` (e.g. the open dropdown's own box) and wait for any hover
+   * tooltip to close. The wizard's step bar shows a tooltip (e.g. "My schools") while
+   * hovered, and it can cover a dropdown option and swallow the click on it (seen
+   * 2026-11-19, TC_09). The mouse stays on the dropdown: moving it off the page can close
+   * the open list.
+   * @param {import('@playwright/test').Locator} anchor
+   * @returns {Promise<void>}
+   */
+  async moveMouseAway(anchor) {
+    const tooltip = this.page.locator('.v-popper--theme-tooltip.v-popper__popper--shown').first();
+    if (!(await tooltip.isVisible().catch(() => false))) return;
+    await anchor.hover().catch(() => {});
+    await tooltip.waitFor({ state: 'hidden', timeout: 2000 }).catch(() => {});
+  }
+
+  /**
    * Work out the signed-in user's application ID. The application wizard lives at
    * /ug-app/<id>/<step> (old flat routes like /my-information now 404).
    * Order: this.applicationId (set by the test) -> current URL -> APPLICATION_ID env
@@ -105,6 +137,24 @@ class BasePage {
   }
 
   /**
+   * page.goto that tolerates the app re-opening the same address while it loads. WebKit
+   * reports that as "interrupted by another navigation" (seen 2026-11-23); when the page then
+   * ends on the requested path it is not an error.
+   * @param {string} url - path such as /ug-app/123/my-information
+   * @returns {Promise<void>}
+   */
+  async gotoPath(url) {
+    try {
+      await this.page.goto(url, { timeout: this.navigationTimeout });
+    } catch (e) {
+      if (!/interrupted by another navigation/.test(e instanceof Error ? e.message : String(e))) throw e;
+      await this.page.waitForLoadState('load', { timeout: this.navigationTimeout }).catch(() => {});
+      const wanted = url.split('?')[0];
+      if (!new URL(this.page.url()).pathname.startsWith(wanted)) throw e;
+    }
+  }
+
+  /**
    * Open a step of the application wizard: my-information, my-program, my-schools,
    * my-high-school-grades, arizona-residency, review, preview.
    *
@@ -116,8 +166,9 @@ class BasePage {
    */
   async gotoApplicationStep(slug) {
     const id = await this.getApplicationId();
-    await this.page.goto(`/ug-app/${id}/${slug}`, { timeout: this.navigationTimeout });
+    await this.gotoPath(`/ug-app/${id}/${slug}`);
     await this.settle();
+    await this.waitForLoadingOverlay();
     if (!this.page.url().includes(`/${slug}`)) {
       this.logger.warn(`Requested step "${slug}" but app redirected to ${this.page.url()} (earlier steps incomplete?)`);
     }

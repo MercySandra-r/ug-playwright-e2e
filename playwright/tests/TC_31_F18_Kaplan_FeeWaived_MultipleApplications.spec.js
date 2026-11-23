@@ -12,7 +12,7 @@ const ReviewPage = require('../pages/ReviewPage');
 const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashboardPage');
 
 /**
- * Kaplan partner flow (cases from "Kaplan_Regression .xlsx"; the last flow of the "To cover"
+ * Flow F18: Kaplan partner flow (cases from "Kaplan_Regression .xlsx"; the last flow of the "To cover"
  * list of the E2E Flows workbook). Verified live 2026-11-19.
  *
  *   Landing            /?org=kaplaninc: the landing page with the Kaplan logo. The account is

@@ -10,7 +10,7 @@ const ReviewPage = require('../pages/ReviewPage');
 const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashboardPage');
 
 /**
- * Multiple applications on one account, submitted one after another until the app does not
+ * Flow F16: multiple applications on one account, submitted one after another until the app does not
  * let another one through (the tester's "multiple application flow", 2026-11-19). Two tests,
  * each on its own new account:
  *

@@ -11,7 +11,7 @@ const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashbo
 const ProfilePage = require('../pages/ProfilePage');
 
 /**
- * Several applications on one account: what a later application is prefilled with, and what
+ * Flow F17: several applications on one account: what a later application is prefilled with, and what
  * the profile lets the applicant edit as the number of applications in progress changes.
  *
  *   1. First application taken to Review: one in progress, every profile field editable.

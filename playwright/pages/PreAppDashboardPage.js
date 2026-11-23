@@ -449,6 +449,8 @@ class PreAppDashboardPage extends BasePage {
             await this.page.locator(this.selectors.modalContinueButton).click();
         }
         await firstName.waitFor({ state: 'visible', timeout: this.navigationTimeout });
+        // The loading spinner covers the form until the app's data has loaded.
+        await this.waitForLoadingOverlay();
     }
 
     /**

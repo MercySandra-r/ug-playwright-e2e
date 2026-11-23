@@ -13,9 +13,9 @@ const { openPooledAccount } = require('../utils/accountPool');
  * saved schools only persist once Continue is clicked. The step ends with ten high
  * schools and ten colleges, is continued, and the last test checks all twenty were kept.
  *
- * Duplicates: every school added is a different one. The page does not stop a duplicate
- * high school on "Save school" (no error is shown; reported as an open issue), so the
- * tests also check that no saved name appears twice.
+ * Duplicates: every school added is a different one, and the tests check that no saved
+ * name appears twice. (A saved high school is no longer offered for the next one; checked
+ * 2026-11-20.)
  * "Add a high school" opens an empty form: the earlier school's choices are no longer
  * carried over into it (fixed, tester 2026-11-19). MySchoolsPage.addHighSchool checks
  * this every time it opens a new form.

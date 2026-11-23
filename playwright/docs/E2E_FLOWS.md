@@ -1,7 +1,9 @@
-# End-to-end flows (F1–F11)
+# End-to-end flows (F1–F18)
 
 Source: the "E2E Flows" and "GlobalAppFeewaiver use cases" sheets of the workbook
-**NAA App - Automation Test flows** (copied here 2026-11-12). Each flow is one applicant
+**NAA App - Automation Test flows** (copied here 2026-11-12). F1–F11 come from that workbook;
+F12–F18 were added after it (see "Further flows" below). Spec files carry the flow number after the
+TC number, e.g. `TC_14_F1_…` to `TC_31_F18_…`. Each flow is one applicant
 taken through the whole wizard. "Random" means the flow may pick any value.
 
 Terms used in the flow names:
@@ -44,15 +46,27 @@ skipped.
 | **F10** VUS_Online_PGD_NonResident | Visiting | Online | Not a citizen, not resident; DACA or UD | ASU Online | Acknowledgment check, past graduation | Skipped | Random |
 | **F11** VUS_InPerson_FGD_Resident | Visiting | In person | U.S. citizen | In-person program | Acknowledgment check, future graduation | Arizona | Random |
 
+## Further flows (F12–F18)
+
+| Flow | Spec | Applicant / account |
+|---|---|---|
+| **F12** Nursing_RNBSN_WithBackup | `TC_25` | Online, Nursing RN/BSN (it asks for a backup program) |
+| **F13** ASULocal_PayLater_SecondApplication | `TC_26` | ASU Local landing link `/?asulocal=`; programs filtered to the ASU Local sites; Pay later only; a second application |
+| **F14** Starbucks_PartnerBenefit_SecondApplication | `TC_27` | Starbucks partner (SCAP, verified partner number), fee waived; a second application with a bachelor's degree on My schools loses the benefit |
+| **F15** NeedHelp_ErrorPages | `TC_28` | Need help per application type (online, in person, ASU Local, SCAP); error pages 500 and 404 |
+| **F16** MultipleApplications_UntilNoneLeft | `TC_29` | One account, applications submitted until no start date is left (degree; nondegree / visiting) |
+| **F17** MultipleApplications_PrefillAndProfile | `TC_30` | Prefill of a later application (My information, Arizona residency) and profile editing by number of applications |
+| **F18** Kaplan_FeeWaived_MultipleApplications | `TC_31` | Kaplan landing link `/?org=kaplaninc`: account made on the landing page (email only, no OTP), Education benefits No, grades not necessary, fee waived, two applications |
+
 ## Still to cover (listed in the workbook)
 
-Nothing: Kaplan was the last one (TC_31, 2026-11-19).
+Nothing: Kaplan was the last one (F18, TC_31, 2026-11-19).
 
 Fee waivers are covered: ABOR is the waiver checkbox list on Review (F1: shown, no payment
 option, a reason needs a signature, submitted with the waiver; TC_11: the waiver choice and the
 signature are required, "None of these options apply to me" brings the payment option); global
-waivers by partner benefits (F2, CORP Amazon DSP) and by the Tempe campus (F3); SCAP (TC_27);
-ASU Local Pay later only (TC_26); online payment without a waiver list (TC_11, F4, F6).
+waivers by partner benefits (F2, CORP Amazon DSP) and by the Tempe campus (F3); SCAP (F14, TC_27);
+ASU Local Pay later only (F13, TC_26); online payment without a waiver list (TC_11, F4, F6).
 The ABOR eligibility matrix in "ABOR_Fee_Waiver_NewLogic_Test_Cases.xlsx" (who gets the list),
 the term and individual waivers and the UG database / PeopleSoft checks are not automated.
 
@@ -64,7 +78,7 @@ payment option.
 
 ## Where each flow lives
 
-| Flow | Spec | State (2026-11-12) |
+| Flow | Spec | State |
 |---|---|---|
 | F1 | `tests/TC_14_F1_…` | Rebuilt |
 | F2 | `tests/TC_15_F2_…` | Rebuilt: ASU Local, opened through the landing link `/?asulocal=`; program at ASU Local at Los Angeles |
@@ -77,11 +91,12 @@ payment option.
 | F9 | `tests/TC_22_F9_…` | Rebuilt (2026-11-19): in person, nondegree, Exchange Visitor (J-1) from Canada (No to "... currently in the United States on any kind of Student Visa?", which F-1 and J-1 must answer); no location is preselected in person (the first, Downtown Phoenix, is chosen); past graduation, no transcript acknowledgement; grades and residency "not necessary"; Review shows only Profile, My information, My program and My schools |
 | F10 | `tests/TC_23_F10_…` | Rebuilt (2026-11-19): online, visiting (Yes to "Are you visiting ASU from another college or university?"; Review: "Visiting University Student"), DACA, past graduation, no colleges, no transcript acknowledgement; grades "not necessary". The sheet says residency is skipped, but a DACA applicant with an Arizona high school is asked the Prop 308 questions (tester confirmed the app is right): Arizona, Yes, Yes |
 | F11 | `tests/TC_24_F11_…` | Rebuilt (2026-11-19): in person, visiting, U.S. citizen with an Arizona address; first in-person location; future graduation, no colleges, no transcript acknowledgement; grades "not necessary"; residency Arizona |
-| ASU Local (partner) | `tests/TC_26_ASULocal_…` | Built (2026-11-19) from "ASU Local_Automation_Testcases.xlsx": landing `/?asulocal=`; My program starts filtered to the six ASU Local sites ("Location (6)", chip "ASU Local"); program at ASU Local at Los Angeles; Review offers only "Pay later"; submitted; a second application started with ASU Local is filtered the same way. The sheet's ASU Local question on My information was removed on purpose, and the My program filter is how ASU Local is applied (tester, 2026-11-19) |
-| Starbucks (partner) | `tests/TC_27_Starbucks_…` | Built (2026-11-19) as the tester described: first application with Education benefits Starbucks (bachelor's degree No, "Starbucks partner", partner number from STARBUCKS_PARTNER_NUMBER, verified; SCAP terms "I accept"; manager disclosure Accept), My program locked to "pursue a degree" at ASU Online, submitted; second application on the same account with My information unchanged, another start term (the submitted one's term is disabled), a college with "Bachelor of Arts" showing "You cannot use the Starbucks College Achievement Plan education benefit..." then "Continue with no partner benefit"; Review: Pay now / Pay later; submitted |
-| Multiple applications | `tests/TC_29_MultipleApplications_…` | Built (2026-11-19): on one account, applications are submitted one after another (Start a new application on the main dashboard, My information prefilled and unchanged, the next open start term) until the dashboard says "Only one application can be sent for each start date. You cannot submit an application until additional start dates are announced." Two tests: pursue a degree (a different program each time) and NDG / VUS in turn. On 2026-11-19 that was two applications each (Spring 2027, Summer 2027) |
-| Prefill and profile (multiple applications) | `tests/TC_30_MultipleApplications_…` | Built (2026-11-19): a second application is prefilled on My information and Arizona residency only (My schools empty); profile: nothing editable with none in progress, everything with the only one in progress, legal name and birthday read-only with several on the account; one application in progress at a time |
-| Kaplan (partner) | `tests/TC_31_Kaplan_…` | Built (2026-11-19) from "Kaplan_Regression .xlsx": landing `/?org=kaplaninc` with the Kaplan logo; the account is created on the landing page with the email typed twice (no password, no email code); log in again on `/kaplan/login` with the email only. Education benefits always No; My high school grades always says the page is not necessary ("not a resident of the United States"); Arizona residency asked as usual; Review: fee waived, no payment option. A second application (My information prefilled, another start term) is submitted the same way; then the dashboard says why no other application can be started |
 | F12 Nursing RN/BSN with backup | `tests/TC_25_F12_…` | Built earlier (not in the workbook) |
+| F13 ASU Local (partner) | `tests/TC_26_F13_ASULocal_…` | Built (2026-11-19) from "ASU Local_Automation_Testcases.xlsx": landing `/?asulocal=`; My program starts filtered to the six ASU Local sites ("Location (6)", chip "ASU Local"); program at ASU Local at Los Angeles; Review offers only "Pay later"; submitted; a second application started with ASU Local is filtered the same way. The sheet's ASU Local question on My information was removed on purpose, and the My program filter is how ASU Local is applied (tester, 2026-11-19) |
+| F14 Starbucks (partner) | `tests/TC_27_F14_Starbucks_…` | Built (2026-11-19) as the tester described: first application with Education benefits Starbucks (bachelor's degree No, "Starbucks partner", partner number from STARBUCKS_PARTNER_NUMBER, verified; SCAP terms "I accept"; manager disclosure Accept), My program locked to "pursue a degree" at ASU Online, submitted; second application on the same account with My information unchanged, another start term (the submitted one's term is disabled), a college with "Bachelor of Arts" showing "You cannot use the Starbucks College Achievement Plan education benefit..." then "Continue with no partner benefit"; Review: Pay now / Pay later; submitted |
+| F15 Need help and error pages | `tests/TC_28_F15_NeedHelp_…` | Built (2026-11-19): Need help per application type (online, in person, ASU Local, SCAP) and the error pages (500, 404, another applicant's application signs out) |
+| F16 Multiple applications | `tests/TC_29_F16_MultipleApplications_…` | Built (2026-11-19): on one account, applications are submitted one after another (Start a new application on the main dashboard, My information prefilled and unchanged, the next open start term) until the dashboard says "Only one application can be sent for each start date. You cannot submit an application until additional start dates are announced." Two tests: pursue a degree (a different program each time) and NDG / VUS in turn. On 2026-11-19 that was two applications each (Spring 2027, Summer 2027) |
+| F17 Prefill and profile (multiple applications) | `tests/TC_30_F17_MultipleApplications_…` | Built (2026-11-19): a second application is prefilled on My information and Arizona residency only (My schools empty); profile: nothing editable with none in progress, everything with the only one in progress, legal name and birthday read-only with several on the account; one application in progress at a time |
+| F18 Kaplan (partner) | `tests/TC_31_F18_Kaplan_…` | Built (2026-11-19) from "Kaplan_Regression .xlsx": landing `/?org=kaplaninc` with the Kaplan logo; the account is created on the landing page with the email typed twice (no password, no email code); log in again on `/kaplan/login` with the email only. Education benefits always No; My high school grades always says the page is not necessary ("not a resident of the United States"); Arizona residency asked as usual; Review: fee waived, no payment option. A second application (My information prefilled, another start term) is submitted the same way; then the dashboard says why no other application can be started |
 
 Known app bugs that affect the flows are noted in each spec's header.

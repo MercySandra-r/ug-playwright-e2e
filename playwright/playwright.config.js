@@ -22,8 +22,15 @@ module.exports = defineConfig({
     timeout: 10000, // Assertion timeout: 10 seconds
   },
   // Reporter configuration
+  // Two HTML reports after every run: Playwright's default one (traces, steps, screenshots) and
+  // the Test Run Summary (utils/reporters/testRunSummaryReporter.js). Passing --reporter on the command line
+  // replaces this whole list, so neither is written then.
   reporter: [
-    ['html', { outputFolder: 'reports/html-report' }],
+    ['html', { outputFolder: 'reports/html-report', open: 'never' }],
+    ['./utils/reporters/testRunSummaryReporter.js', { outputFolder: 'reports/test-run-summary' }],
+    // Posts the run summary to Slack once SLACK_WEBHOOK_URL (or SLACK_BOT_TOKEN + SLACK_CHANNEL) is set
+    // in .env; does nothing otherwise. Must stay after the Test Run Summary, whose data it reads.
+    ['./utils/reporters/slackReporter.js'],
     ['json', { outputFile: 'reports/test-results.json' }],
     ['list']
   ],

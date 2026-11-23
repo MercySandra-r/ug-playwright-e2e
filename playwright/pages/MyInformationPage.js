@@ -310,6 +310,7 @@ class MyInformationPage extends BasePage {
         if (await search.isVisible().catch(() => false)) {
             await search.fill(optionText);
         }
+        await this.moveMouseAway(combobox);
         await this.option(optionText).click();
     }
 

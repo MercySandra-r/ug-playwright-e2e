@@ -10,7 +10,7 @@ const ReviewPage = require('../pages/ReviewPage');
 const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashboardPage');
 
 /**
- * Starbucks partner flow (the "To cover" list of the E2E Flows workbook; the Starbucks warning
+ * Flow F14: Starbucks partner flow (the "To cover" list of the E2E Flows workbook; the Starbucks warning
  * on My schools is case TS_12 of "Kaplan_Regression .xlsx"). Two applications on one account,
  * both submitted, as the tester described (2026-11-19):
  *

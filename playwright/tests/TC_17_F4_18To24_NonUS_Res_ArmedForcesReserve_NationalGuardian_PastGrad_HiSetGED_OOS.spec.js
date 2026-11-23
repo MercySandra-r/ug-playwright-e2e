@@ -245,15 +245,9 @@ test.describe('F4 18To24 NonUS Res Armed Forces Reserve National Guard PastGrad 
         expect(await reviewPage.getChosenPrograms()).toEqual({ first: testData.program, second: testData.backupProgram });
         expect(await reviewPage.getSectionValue('My program', 'Location')).toBe('ASU Online');
 
-        // APP BUG (seen 2026-11-12): "HiSet" is shown as "GED" once My schools is continued.
-        const highSchool = (await reviewPage.getSectionValue('My schools', 'High school name')) || '';
-        expect(highSchool).toMatch(/^(HiSet|GED)$/);
-        if (highSchool !== testData.highSchool.type) {
-            test.info().annotations.push({
-                type: 'note',
-                description: `"${testData.highSchool.type}" was chosen on My schools, but Review shows the high school as "${highSchool}"`,
-            });
-        }
+        // "HiSet" stays "HiSet" (it used to turn into "GED" once My schools was continued;
+        // fixed in the app, tester 2026-11-20).
+        expect(await reviewPage.getSectionValue('My schools', 'High school name')).toBe(testData.highSchool.type);
         expect(await reviewPage.getSectionValue('Arizona residency', 'Begin by selecting the state you consider to be your permanent home.'))
             .toBe(testData.residency.permanentState);
     });

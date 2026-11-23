@@ -26,17 +26,19 @@ application.
 | TC_11 | Review, including the Submit validations (certification, payment option, fee waiver choice and signature) | 17 |
 | TC_12 | Post-submission dashboard ("Next steps") | 12 |
 | TC_13 | Preview of the submitted application | 16 |
-| TC_14–TC_24 | End-to-end flows F1–F11 (every flow in the workbook) | 70 |
+| TC_14–TC_24 | End-to-end flows F1–F11 (the flows of the automation flows workbook) | 70 |
 | TC_25 | End-to-end flow F12: Nursing RN/BSN with a backup program | 8 |
-| TC_26 | ASU Local: filtered programs, Pay later only, a second application | 5 |
-| TC_27 | Starbucks: a Starbucks application, then a non-Starbucks second application | 5 |
-| TC_28 | Need help per application type (online, in person, ASU Local, SCAP) and the error pages (500, 404) | 9 |
-| TC_29 | Multiple applications on one account until no start date is left (degree; NDG / VUS) | 2 |
-| TC_30 | Multiple applications: prefill (My information, Arizona residency) and profile editing | 5 |
-| TC_31 | Kaplan: account made on the landing page (email only), fee waived, grades not necessary, two applications | 10 |
+| TC_26 | Flow F13, ASU Local: filtered programs, Pay later only, a second application | 5 |
+| TC_27 | Flow F14, Starbucks: a Starbucks application, then a non-Starbucks second application | 5 |
+| TC_28 | Flow F15, Need help per application type (online, in person, ASU Local, SCAP) and the error pages (500, 404) | 9 |
+| TC_29 | Flow F16, multiple applications on one account until no start date is left (degree; NDG / VUS) | 2 |
+| TC_30 | Flow F17, multiple applications: prefill (My information, Arizona residency) and profile editing | 5 |
+| TC_31 | Flow F18, Kaplan: account made on the landing page (email only), fee waived, grades not necessary, two applications | 10 |
 
-The end-to-end flows are defined in [`playwright/docs/E2E_FLOWS.md`](playwright/docs/E2E_FLOWS.md):
-each one is a different kind of applicant taken through the whole application and submitted.
+The end-to-end flows F1–F18 are defined in [`playwright/docs/E2E_FLOWS.md`](playwright/docs/E2E_FLOWS.md):
+each one is a different kind of applicant (or account) taken through the whole application and
+submitted. F1–F11 come from the automation flows workbook; F12–F18 were added after it. Spec files
+carry the flow number after the TC number (e.g. `TC_31_F18_Kaplan_…`).
 
 | Flow | Applicant |
 |---|---|
@@ -51,6 +53,13 @@ each one is a different kind of applicant taken through the whole application an
 | F9 | Nondegree, in person, J-1 non-resident, past graduate; grades and residency not needed |
 | F10 | Visiting student, online, DACA, past graduate; grades not needed, Prop 308 residency |
 | F11 | Visiting student, in person, U.S. citizen, future graduate; grades not needed, Arizona residency |
+| F12 | Online, Nursing RN/BSN, which asks for a backup program |
+| F13 | ASU Local (`/?asulocal=`): programs filtered to the ASU Local sites, Pay later only, then a second application |
+| F14 | Starbucks partner (SCAP, verified partner number), fee waived; a second application with a bachelor's degree loses the benefit and pays |
+| F15 | Need help per application type (online, in person, ASU Local, SCAP) and the error pages (500, 404, another applicant's application) |
+| F16 | Multiple applications on one account until no start date is left (degree; nondegree / visiting) |
+| F17 | Multiple applications: prefill (My information, Arizona residency) and profile editing by number of applications |
+| F18 | Kaplan (`/?org=kaplaninc`): account made on the landing page with the email only, Education benefits No, grades not necessary, fee waived, two applications |
 
 ## Tools
 
@@ -121,22 +130,51 @@ npx playwright test --project=chromium                                 # everyth
 npx playwright test tests/TC_03_LogInTest.spec.js --project=chromium   # one file
 npx playwright test -g "Forgot Password" --project=chromium            # tests whose title matches
 npx playwright test --project=chromium --ui                            # interactive UI mode
-npx playwright show-report reports/html-report                        # open the last report
+npx playwright show-report reports/html-report                        # open the last default report
 npx tsc --noEmit -p .                                                  # type-check (keep at 0 errors)
 ```
 
 Tests are normally run on Chromium; other browsers are configured in `playwright.config.js` but
 not used day to day.
 
-Failed tests are retried up to 3 times. Reports are written to `playwright/reports/`, and
-screenshots, traces and videos of failures to `playwright/test-results/`.
+Failed tests are retried up to 3 times. Screenshots, traces and videos of failures go to
+`playwright/test-results/`.
+
+### Reports
+
+Every run writes two HTML reports to `playwright/reports/`:
+
+| Report | Open | What it shows |
+|---|---|---|
+| Default (Playwright) | `npx playwright show-report reports/html-report` | Every test with its steps, errors, screenshots, traces and videos |
+| Test Run Summary | `reports/test-run-summary/test-run-summary.html` (open in a browser) | One page for the whole run: pass rate, failed and flaky tests first with their errors and failure screenshots, pages and end-to-end flows grouped by spec, test notes (e.g. application IDs), the slowest tests, filters and search |
+
+The Test Run Summary is written by `utils/reporters/testRunSummaryReporter.js` (registered in
+`playwright.config.js`); its data is also saved as `reports/test-run-summary/run-data.json`.
+Passing `--reporter` on the command line replaces the configured reporters, so neither HTML
+report is written for that run.
+
+### Slack
+
+After every run, `utils/reporters/slackReporter.js` can post a short summary to a Slack channel:
+the result, counts, pass rate, duration, browsers, and the failed or flaky tests with their first
+error line. It stays off until Slack is set up in `playwright/.env`:
+
+| Setting | Use |
+|---|---|
+| `SLACK_WEBHOOK_URL` | An incoming webhook (Slack app > Incoming Webhooks > Add New Webhook, pick the channel). Posts the summary. |
+| `SLACK_BOT_TOKEN` + `SLACK_CHANNEL` | Instead of a webhook: a bot token (`xoxb-…`, scopes `chat:write` and `files:write`) and the channel ID (`C0123…`), with the bot added to the channel. Also attaches the Test Run Summary page in the message's thread. |
+| `SLACK_CHANNEL_EMAIL` | Instead of an app: the channel's email address (in the channel, "Send emails to channel"). The summary is emailed from the test inbox, with the Test Run Summary page attached. The Gmail token must also allow sending (`gmail.send`). |
+| `SLACK_NOTIFY=off` | Stops posting without removing the settings. |
+
+A Slack error is logged and never fails the run.
 
 ### Settings that change what runs
 
 | Setting (`.env`) | Effect |
 |---|---|
 | `REVIEW_ALLOW_SUBMIT=1` | TC_11's last test really submits the application. Submission cannot be undone. |
-| `STARBUCKS_PARTNER_NUMBER`, `STARBUCKS_FIRST_NAME`, `STARBUCKS_LAST_NAME` | Used only by the Starbucks flow (TC_27): a partner number QA verifies and the name it belongs to. |
+| `STARBUCKS_PARTNER_NUMBER`, `STARBUCKS_FIRST_NAME`, `STARBUCKS_LAST_NAME` | Used only by the Starbucks flow (F14, TC_27): a partner number QA verifies and the name it belongs to. |
 | `TEST_SSN` | Used only by the duplicate-application flow F7 (TC_20, `npm run test:dup-identity`): it must be the SSN of the application already submitted in QA. Other U.S. citizen applicants get a made-up number from a range that is never issued. |
 | `SUBMITTED_TEST_EMAIL` / `_PASSWORD` | An account with a submitted application for TC_12 and TC_13. Without it they create and submit one. |
 | `FORGOT_PASSWORD_TEST_EMAIL` | A spare account for the password-reset test. Without it the test creates one. |
@@ -149,7 +187,7 @@ The end-to-end flows (TC_14 onwards) always submit their application, with a new
 playwright/
   tests/        specs (TC_NN_*.spec.js)
   pages/        page objects, one per page of the application
-  utils/        sign-up, account pool, application journey, Gmail inbox, logging, helpers
+  utils/        sign-up, account pool, application journey, Gmail inbox, logging, report (reporters/), helpers
   docs/         flow definitions and inbox setup
   credentials/  Google OAuth client and token (git-ignored)
   state/        address counter and account pool (git-ignored)
@@ -159,18 +197,3 @@ playwright/
 `utils/applicationJourney.js` takes a new applicant through the steps before the one a suite
 tests, with configurable answers (age, citizenship, military status, high school, study mode and
 more), so each suite starts on its own page.
-
-## Known application behaviour (QA, November 2026)
-
-- **HiSet is shown as GED** once My schools is continued.
-- **Preview loaded by URL or reloaded** shows "No data has been entered" for Legal sex and
-  Primary language; the suite opens it through the dashboard link instead.
-- **Review shows the country as "USA"** where My schools shows "United States".
-- **Re-saving a step that was already saved is ignored**, so answers for step 1 must be set on
-  its first save.
-- **A duplicate high school is not rejected** on My schools when Save school is clicked.
-- **Duplicate application**: Review shows the error and still offers the payment option (expected).
-- **The 404 page's Need help** lists the in-person contacts (Admission Services, After hours) even for an online applicant.
-- **Only one application can be in progress at a time**: the dashboard offers its Continue, not a new application.
-- **Profile editing**: nothing editable with no application in progress; legal name and birthday read-only once the account has several applications.
-- **Opening another applicant's application** (`/ug-app/<their id>/...`) signs the user out.

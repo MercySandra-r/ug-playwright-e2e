@@ -10,7 +10,7 @@ const ReviewPage = require('../pages/ReviewPage');
 const PostAppSubmissionDashboardPage = require('../pages/PostAppSubmissionDashboardPage');
 
 /**
- * ASU Local flow (from "ASU Local_Automation_Testcases.xlsx"; the "To cover" list of the E2E
+ * Flow F13: ASU Local flow (from "ASU Local_Automation_Testcases.xlsx"; the "To cover" list of the E2E
  * Flows workbook). An ASU Local applicant without partner benefits, so the fee is not waived.
  * The TC-0nn numbers below are the case IDs in that ASU Local sheet, not spec files.
  *

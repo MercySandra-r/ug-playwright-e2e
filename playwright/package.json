@@ -9,6 +9,7 @@
     "test:firefox": "playwright test --project=firefox",
     "test:safari": "playwright test --project=webkit",
     "test:edge": "playwright test --project=msedge",
+    "test:all-browsers": "playwright test --project=chromium --project=firefox --project=webkit --project=msedge",
     "test:headed": "playwright test --headed",
     "test:debug": "playwright test --debug",
     "test:ui": "playwright test --ui",
