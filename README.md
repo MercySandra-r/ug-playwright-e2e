@@ -154,21 +154,6 @@ The Test Run Summary is written by `utils/reporters/testRunSummaryReporter.js` (
 Passing `--reporter` on the command line replaces the configured reporters, so neither HTML
 report is written for that run.
 
-### Slack
-
-After every run, `utils/reporters/slackReporter.js` can post a short summary to a Slack channel:
-the result, counts, pass rate, duration, browsers, and the failed or flaky tests with their first
-error line. It stays off until Slack is set up in `playwright/.env`:
-
-| Setting | Use |
-|---|---|
-| `SLACK_WEBHOOK_URL` | An incoming webhook (Slack app > Incoming Webhooks > Add New Webhook, pick the channel). Posts the summary. |
-| `SLACK_BOT_TOKEN` + `SLACK_CHANNEL` | Instead of a webhook: a bot token (`xoxb-…`, scopes `chat:write` and `files:write`) and the channel ID (`C0123…`), with the bot added to the channel. Also attaches the Test Run Summary page in the message's thread. |
-| `SLACK_CHANNEL_EMAIL` | Instead of an app: the channel's email address (in the channel, "Send emails to channel"). The summary is emailed from the test inbox, with the Test Run Summary page attached. The Gmail token must also allow sending (`gmail.send`). |
-| `SLACK_NOTIFY=off` | Stops posting without removing the settings. |
-
-A Slack error is logged and never fails the run.
-
 ### Settings that change what runs
 
 | Setting (`.env`) | Effect |
