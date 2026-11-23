@@ -137,6 +137,20 @@ npx tsc --noEmit -p .                                                  # type-ch
 Tests are normally run on Chromium; other browsers are configured in `playwright.config.js` but
 not used day to day.
 
+### Test sets (smoke, regression, full)
+
+Tests carry Playwright tags, so a quick set can be run without the whole suite:
+
+| Set | Command | Tests | What it covers |
+|---|---|---|---|
+| Smoke | `npm run test:smoke` | 9 (`@smoke`) | Landing page, sign-up, sign-in validation, pre-application dashboard, My information, Profile, Next steps, Preview and the Kaplan landing page: the site is up and an applicant can get started. About 1 minute. |
+| Regression | `npm run test:regression` | 138 (`@regression`) | Smoke, the quick checks on every page from sign-in to Preview, and one complete flow (F1) through to submission. |
+| Full | `npm run test:full` | all 302 | Everything, including the long tests (10 schools and colleges, the residency scenarios, multiple applications, every end-to-end flow). |
+
+Smoke tests are also tagged `@regression`. Any tag can be run directly, for example
+`npx playwright test --project=chromium --grep @smoke`. To add a test to a set, give it a tag:
+`test('title', { tag: '@regression' }, async () => { ... })`.
+
 Failed tests are retried up to 3 times. Screenshots, traces and videos of failures go to
 `playwright/test-results/`.
 
