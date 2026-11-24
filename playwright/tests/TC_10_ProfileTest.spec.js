@@ -118,7 +118,7 @@ test.describe('Profile Page Tests', () => {
         expect(cleared.welcomeName).toBe(cleared.legalName);
     });
 
-    test('Birthday editor shows the current birthday; Cancel keeps it', { tag: '@regression' }, async () => {
+    test('Birthday editor shows the current birthday; Cancel keeps it', async () => {
         await freshPage();
         const { birthday } = await profilePage.readProfile();
         await profilePage.openEditor('birthday');
@@ -127,7 +127,7 @@ test.describe('Profile Page Tests', () => {
         await profilePage.cancel();
     });
 
-    test('Pronouns: options and saving a choice', { tag: '@regression' }, async () => {
+    test('Pronouns: options and saving a choice', async () => {
         await freshPage();
         await profilePage.openEditor('pronouns');
         expect(await profilePage.getRadioOptions(profilePage.selectors.pronounsGroup)).toEqual(['He/Him', 'She/Her', 'They/Them']);
@@ -136,7 +136,7 @@ test.describe('Profile Page Tests', () => {
         expect((await profilePage.readProfile()).pronouns).toBe('They/Them');
     });
 
-    test('Gender identity: options and saving a choice', { tag: '@regression' }, async () => {
+    test('Gender identity: options and saving a choice', async () => {
         await freshPage();
         await profilePage.openEditor('genderIdentity');
         expect(await profilePage.getRadioOptions(profilePage.selectors.genderGroup))
@@ -146,7 +146,7 @@ test.describe('Profile Page Tests', () => {
         expect((await profilePage.readProfile()).genderIdentity).toBe('Prefer not to disclose');
     });
 
-    test('Phone editor shows the current number and answers; Cancel keeps them', { tag: '@regression' }, async () => {
+    test('Phone editor shows the current number and answers; Cancel keeps them', async () => {
         await freshPage();
         const before = await profilePage.readProfile();
         await profilePage.openEditor('phoneNumber');
@@ -166,7 +166,7 @@ test.describe('Profile Page Tests', () => {
         await profilePage.cancel();
     });
 
-    test('Return to dashboard', { tag: '@regression' }, async () => {
+    test('Return to dashboard', async () => {
         await freshPage();
         await profilePage.returnToDashboard();
     });

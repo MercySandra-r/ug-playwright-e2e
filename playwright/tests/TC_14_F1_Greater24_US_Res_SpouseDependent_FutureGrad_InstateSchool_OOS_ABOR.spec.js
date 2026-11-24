@@ -123,7 +123,7 @@ test.describe('F1 Greater24 US Res SpouseDependent FutureGrad InstateSchool OOS 
         submitted = true;
     }
 
-    test('Arizona residency asks an over-24 spouse/dependent the right questions', { tag: '@regression' }, async () => {
+    test('Arizona residency asks an over-24 spouse/dependent the right questions', async () => {
         await residencyPage.navigateToAZResidency();
         expect(await residencyPage.isStepNotNecessary()).toBe(false);
         // Arizona high school, 24 or over: no parent questions; spouse/dependent: the service member's type.
@@ -135,7 +135,7 @@ test.describe('F1 Greater24 US Res SpouseDependent FutureGrad InstateSchool OOS 
         expect(await residencyPage.isVeteranSectionShown()).toBe(false);
     });
 
-    test('Residency "Outside the U.S. or Not Listed" (OOS): fill, save and continue to Review', { tag: '@regression' }, async () => {
+    test('Residency "Outside the U.S. or Not Listed" (OOS): fill, save and continue to Review', async () => {
         await residencyPage.navigateToAZResidency();
         await residencyPage.fillResidencyInformation(
             { isArizonaResident: false, permanentState: testData.residency.permanentState },
@@ -150,7 +150,7 @@ test.describe('F1 Greater24 US Res SpouseDependent FutureGrad InstateSchool OOS 
         residencySaved = true;
     });
 
-    test('Review shows the applicant, program and high school', { tag: '@regression' }, async () => {
+    test('Review shows the applicant, program and high school', async () => {
         await ensureResidencySaved();
         await reviewPage.navigateToReviewPage();
         expect(await reviewPage.getSectionValue('Profile', 'Legal name')).toBe(fullName);
@@ -161,7 +161,7 @@ test.describe('F1 Greater24 US Res SpouseDependent FutureGrad InstateSchool OOS 
         expect(await reviewPage.getSectionValue('My schools', 'High school name')).toBe(testData.highSchool);
     });
 
-    test('Fee waiver (ABOR): the reasons offered, and ticking one asks for a signature', { tag: '@regression' }, async () => {
+    test('Fee waiver (ABOR): the reasons offered, and ticking one asks for a signature', async () => {
         await ensureResidencySaved();
         await reviewPage.navigateToReviewPage();
         // ABOR: the waiver checkboxes are shown and no fee (payment option) is.
@@ -182,7 +182,7 @@ test.describe('F1 Greater24 US Res SpouseDependent FutureGrad InstateSchool OOS 
         await expect.poll(() => reviewPage.isFeeWaiverSignatureShown()).toBe(false);
     });
 
-    test('Submit the application with the fee waiver', { tag: '@regression' }, async () => {
+    test('Submit the application with the fee waiver', async () => {
         await ensureResidencySaved();
         await reviewPage.navigateToReviewPage();
         await reviewPage.setFeeWaivers(await reviewPage.getSelectedFeeWaivers(), false);
@@ -196,7 +196,7 @@ test.describe('F1 Greater24 US Res SpouseDependent FutureGrad InstateSchool OOS 
         submitted = true;
     });
 
-    test('Next steps dashboard shows the submitted application', { tag: '@regression' }, async () => {
+    test('Next steps dashboard shows the submitted application', async () => {
         await ensureSubmitted();
         const dashboard = new PostAppSubmissionDashboardPage(page);
         dashboard.applicationId = applicationId;

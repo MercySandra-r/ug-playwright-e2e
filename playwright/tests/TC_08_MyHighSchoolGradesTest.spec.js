@@ -62,7 +62,7 @@ test.describe('My High School Grades Page Tests', () => {
         await gradesPage.verifyTranscriptOnlyShown();
     });
 
-    test('Self-reporting shows overall academics', { tag: '@regression' }, async () => {
+    test('Self-reporting shows overall academics', async () => {
         await freshPage();
         await gradesPage.answerSelfReport(true);
         await gradesPage.verifyOverallAcademicsShown();
@@ -79,7 +79,7 @@ test.describe('My High School Grades Page Tests', () => {
         expect(await gradesPage.getAcademicDetails()).toMatchObject({ gpaScale: '4', gradingSystem: 'A-F' });
     });
 
-    test('Validate course subjects and course title options', { tag: '@regression' }, async () => {
+    test('Validate course subjects and course title options', async () => {
         await freshPage();
         await gradesPage.answerSelfReport(true);
         await gradesPage.enterAcademicDetails({ unweightedGPA: '3.50' });
@@ -91,7 +91,7 @@ test.describe('My High School Grades Page Tests', () => {
         expect(titles).toContain('English I / Freshman English');
     });
 
-    test('Validate grading system (grade fields follow course duration)', { tag: '@regression' }, async () => {
+    test('Validate grading system (grade fields follow course duration)', async () => {
         await freshPage();
         await gradesPage.answerSelfReport(true);
         await gradesPage.enterAcademicDetails({ unweightedGPA: '3.50' });

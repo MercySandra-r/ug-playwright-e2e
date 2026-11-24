@@ -68,7 +68,7 @@ test.describe('My Schools Page Tests', () => {
         await schoolsPage.validateMySchools();
     });
 
-    test('Select random high school country', { tag: '@regression' }, async () => {
+    test('Select random high school country', async () => {
         await freshPage();
         const country = await schoolsPage.selectRandomHighSchoolCountry();
         expect(country).toBeTruthy();
@@ -85,7 +85,7 @@ test.describe('My Schools Page Tests', () => {
         expect(schools).toContain('Tempe High School');
     });
 
-    test('A filled school must be saved before continuing', { tag: '@regression' }, async () => {
+    test('A filled school must be saved before continuing', async () => {
         await freshPage();
         await schoolsPage.fillHighSchool(HIGH_SCHOOL);
         await schoolsPage.markNoCollegeAttended();
@@ -117,7 +117,7 @@ test.describe('My Schools Page Tests', () => {
         expect(await schoolsPage.getSavedHighSchools()).toEqual(['Compadre High School']);
     });
 
-    test('Add and remove a college or university', { tag: '@regression' }, async () => {
+    test('Add and remove a college or university', async () => {
         const { institution } = await schoolsPage.addCollegeOrUniversity({ state: 'Arizona', city: 'Mesa' });
         expect(await schoolsPage.getSavedInstitutions()).toContain(institution);
 

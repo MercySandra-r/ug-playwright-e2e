@@ -50,12 +50,19 @@ function buildSlackMessage(model, { reportPath, traces } = {}) {
     /** @param {string} o */
     const n = (o) => tests.filter((t) => t.outcome === o).length;
     const total = tests.length; const passed = n('passed'); const failed = n('failed'); const flaky = n('flaky'); const skipped = n('skipped');
+    const notRun = n('didnotrun');
+    // Counts are of the tests meant to run: skipped ones (or a listing, where nothing runs) are
+    // left out; tests that did not run (stopped by a failure) stay in and count against the rate.
     const ran = total - skipped;
     const rate = ran ? Math.round(((passed + flaky) / ran) * 1000) / 10 : 0;
     const browsers = [...new Set(tests.map((t) => t.project || '').filter(Boolean))];
-    const headline = failed
-        ? `:x: *${failed} of ${total} tests failed*`
-        : flaky ? `:warning: *All tests passed, ${flaky} on a retry*` : total ? `:white_check_mark: *${total === 1 ? 'The test' : `All ${total} tests`} passed*` : ':grey_question: *No tests ran*';
+    const notRunPart = notRun ? `, ${notRun} did not run` : '';
+    const headline = !ran
+        ? ':grey_question: *No tests ran*'
+        : failed
+            ? `:x: *${failed} of ${ran} tests failed${notRunPart}*`
+            : notRun ? `:x: *${notRun} of ${ran} tests did not run*`
+                : flaky ? `:warning: *All ${ran} tests passed, ${flaky} on a retry*` : `:white_check_mark: *${ran === 1 ? 'The test' : `All ${ran} tests`} passed*`;
     const started = model.startedAt ? new Date(model.startedAt).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
 
     /** @type {any[]} */
@@ -66,7 +73,7 @@ function buildSlackMessage(model, { reportPath, traces } = {}) {
             { type: 'mrkdwn', text: `*Pass rate*\n${rate}%` },
             { type: 'mrkdwn', text: `*Duration*\n${fmt(model.durationMs)}` },
             { type: 'mrkdwn', text: `*Passed / Failed*\n${passed + flaky} / ${failed}` },
-            { type: 'mrkdwn', text: `*Flaky / Skipped*\n${flaky} / ${skipped}` },
+            { type: 'mrkdwn', text: `*Flaky / Did not run / Skipped*\n${flaky} / ${notRun} / ${skipped}` },
             { type: 'mrkdwn', text: `*Browsers*\n${md(browsers.join(', ') || model.browser)}` },
             { type: 'mrkdwn', text: `*Site*\n${md(model.baseURL || '-')}` },
         ] },
@@ -78,13 +85,20 @@ function buildSlackMessage(model, { reportPath, traces } = {}) {
             return `*${md(b)}* ${ok}/${rows.length}`;
         }).join('   ·   ') }] });
     }
-    const attention = tests.filter((t) => t.outcome === 'failed' || t.outcome === 'flaky');
+    // Tests that did not run are counted under the failure that stopped them; only those with no
+    // failure to point to (the run stopped) get a line of their own.
+    const attention = tests.filter((t) => t.outcome === 'failed' || t.outcome === 'flaky' || (t.outcome === 'didnotrun' && !t.blockedBy));
     if (attention.length) {
         const lines = attention.slice(0, 10).map((t) => {
             const tc = (t.file.match(/^(TC_\d+)(?:_(F\d+))?/) || []);
             const where = `${tc[1] || t.file}${tc[2] ? ` ${tc[2]}` : ''}`;
             const err = (t.errors[0] || '').split('\n').find((l) => l.trim()) || '';
-            return `${t.outcome === 'failed' ? ':x:' : ':warning:'} *${md(where)}* ${md(t.title)}${browsers.length > 1 && t.project ? ` _(${md(t.project)})_` : ''}${err ? `\n      \`${md(err.slice(0, 150))}\`` : ''}`;
+            const stopped = t.outcome === 'failed'
+                ? tests.filter((s) => s.outcome === 'didnotrun' && s.blockedBy === t.title && s.file === t.file && s.project === t.project).length : 0;
+            const mark = t.outcome === 'failed' ? ':x:' : t.outcome === 'flaky' ? ':warning:' : ':no_entry_sign:';
+            return `${mark} *${md(where)}* ${md(t.title)}${browsers.length > 1 && t.project ? ` _(${md(t.project)})_` : ''}`
+                + `${stopped ? ` _(${stopped} later test${stopped === 1 ? '' : 's'} did not run)_` : ''}${t.outcome === 'didnotrun' ? ' _(did not run: the run stopped first)_' : ''}`
+                + `${err ? `\n      \`${md(err.slice(0, 150))}\`` : ''}`;
         });
         if (attention.length > 10) lines.push(`…and ${attention.length - 10} more in the report`);
         blocks.push({ type: 'divider' }, { type: 'section', text: { type: 'mrkdwn', text: `*Needs attention*\n${lines.join('\n')}` } });
@@ -102,7 +116,9 @@ function buildSlackMessage(model, { reportPath, traces } = {}) {
         blocks.push({ type: 'section', text: { type: 'mrkdwn', text: lines.join('\n') } });
     }
     blocks.push({ type: 'context', elements: [{ type: 'mrkdwn', text: `${started ? `Started ${md(started)} · ` : ''}${reportPath ? `Report: \`${md(reportPath)}\`` : ''}` }] });
-    const text = `NAA Automation: ${failed ? `${failed} of ${total} tests failed` : `${total === 1 ? '1 test' : `all ${total} tests`} passed`} (${rate}% pass rate, ${fmt(model.durationMs)})`;
+    const text = !ran
+        ? 'NAA Automation: no tests ran'
+        : `NAA Automation: ${failed ? `${failed} of ${ran} tests failed${notRunPart}` : notRun ? `${notRun} of ${ran} tests did not run` : `${ran === 1 ? '1 test' : `all ${ran} tests`} passed`} (${rate}% pass rate, ${fmt(model.durationMs)})`;
     return { text, blocks };
 }
 
@@ -287,6 +303,11 @@ class SlackReporter {
         try {
             /** @type {RunModel} */
             const model = JSON.parse(fs.readFileSync(dataPath, 'utf8'));
+            // A listing (--list) or a run where every test was skipped has nothing to report.
+            if (!model.tests.some((t) => t.outcome !== 'skipped')) {
+                console.log('Slack: no tests ran; nothing posted');
+                return;
+            }
             const traces = pickTraces(model, path.dirname(dataPath));
             const message = buildSlackMessage(model, { reportPath: this.report,
                 traces: { attached: traces.attached.map((f) => path.basename(f)), left: traces.left } });

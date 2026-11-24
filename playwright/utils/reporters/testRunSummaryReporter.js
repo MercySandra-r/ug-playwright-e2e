@@ -21,12 +21,19 @@ const path = require('path');
  */
 
 /**
- * @typedef {'passed'|'failed'|'flaky'|'skipped'} Outcome
+ * Outcomes. 'skipped' is a test skipped on purpose (test.skip, test.fixme). 'didnotrun' is a test
+ * that should have run but didn't: in a serial spec, the tests after a failure; or the run stopped
+ * (interrupted, max failures) before reaching it. Playwright's console calls these "did not run".
+ * They count against the pass rate, since nothing confirmed them.
+ * @typedef {'passed'|'failed'|'flaky'|'skipped'|'didnotrun'} Outcome
  * @typedef {{ file: string, title: string, group: string, line: number, outcome: Outcome, project?: string,
  *             durationMs: number, retries: number, errors: string[],
  *             notes: Array<{ type: string, description: string }>,
  *             images: Array<{ name: string, src: string }>,
- *             traces?: Array<{ name: string, src: string }> }} TestRow
+ *             traces?: Array<{ name: string, src: string }>,
+ *             blockedBy?: string }} TestRow
+ *   blockedBy: for a test that did not run, the title of the failed test before it in the same
+ *   spec and browser that stopped it
  * @typedef {{ title: string, startedAt: string, durationMs: number, browser: string,
  *             workers: number|string, retries: number|string, baseURL: string,
  *             source: string, tests: TestRow[] }} RunModel
@@ -76,16 +83,23 @@ function renderReport(model) {
     const count = (o) => tests.filter((t) => t.outcome === o).length;
     const total = tests.length;
     const passed = count('passed'); const failed = count('failed'); const flaky = count('flaky'); const skipped = count('skipped');
+    const notRun = count('didnotrun');
+    // Tests that did not run stay in the total the pass rate is taken from; skipped ones don't.
     const ran = total - skipped;
     const rate = ran ? Math.round(((passed + flaky) / ran) * 1000) / 10 : 0;
-    const verdict = failed ? 'failed' : flaky ? 'flaky' : skipped && !passed ? 'skipped' : 'passed';
-    const verdictText = { passed: 'All tests passed', failed: `${failed} test${failed === 1 ? '' : 's'} failed`, flaky: 'Passed with flaky tests', skipped: 'Nothing ran' }[verdict];
+    const verdict = failed || notRun ? 'failed' : flaky ? 'flaky' : skipped && !passed ? 'skipped' : 'passed';
+    const notRunText = `${notRun} test${notRun === 1 ? '' : 's'} did not run`;
+    const verdictText = { passed: 'All tests passed',
+        failed: failed ? `${failed} test${failed === 1 ? '' : 's'} failed${notRun ? `, ${notRun} did not run` : ''}` : notRunText,
+        flaky: 'Passed with flaky tests', skipped: 'Nothing ran' }[verdict];
 
     /** @type {Map<string, TestRow[]>} */
     const bySpec = new Map();
     for (const t of tests) { if (!bySpec.has(t.file)) bySpec.set(t.file, []); /** @type {TestRow[]} */ (bySpec.get(t.file)).push(t); }
 
-    const icon = { passed: '✓', failed: '✕', flaky: '!', skipped: '–' };
+    const icon = { passed: '✓', failed: '✕', flaky: '!', skipped: '–', didnotrun: '⊘' };
+    /** Why a test did not run. @param {TestRow} t */
+    const notRunWhy = (t) => (t.blockedBy ? `Did not run: stopped by the failed test “${t.blockedBy}”` : 'Did not run: the run stopped before this test');
     /** @param {TestRow} t @param {number} slowest */
     const testRow = (t, slowest) => {
         const width = slowest ? Math.max(2, Math.round((t.durationMs / slowest) * 100)) : 0;
@@ -95,7 +109,7 @@ function renderReport(model) {
         return `<li class="test" data-outcome="${t.outcome}" data-project="${esc(t.project || '')}" data-text="${esc(`${t.file} ${t.group} ${t.title} ${t.notes.map((n) => n.description).join(' ')}`.toLowerCase())}">
 <span class="st ${t.outcome}" title="${t.outcome}">${icon[t.outcome]}</span>
 <div class="tbody"><div class="tname">${bchip(t)}${esc(t.title)}${t.retries ? ` <span class="retry">retried ${t.retries}×</span>` : ''}</div>
-${notes ? `<div class="tags">${notes}</div>` : ''}${errors}${images ? `<div class="shots">${images}</div>` : ''}</div>
+${t.outcome === 'didnotrun' ? `<div class="why">${esc(notRunWhy(t))}</div>` : ''}${notes ? `<div class="tags">${notes}</div>` : ''}${errors}${images ? `<div class="shots">${images}</div>` : ''}</div>
 <div class="tdur"><span>${fmt(t.durationMs)}</span><span class="trk"><i style="width:${width}%"></i></span></div></li>`;
     };
     /** The tests of a spec, with a heading wherever the describe block changes. @param {TestRow[]} rows */
@@ -113,12 +127,12 @@ ${notes ? `<div class="tags">${notes}</div>` : ''}${errors}${images ? `<div clas
     /** @param {[string, TestRow[]]} entry */
     const specCard = ([file, rows]) => {
         const d = describeSpec(file);
-        const c = { passed: 0, failed: 0, flaky: 0, skipped: 0 };
+        const c = { passed: 0, failed: 0, flaky: 0, skipped: 0, didnotrun: 0 };
         for (const r of rows) c[r.outcome]++;
         const dur = rows.reduce((a, r) => a + r.durationMs, 0);
-        const seg = /** @type {Outcome[]} */ (['passed', 'flaky', 'failed', 'skipped']).filter((o) => c[o]).map((o) => `<i class="${o}" style="flex:${c[o]}"></i>`).join('');
-        const state = c.failed ? 'failed' : c.flaky ? 'flaky' : c.passed ? 'passed' : 'skipped';
-        return `<details class="spec ${state}"${c.failed || c.flaky ? ' open' : ''} data-file="${esc(file.toLowerCase())}">
+        const seg = /** @type {Outcome[]} */ (['passed', 'flaky', 'failed', 'didnotrun', 'skipped']).filter((o) => c[o]).map((o) => `<i class="${o}" style="flex:${c[o]}"></i>`).join('');
+        const state = c.failed ? 'failed' : c.didnotrun ? 'didnotrun' : c.flaky ? 'flaky' : c.passed ? 'passed' : 'skipped';
+        return `<details class="spec ${state}"${c.failed || c.flaky || c.didnotrun ? ' open' : ''} data-file="${esc(file.toLowerCase())}">
 <summary><span class="badge">${esc(d.tc)}${d.flow ? `<small>${esc(d.flow)}</small>` : ''}</span>
 <span class="sname"><b>${esc(d.area)}</b><small>${esc(file)}.spec.js</small></span>
 <span class="sbar">${seg}</span>
@@ -131,11 +145,16 @@ ${notes ? `<div class="tags">${notes}</div>` : ''}${errors}${images ? `<div clas
     const section = (/** @type {string} */ title, /** @type {Array<[string, TestRow[]]>} */ list) => (list.length
         ? `<section class="group"><h2>${esc(title)} <span>${list.length} spec${list.length === 1 ? '' : 's'} · ${list.reduce((a, [, r]) => a + r.length, 0)} tests</span></h2>${list.map(specCard).join('\n')}</section>` : '');
 
-    const attention = tests.filter((t) => t.outcome === 'failed' || t.outcome === 'flaky');
+    // Tests that did not run are shown under the failure that stopped them; only those with no
+    // failure to point to (the run stopped) get a line of their own.
+    /** @param {TestRow} f */
+    const stoppedBy = (f) => tests.filter((t) => t.outcome === 'didnotrun' && t.blockedBy === f.title && t.file === f.file && t.project === f.project).length;
+    const attention = tests.filter((t) => t.outcome === 'failed' || t.outcome === 'flaky' || (t.outcome === 'didnotrun' && !t.blockedBy));
     const attentionHtml = attention.length
         ? `<section class="attention"><h2>Needs attention <span>${attention.length}</span></h2><ul class="alist">${attention.map((t) => {
             const d = describeSpec(t.file);
-            return `<li><span class="st ${t.outcome}">${icon[t.outcome]}</span><div><b>${esc(d.tc)}${d.flow ? ` ${esc(d.flow)}` : ''}</b> · ${bchip(t)}${esc(t.title)}${t.outcome === 'flaky' ? ' <span class="retry">passed on a retry</span>' : ''}${t.errors[0] ? `<pre class="err">${esc(t.errors[0].split('\n').slice(0, 6).join('\n'))}</pre>` : ''}</div></li>`;
+            const stopped = t.outcome === 'failed' ? stoppedBy(t) : 0;
+            return `<li><span class="st ${t.outcome}">${icon[t.outcome]}</span><div><b>${esc(d.tc)}${d.flow ? ` ${esc(d.flow)}` : ''}</b> · ${bchip(t)}${esc(t.title)}${t.outcome === 'flaky' ? ' <span class="retry">passed on a retry</span>' : ''}${stopped ? ` <span class="dnr">${stopped} later test${stopped === 1 ? '' : 's'} did not run</span>` : ''}${t.outcome === 'didnotrun' ? `<div class="why">${esc(notRunWhy(t))}</div>` : ''}${t.errors[0] ? `<pre class="err">${esc(t.errors[0].split('\n').slice(0, 6).join('\n'))}</pre>` : ''}</div></li>`;
         }).join('')}</ul></section>`
         : `<section class="allgood"><div class="ag-head"><span class="big">✓</span><div><b>No failures and no flaky tests</b><br><span class="muted">Every test that ran passed on its first attempt.</span></div></div>
 <ul class="areas">${[['Pages', pages], ['End-to-end flows', flows]].filter(([, l]) => l.length).map(([name, l]) => {
@@ -146,7 +165,7 @@ ${notes ? `<div class="tags">${notes}</div>` : ''}${errors}${images ? `<div clas
         }).join('')}</ul>
 <p class="muted small">Test time adds up per test; the run itself took ${esc(fmt(model.durationMs))} with ${esc(String(model.workers))} workers in parallel.</p></section>`;
 
-    const slow = tests.filter((t) => t.outcome !== 'skipped').sort((a, b) => b.durationMs - a.durationMs).slice(0, 8);
+    const slow = tests.filter((t) => t.outcome !== 'skipped' && t.outcome !== 'didnotrun').sort((a, b) => b.durationMs - a.durationMs).slice(0, 8);
     const slowMax = slow.length ? slow[0].durationMs : 1;
     const slowHtml = slow.map((t) => { const d = describeSpec(t.file); return `<li><span class="sl-name"><b>${esc(d.tc)}${d.flow ? ` ${esc(d.flow)}` : ''}</b> ${bchip(t)}${esc(t.title)}</span><span class="sl-bar"><i style="width:${Math.round((t.durationMs / slowMax) * 100)}%"></i></span><span class="sl-dur">${fmt(t.durationMs)}</span></li>`; }).join('');
 
@@ -160,9 +179,9 @@ ${notes ? `<div class="tags">${notes}</div>` : ''}${errors}${images ? `<div clas
 <title>Test Run Summary</title>
 <style>
 :root{--bg:#f4f5f8;--card:#fff;--text:#1b2130;--muted:#626c7d;--line:#e3e7ee;--soft:#f0f2f6;--brand:#8c1d40;--brand2:#ffc627;
---ok:#16803a;--okbg:#ddf4e5;--bad:#c4321f;--badbg:#fde4e0;--flk:#b26a00;--flkbg:#fdf0d6;--skp:#7d8796;--skpbg:#eceff3;--shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08)}
+--ok:#16803a;--okbg:#ddf4e5;--bad:#c4321f;--badbg:#fde4e0;--flk:#b26a00;--flkbg:#fdf0d6;--skp:#7d8796;--skpbg:#eceff3;--dnr:#6b4fbb;--dnrbg:#ece7fa;--shadow:0 1px 2px rgba(16,24,40,.06),0 1px 3px rgba(16,24,40,.08)}
 @media (prefers-color-scheme:dark){:root{--bg:#0f1217;--card:#171b22;--text:#e7eaf0;--muted:#98a2b3;--line:#262c36;--soft:#1d222b;--brand:#e07a99;--brand2:#ffc627;
---ok:#4cc37b;--okbg:#14301f;--bad:#ff7d70;--badbg:#3a1c1a;--flk:#f2b34b;--flkbg:#3a2c12;--skp:#8b95a5;--skpbg:#232933;--shadow:none}}
+--ok:#4cc37b;--okbg:#14301f;--bad:#ff7d70;--badbg:#3a1c1a;--flk:#f2b34b;--flkbg:#3a2c12;--skp:#8b95a5;--skpbg:#232933;--dnr:#b29cf5;--dnrbg:#272040;--shadow:none}}
 *{box-sizing:border-box}html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--text);font:14px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif}
 header{background:linear-gradient(120deg,#5c0f2a,#8c1d40 55%,#a3264f);color:#fff;padding:28px 16px 84px}
@@ -180,16 +199,16 @@ main{max-width:1120px;margin:-64px auto 0;padding:0 16px 56px}
 .ring{position:relative;width:150px;height:150px;margin:auto}
 .ring svg{width:150px;height:150px;transform:rotate(-90deg)}
 .ring circle{fill:none;stroke-width:13;stroke-linecap:butt}
-.ring .track{stroke:var(--soft)}.ring .passed{stroke:var(--ok)}.ring .flaky{stroke:var(--flk)}.ring .failed{stroke:var(--bad)}.ring .skipped{stroke:var(--skp)}
+.ring .track{stroke:var(--soft)}.ring .passed{stroke:var(--ok)}.ring .flaky{stroke:var(--flk)}.ring .failed{stroke:var(--bad)}.ring .didnotrun{stroke:var(--dnr)}.ring .skipped{stroke:var(--skp)}
 .ring .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
 .ring .center b{font-size:30px;font-weight:700;letter-spacing:-.02em}.ring .center span{font-size:12px;color:var(--muted)}
-.tiles{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+.tiles{display:grid;grid-template-columns:repeat(7,1fr);gap:10px}
 .tile{background:var(--soft);border-radius:10px;padding:12px 14px}
 .tile .n{font-size:24px;font-weight:700;letter-spacing:-.02em}.tile .l{font-size:11.5px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
-.tile.passed .n{color:var(--ok)}.tile.failed .n{color:var(--bad)}.tile.flaky .n{color:var(--flk)}.tile.skipped .n{color:var(--skp)}
+.tile.passed .n{color:var(--ok)}.tile.failed .n{color:var(--bad)}.tile.flaky .n{color:var(--flk)}.tile.didnotrun .n{color:var(--dnr)}.tile.skipped .n{color:var(--skp)}
 .tile.zero .n{color:var(--muted)}
 .dist{display:flex;height:8px;border-radius:99px;overflow:hidden;margin-top:14px;background:var(--soft)}
-.dist i{display:block}.dist .passed,.sbar .passed{background:var(--ok)}.dist .failed,.sbar .failed{background:var(--bad)}.dist .flaky,.sbar .flaky{background:var(--flk)}.dist .skipped,.sbar .skipped{background:var(--skp)}
+.dist i{display:block}.dist .passed,.sbar .passed{background:var(--ok)}.dist .failed,.sbar .failed{background:var(--bad)}.dist .flaky,.sbar .flaky{background:var(--flk)}.dist .didnotrun,.sbar .didnotrun{background:var(--dnr)}.dist .skipped,.sbar .skipped{background:var(--skp)}
 .row2{display:grid;grid-template-columns:1.3fr 1fr;gap:16px;margin-top:16px}
 .attention,.allgood,.slow{padding:18px 20px}
 h2{font-size:15px;margin:0 0 12px;font-weight:650}h2 span{color:var(--muted);font-weight:500;font-size:13px;margin-left:6px}
@@ -213,7 +232,7 @@ h2{font-size:15px;margin:0 0 12px;font-weight:650}h2 span{color:var(--muted);fon
 .toolbar .tbtn{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:10px;padding:8px 12px;font:inherit;font-size:13px;cursor:pointer}
 .group{margin-top:18px}.group h2{font-size:17px;margin:6px 2px 10px}
 .spec{background:var(--card);border:1px solid var(--line);border-radius:12px;margin-bottom:8px;box-shadow:var(--shadow);overflow:hidden}
-.spec.failed{border-left:4px solid var(--bad)}.spec.flaky{border-left:4px solid var(--flk)}.spec.passed{border-left:4px solid var(--ok)}.spec.skipped{border-left:4px solid var(--skp)}
+.spec.failed{border-left:4px solid var(--bad)}.spec.flaky{border-left:4px solid var(--flk)}.spec.passed{border-left:4px solid var(--ok)}.spec.didnotrun{border-left:4px solid var(--dnr)}.spec.skipped{border-left:4px solid var(--skp)}
 .spec summary{display:grid;grid-template-columns:70px minmax(0,1fr) 120px 62px 78px 14px;gap:14px;align-items:center;padding:12px 16px;cursor:pointer;list-style:none}
 .spec summary::-webkit-details-marker{display:none}
 .badge{display:flex;flex-direction:column;align-items:center;justify-content:center;background:var(--soft);border-radius:9px;padding:5px 4px;font-weight:700;font-size:12.5px;color:var(--brand);line-height:1.15}
@@ -227,7 +246,9 @@ h2{font-size:15px;margin:0 0 12px;font-weight:650}h2 span{color:var(--muted);fon
 .test{display:grid;grid-template-columns:24px minmax(0,1fr) 120px;gap:12px;align-items:start;padding:9px 0;border-bottom:1px dashed var(--line)}
 .test:last-child{border-bottom:0}
 .st{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-size:12px;font-weight:800;flex:none}
-.st.passed{background:var(--okbg);color:var(--ok)}.st.failed{background:var(--badbg);color:var(--bad)}.st.flaky{background:var(--flkbg);color:var(--flk)}.st.skipped{background:var(--skpbg);color:var(--skp)}
+.st.passed{background:var(--okbg);color:var(--ok)}.st.failed{background:var(--badbg);color:var(--bad)}.st.flaky{background:var(--flkbg);color:var(--flk)}.st.skipped{background:var(--skpbg);color:var(--skp)}.st.didnotrun{background:var(--dnrbg);color:var(--dnr)}
+.why{margin-top:4px;font-size:12.5px;color:var(--dnr)}
+.dnr{font-size:11px;font-weight:700;color:var(--dnr);background:var(--dnrbg);border-radius:6px;padding:1px 6px;margin-left:4px}
 .tname{overflow-wrap:anywhere}.grp{display:block;color:var(--muted);font-size:12px}
 .bchip{display:inline-block;font-size:11px;font-weight:700;color:var(--brand);background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:0 6px;margin-right:6px;vertical-align:1px}
 .bybrowser{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px}.bb{font-size:12.5px;background:var(--okbg);color:var(--ok);border-radius:999px;padding:3px 11px}.bb b{font-weight:700}.bb.bad{background:var(--badbg);color:var(--bad)}
@@ -256,22 +277,23 @@ footer{color:var(--muted);font-size:12px;margin-top:26px;text-align:center}
 </div></header>
 <main>
 <div class="card hero">
-<div class="ring"><svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="${R}"/>${ring(passed, 'passed', 0)}${ring(flaky, 'flaky', passed)}${ring(failed, 'failed', passed + flaky)}${ring(skipped, 'skipped', passed + flaky + failed)}</svg>
+<div class="ring"><svg viewBox="0 0 120 120"><circle class="track" cx="60" cy="60" r="${R}"/>${ring(passed, 'passed', 0)}${ring(flaky, 'flaky', passed)}${ring(failed, 'failed', passed + flaky)}${ring(notRun, 'didnotrun', passed + flaky + failed)}${ring(skipped, 'skipped', passed + flaky + failed + notRun)}</svg>
 <div class="center"><b>${rate}%</b><span>pass rate</span></div></div>
 <div><div class="tiles">
 <div class="tile"><div class="n">${total}</div><div class="l">Tests</div></div>
 <div class="tile passed${passed ? '' : ' zero'}"><div class="n">${passed}</div><div class="l">Passed</div></div>
 <div class="tile failed${failed ? '' : ' zero'}"><div class="n">${failed}</div><div class="l">Failed</div></div>
 <div class="tile flaky${flaky ? '' : ' zero'}"><div class="n">${flaky}</div><div class="l">Flaky</div></div>
+<div class="tile didnotrun${notRun ? '' : ' zero'}"><div class="n">${notRun}</div><div class="l">Did not run</div></div>
 <div class="tile skipped${skipped ? '' : ' zero'}"><div class="n">${skipped}</div><div class="l">Skipped</div></div>
 <div class="tile"><div class="n">${bySpec.size}</div><div class="l">Spec files</div></div>
 </div>
-<div class="dist">${(/** @type {Outcome[]} */ (['passed', 'flaky', 'failed', 'skipped'])).filter((o) => count(o)).map((o) => `<i class="${o}" style="flex:${count(o)}" title="${o}: ${count(o)}"></i>`).join('')}</div>
+<div class="dist">${(/** @type {Outcome[]} */ (['passed', 'flaky', 'failed', 'didnotrun', 'skipped'])).filter((o) => count(o)).map((o) => `<i class="${o}" style="flex:${count(o)}" title="${o}: ${count(o)}"></i>`).join('')}</div>
 ${multi ? `<div class="bybrowser">${projects.map((p) => { const rows = tests.filter((t) => t.project === p); const ok = rows.filter((t) => t.outcome === 'passed' || t.outcome === 'flaky').length; const bad = rows.filter((t) => t.outcome === 'failed').length; return `<span class="bb${bad ? ' bad' : ''}"><b>${esc(p)}</b> ${ok}/${rows.length}${bad ? ` · ${bad} failed` : ''}</span>`; }).join('')}</div>` : ''}
 </div></div>
 <div class="row2"><div class="card">${attentionHtml}</div><div class="card slow"><h2>Slowest tests</h2><ul>${slowHtml}</ul></div></div>
 <div class="toolbar" role="toolbar">
-<div class="filters">${[['all', 'All', total], ['passed', 'Passed', passed], ['failed', 'Failed', failed], ['flaky', 'Flaky', flaky], ['skipped', 'Skipped', skipped]].map(([k, l, n]) => `<button type="button" data-f="${k}" aria-pressed="${k === 'all'}">${l}<span>${n}</span></button>`).join('')}</div>
+<div class="filters">${[['all', 'All', total], ['passed', 'Passed', passed], ['failed', 'Failed', failed], ['flaky', 'Flaky', flaky], ['didnotrun', 'Did not run', notRun], ['skipped', 'Skipped', skipped]].map(([k, l, n]) => `<button type="button" data-f="${k}" aria-pressed="${k === 'all'}">${l}<span>${n}</span></button>`).join('')}</div>
 ${multi ? `<select id="pb" aria-label="Browser"><option value="">All browsers</option>${projects.map((p) => `<option value="${esc(p)}">${esc(p)}</option>`).join('')}</select>` : ''}
 <input id="q" type="search" placeholder="Search tests, specs or notes (e.g. Kaplan, F7, Review)" aria-label="Search tests">
 <button class="tbtn" type="button" id="ex">Expand all</button><button class="tbtn" type="button" id="co">Collapse all</button>
@@ -343,13 +365,19 @@ class TestRunSummaryReporter {
         fs.rmSync(outDir, { recursive: true, force: true });
         fs.mkdirSync(outDir, { recursive: true });
         let shot = 0;
+        // Nothing ran at all (a listing with --list, or global setup failed): every test is
+        // 'skipped', so the run reads as "Nothing ran" rather than as tests that did not run.
+        const anyRan = this.results.size > 0;
         /** @type {TestRow[]} */
         const rows = [];
         for (const test of this.suite.allTests()) {
             const entry = this.results.get(test.id);
             const outcome = test.outcome();
+            // Playwright's own rule (its "did not run" count): skipped without being marked as
+            // skipped (expectedStatus) means it was meant to run.
+            const notRun = outcome === 'skipped' && anyRan && (!test.results.length || test.expectedStatus !== 'skipped');
             /** @type {Outcome} */
-            const o = !entry || outcome === 'skipped' ? 'skipped' : outcome === 'flaky' ? 'flaky' : outcome === 'unexpected' ? 'failed' : 'passed';
+            const o = notRun ? 'didnotrun' : !entry || outcome === 'skipped' ? 'skipped' : outcome === 'flaky' ? 'flaky' : outcome === 'unexpected' ? 'failed' : 'passed';
             const last = entry && entry.last;
             const titles = test.titlePath().filter(Boolean);
             // titlePath: [project, file, ...describes, title]
@@ -394,12 +422,21 @@ class TestRunSummaryReporter {
                 line: test.location.line,
                 outcome: o,
                 durationMs: last ? last.duration : 0,
-                retries: entry ? entry.retries : 0,
+                // A test that did not run is reported again on each retry of its serial group, but never ran.
+                retries: entry && o !== 'didnotrun' ? entry.retries : 0,
                 errors: last ? last.errors.map((e) => stripAnsi(e.message || e.value || '').trim()).filter(Boolean).map((m) => (m.length > 2000 ? `${m.slice(0, 2000)}…` : m)) : [],
                 notes,
                 images,
                 traces,
             });
+        }
+        // A test that did not run is put down to the nearest failed test before it in the same
+        // spec and browser (a serial spec stops at its first failure).
+        for (const r of rows) {
+            if (r.outcome !== 'didnotrun') continue;
+            const blocker = rows.filter((f) => f.outcome === 'failed' && f.project === r.project && f.file === r.file && f.line < r.line)
+                .sort((a, b) => b.line - a.line)[0];
+            if (blocker) r.blockedBy = blocker.title;
         }
         const project = this.config.projects[0];
         const use = /** @type {{ baseURL?: string, browserName?: string, headless?: boolean }} */ ((project && project.use) || {});

@@ -19,7 +19,7 @@ test.describe('Landing Page Tests', () => {
     await landingPage.navigateToLandingPage();
   });
 
-  test('Verify footer links', { tag: '@regression' }, async () => {
+  test('Verify footer links', async () => {
     // This test corresponds to verifyFooter() in the original test
     const { FOOTER_LINKS } = FooterLinksPage;
     await footerLinksPage.scrollToFooter();

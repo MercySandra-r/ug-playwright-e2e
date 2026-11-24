@@ -162,7 +162,7 @@ Every run writes two HTML reports to `playwright/reports/`:
 | Report | Open | What it shows |
 |---|---|---|
 | Default (Playwright) | `npx playwright show-report reports/html-report` | Every test with its steps, errors, screenshots, traces and videos |
-| Test Run Summary | `reports/test-run-summary/test-run-summary.html` (open in a browser) | One page for the whole run: pass rate, failed and flaky tests first with their errors and failure screenshots, pages and end-to-end flows grouped by spec, test notes (e.g. application IDs), the slowest tests, filters and search |
+| Test Run Summary | `reports/test-run-summary/test-run-summary.html` (open in a browser) | One page for the whole run: pass rate, failed and flaky tests first with their errors and failure screenshots, tests that did not run because an earlier test in their spec failed (counted against the pass rate; tests skipped on purpose are not), pages and end-to-end flows grouped by spec, test notes (e.g. application IDs), the slowest tests, filters and search |
 
 The Test Run Summary is written by `utils/reporters/testRunSummaryReporter.js` (registered in
 `playwright.config.js`); its data is also saved as `reports/test-run-summary/run-data.json`.
@@ -172,8 +172,8 @@ report is written for that run.
 ### Slack run summary
 
 After every run, a short summary is posted to the team's Slack channel: the result, pass rate,
-duration, browsers, site, and the failed or flaky tests with their first error line. The Test
-Run Summary page is attached. It is sent by `utils/reporters/slackReporter.js` (registered in
+duration, browsers, site, and the failed or flaky tests with their first error line and how
+many later tests each failure stopped from running. The Test Run Summary page is attached. It is sent by `utils/reporters/slackReporter.js` (registered in
 `playwright.config.js`), and a Slack error never fails the run.
 
 When tests fail, each failed test's trace is attached as well (for example

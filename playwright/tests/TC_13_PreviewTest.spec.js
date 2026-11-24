@@ -87,30 +87,30 @@ test.describe('Preview Page Tests', () => {
         expect(await previewPage.getSectionValue('My information', 'U.S. citizenship')).toBe('I am not a U.S. citizen');
     });
 
-    test('Verify My Program section details', { tag: '@regression' }, async () => {
+    test('Verify My Program section details', async () => {
         await freshPage();
         expect(await previewPage.getProgram()).toMatch(/, [A-Z]{2,4}$/);
         expect(await previewPage.getSectionValue('My program', 'Location')).toBe('ASU Online');
         expect(await previewPage.getSectionValue('My program', 'Starting term')).toMatch(/^(Spring|Summer|Fall) \d{4}/);
     });
 
-    test('Verify My Schools section details', { tag: '@regression' }, async () => {
+    test('Verify My Schools section details', async () => {
         await freshPage();
         expect(await previewPage.getSectionValue('My schools', 'High school name')).toBe('Tempe High School');
     });
 
-    test('Verify High School Grades section details', { tag: '@regression' }, async () => {
+    test('Verify High School Grades section details', async () => {
         await freshPage();
         expect(await previewPage.getSectionValue('My high school grades', 'Self-reported')).toMatch(/^(Yes|No)$/);
     });
 
-    test('Verify Arizona Residency section details', { tag: '@regression' }, async () => {
+    test('Verify Arizona Residency section details', async () => {
         await freshPage();
         const state = await previewPage.getSectionValue('Arizona residency', 'Begin by selecting the state you consider to be your permanent home.');
         expect(['California', 'Arizona']).toContain(state);
     });
 
-    test('Preview matches the Next steps application summary', { tag: '@regression' }, async () => {
+    test('Preview matches the Next steps application summary', async () => {
         await freshPage();
         const program = await previewPage.getProgram();
         const location = await previewPage.getSectionValue('My program', 'Location');
@@ -131,13 +131,13 @@ test.describe('Preview Page Tests', () => {
         await previewPage.clickReadAffidavitLink();
     });
 
-    test('Verify Return to Previous Page functionality', { tag: '@regression' }, async () => {
+    test('Verify Return to Previous Page functionality', async () => {
         await freshPage();
         await previewPage.clickReturnToPreviousPage();
         await new PostAppSubmissionDashboardPage(page).verifyPageLoaded();
     });
 
-    test('Verify responsive design on a phone viewport', { tag: '@regression' }, async () => {
+    test('Verify responsive design on a phone viewport', async () => {
         await page.setViewportSize({ width: 375, height: 812 });
         try {
             await freshPage();
@@ -147,7 +147,7 @@ test.describe('Preview Page Tests', () => {
         }
     });
 
-    test('Verify basic accessibility of the preview page', { tag: '@regression' }, async () => {
+    test('Verify basic accessibility of the preview page', async () => {
         await freshPage();
         expect(await previewPage.getAccessibilitySummary()).toEqual({ h1Count: 1, unnamedControls: 0 });
     });
