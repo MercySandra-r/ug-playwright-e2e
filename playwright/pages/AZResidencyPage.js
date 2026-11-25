@@ -738,15 +738,32 @@ class AZResidencyPage extends BasePage {
 
     /**
      * Set financial-support percentages (unspecified sources become 0).
+     *
+     * For about a second after Save and Continue (while a loading bar shows) the table
+     * undoes anything typed and keeps the values it was submitted with. So after typing,
+     * wait a moment and type again any value that did not stay, until all of them do.
      * @param {{ parent?: number, employment?: number, financialAid?: number, spouse?: number, other?: number }} support
      * @returns {Promise<void>}
      */
     async setFinancialSupport(support) {
-        for (const [key, selector] of Object.entries(SUPPORT)) {
-            const value = String(/** @type {Record<string, number|undefined>} */ (support)[key] ?? 0);
-            const box = this.page.locator(selector);
-            await box.fill(value);
-            await box.blur();
+        const wanted = Object.entries(SUPPORT).map(([key, selector]) => ({
+            box: this.page.locator(selector),
+            value: String(/** @type {Record<string, number|undefined>} */ (support)[key] ?? 0),
+        }));
+        const deadline = Date.now() + this.assertionTimeout;
+        for (let attempt = 0; Date.now() < deadline; attempt++) {
+            let typed = false;
+            for (const { box, value } of wanted) {
+                if (attempt > 0 && (await box.inputValue()) === value) continue;
+                await box.fill(value);
+                await box.blur();
+                typed = true;
+            }
+            if (!typed) return;
+            await this.page.waitForTimeout(300);
+        }
+        for (const { box, value } of wanted) {
+            await expect(box, 'financial support value stays as typed').toHaveValue(value, { timeout: this.assertionTimeout });
         }
     }
 

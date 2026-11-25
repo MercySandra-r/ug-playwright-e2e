@@ -136,10 +136,20 @@ test.describe('My High School Grades Page Tests', () => {
     });
 
     test('Self-report choice can be changed back to transcripts only', { tag: '@regression' }, async () => {
-        // Switching to No should hide the self-report form; switch back to keep courses.
+        // Switching to No should hide the self-report form. Switching back to Yes keeps the GPA
+        // scale, grading system and courses, but clears the unweighted GPA (expected): the
+        // applicant enters it again, so the next test can save the step.
+        const before = await gradesPage.getAcademicDetails();
+        const englishBefore = (await gradesPage.getCourses('English')).map((c) => c.name);
         await gradesPage.answerSelfReport(false);
         await gradesPage.verifyTranscriptOnlyShown();
         await gradesPage.answerSelfReport(true);
+        const after = await gradesPage.getAcademicDetails();
+        expect({ gpaScale: after.gpaScale, gradingSystem: after.gradingSystem }, 'GPA scale and grading system kept after switching back to Yes')
+            .toEqual({ gpaScale: before.gpaScale, gradingSystem: before.gradingSystem });
+        expect((await gradesPage.getCourses('English')).map((c) => c.name), 'English courses kept after switching back to Yes').toEqual(englishBefore);
+        await gradesPage.setUnweightedGpa(before.unweightedGPA);
+        await gradesPage.validateAcademicDetails({ unweightedGPA: before.unweightedGPA });
     });
 
     test('Save and continue to next section', async ({ browser }, testInfo) => {

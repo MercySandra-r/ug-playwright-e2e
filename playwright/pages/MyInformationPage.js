@@ -475,18 +475,32 @@ class MyInformationPage extends BasePage {
     /**
      * Fill the home address. Accepts both {line1, zipCode} and the flow specs'
      * {street, zip} spellings.
+     *
+     * Choosing a country loads that country's details (/codeset/country/<code>); when they
+     * arrive the app clears whatever was typed into the address fields meanwhile. So wait
+     * for that load before typing, and re-type any text field that still lost its value.
      * @param {{ country?: string, line1?: string, street?: string, line2?: string,
      *           city: string, state: string, zipCode?: string, zip?: string }} address
      * @returns {Promise<void>}
      */
     async fillAddressInformation(address) {
+        const s = this.selectors;
         const country = address.country || 'United States';
-        await this.chooseFromDropdown(this.selectors.homeCountry, country);
-        await this.page.locator(this.selectors.addressLine1).fill(address.line1 || address.street || '');
-        if (address.line2) await this.page.locator(this.selectors.addressLine2).fill(address.line2);
-        await this.page.locator(this.selectors.city).fill(address.city);
-        await this.chooseFromDropdown(this.selectors.state, address.state);
-        await this.page.locator(this.selectors.zipCode).fill(address.zipCode || address.zip || '');
+        // No request is made when the country was already chosen, so don't wait long for one.
+        const countryLoaded = this.page
+            .waitForResponse((r) => /\/codeset\/country\//.test(r.url()), { timeout: 5000 })
+            .catch(() => null);
+        await this.chooseFromDropdown(s.homeCountry, country);
+        await countryLoaded;
+        const text = [[s.addressLine1, address.line1 || address.street || ''], [s.city, address.city]];
+        if (address.line2) text.push([s.addressLine2, address.line2]);
+        for (const [selector, value] of text) await this.page.locator(selector).fill(value);
+        await this.chooseFromDropdown(s.state, address.state);
+        text.push([s.zipCode, address.zipCode || address.zip || '']);
+        for (const [selector, value] of text) await this.page.locator(selector).fill(value);
+        for (const [selector, value] of text) {
+            await expect(this.page.locator(selector), `${selector} keeps its value`).toHaveValue(value, { timeout: this.assertionTimeout });
+        }
     }
 
     /**
