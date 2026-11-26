@@ -80,9 +80,10 @@ class ProfilePage extends BasePage {
 
             // edit-name
             firstNameInput: 'role=textbox[name="First name"s]',
-            middleNameInput: 'role=textbox[name="Middle name (Optional)"]',
+            // Since 2026-11-26 these read "Middle name Optional" / "Suffix Optional" (was "(Optional)").
+            middleNameInput: 'role=textbox[name=/^Middle name\\b/]',
             lastNameInput: 'role=textbox[name="Last name"s]',
-            suffixSelect: 'role=combobox[name="Suffix (Optional)"]',
+            suffixSelect: 'role=combobox[name=/^Suffix\\b/]',
 
             // edit-preferred-first-name
             preferredFirstNameInput: 'role=textbox[name="Preferred first name (Optional)"]',
