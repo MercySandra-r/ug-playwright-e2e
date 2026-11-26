@@ -11,8 +11,10 @@ const { logger } = require('./testLogger');
  *   artifacts/accounts/accounts.xlsx   one row per account (open this)
  *   artifacts/accounts/accounts.json   the same rows; the source the sheet is rebuilt from
  *
- * Columns: email, created on (local date and time), application IDs, notes. Passwords are never
- * written. artifacts/ is git-ignored. Tab "Accounts" lists accounts on the inbox the suite
+ * Columns: email, created on (local date and time), created by (the test that made the
+ * account), application IDs, submitted? (each application, submitted or not), notes. Passwords
+ * are never written. Accounts and applications from before 2026-11-25 show "Not recorded" in
+ * the two new columns, unless the note already said. artifacts/ is git-ignored. Tab "Accounts" lists accounts on the inbox the suite
  * uses now (GMAIL_TEST_ADDRESS); tab "Retired inboxes" keeps the older ones as history.
  *
  * The JSON is updated under a lock (parallel workers), then the sheet is rebuilt from it.
@@ -30,7 +32,25 @@ const LOCK_DIR = path.join(DIR, 'accounts.lock');
  * @property {string} created - local date and time, or '' when unknown
  * @property {string[]} applicationIds
  * @property {string} notes
+ * @property {string} [createdBy] - the test that created the account
+ * @property {Record<string, string>} [submitted] - application ID -> "" (not submitted) or when it was submitted
  */
+
+/**
+ * The test running now, e.g. "TC_08_MyHighSchoolGradesTest › Current graduate (retry 1)";
+ * '' outside a test (diagnostic scripts).
+ * @returns {string}
+ */
+function currentTest() {
+    try {
+        const info = require('@playwright/test').test.info();
+        const file = path.basename(info.file).replace(/\.spec\.[jt]s$/, '');
+        const titles = info.titlePath.slice(1).filter(Boolean);
+        return [file, ...titles].join(' › ') + (info.retry ? ` (retry ${info.retry})` : '');
+    } catch {
+        return '';
+    }
+}
 
 /** Which account each open page is signed in to (set at sign-up and sign-in). */
 /** @type {WeakMap<import('@playwright/test').Page, string>} */
@@ -119,11 +139,15 @@ async function writeSheet(rows) {
         const sheet = workbook.addWorksheet(name);
         sheet.columns = [
             { header: 'Email', key: 'email', width: 46 },
-            { header: 'Created on', key: 'created', width: 22 },
-            { header: 'Application IDs', key: 'applicationIds', width: 22 },
+            { header: 'Created on', key: 'created', width: 20 },
+            { header: 'Created by', key: 'createdBy', width: 60 },
+            { header: 'Application IDs', key: 'applicationIds', width: 18 },
+            { header: 'Submitted?', key: 'submitted', width: 40 },
             { header: 'Notes', key: 'notes', width: 60 },
         ];
         sheet.getRow(1).font = { bold: true };
+        // Several applications show one per line in "Submitted?".
+        sheet.getColumn('submitted').alignment = { wrapText: true, vertical: 'top' };
         sheet.views = [{ state: 'frozen', ySplit: 1 }];
         return sheet;
     };
@@ -132,7 +156,12 @@ async function writeSheet(rows) {
     const current = addTab('Accounts');
     const retired = addTab('Retired inboxes');
     for (const r of rows) {
-        (isOnCurrentInbox(r.email) ? current : retired).addRow({ ...r, applicationIds: r.applicationIds.join(', ') });
+        (isOnCurrentInbox(r.email) ? current : retired).addRow({
+            ...r,
+            createdBy: r.createdBy || 'Not recorded',
+            applicationIds: r.applicationIds.join(', '),
+            submitted: submittedText(r),
+        });
     }
     try {
         await workbook.xlsx.writeFile(XLSX_FILE);
@@ -140,6 +169,27 @@ async function writeSheet(rows) {
         // Usually the file is open in Excel (locked on Windows). The JSON has the row.
         logger.warn(`accounts.xlsx not rewritten (is it open in Excel?): ${e instanceof Error ? e.message : String(e)}`);
     }
+}
+
+/**
+ * The "Submitted?" cell: one line per application, e.g. "5021652: No" or
+ * "5020484: Yes, 2026-11-14 10:22:05". "No application" when there is none.
+ * @param {AccountRow} r
+ * @returns {string}
+ */
+function submittedText(r) {
+    if (!r.applicationIds.length) return 'No application';
+    return r.applicationIds.map((id) => {
+        const when = r.submitted?.[id];
+        if (when === undefined) {
+            // Before submissions were tracked; some notes name the submitted application.
+            const named = r.notes.includes(id) || r.applicationIds.length === 1;
+            if (named && /unsubmitted|not submitted|in progress/i.test(r.notes)) return `${id}: No`;
+            if (named && /\bsubmitted\b/i.test(r.notes)) return `${id}: Yes`;
+            return `${id}: Not recorded`;
+        }
+        return when ? `${id}: Yes, ${when}` : `${id}: No`;
+    }).join('\n');
 }
 
 /**
@@ -176,6 +226,8 @@ async function recordAccount(page, email, notes = '') {
     signedIn.set(page, email);
     await upsert(email, (row) => {
         row.created = localStamp(new Date());
+        row.createdBy = currentTest();
+        row.submitted = row.submitted || {};
         if (notes) row.notes = notes;
     });
 }
@@ -210,7 +262,25 @@ async function recordApplication(page, applicationId) {
     if (!email) return;
     await upsert(email, (row, isNew) => {
         if (!row.applicationIds.includes(applicationId)) row.applicationIds.push(applicationId);
+        row.submitted = row.submitted || {};
+        if (!(applicationId in row.submitted)) row.submitted[applicationId] = '';
         if (isNew) row.notes = 'Account created before the log existed';
+    });
+}
+
+/**
+ * Record that an application on the account `page` is signed in to was submitted.
+ * Does nothing when the account isn't known (signed in some other way).
+ * @param {import('@playwright/test').Page} page
+ * @param {string} applicationId
+ * @returns {Promise<void>}
+ */
+async function recordSubmitted(page, applicationId) {
+    const email = signedIn.get(page);
+    if (!email) return;
+    await upsert(email, (row) => {
+        if (!row.applicationIds.includes(applicationId)) row.applicationIds.push(applicationId);
+        row.submitted = { ...row.submitted, [applicationId]: localStamp(new Date()) };
     });
 }
 
@@ -228,4 +298,4 @@ async function annotateAccount(email, notes, applicationIds = []) {
     });
 }
 
-module.exports = { recordAccount, noteSignedIn, signedInEmail, recordApplication, annotateAccount, rebuildSheet, XLSX_FILE, JSON_FILE };
+module.exports = { recordAccount, noteSignedIn, signedInEmail, recordApplication, recordSubmitted, annotateAccount, rebuildSheet, XLSX_FILE, JSON_FILE };

@@ -120,7 +120,9 @@ second account from a pool of parked accounts (`playwright/state/account-pool.js
 on to the next step's suite. When the pool is empty, a fresh account is created.
 
 Every account the suite creates is listed in `playwright/artifacts/accounts/accounts.xlsx`
-(email, creation time, application IDs, notes; no passwords).
+(email, creation time, the test that created it, application IDs, whether each application was
+submitted, notes; no passwords). Accounts from before 2026-11-25 show "Not recorded" for the
+test and the submission.
 
 ## Running the tests
 

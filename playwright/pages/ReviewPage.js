@@ -538,7 +538,12 @@ class ReviewPage extends BasePage {
         const retryAt = Date.now() + 20000;
         let retried = false;
         while (Date.now() < deadline) {
-            if (/\/ug-app\/\d+\/dashboard/.test(this.page.url())) return;
+            const submitted = this.page.url().match(/\/ug-app\/(\d+)\/dashboard/);
+            if (submitted) {
+                // Mark it submitted in artifacts/accounts/accounts.xlsx.
+                await require('../utils/accountLog').recordSubmitted(this.page, submitted[1]);
+                return;
+            }
             const errors = await this.getSubmitErrors();
             if (errors.length) throw new Error(`Submit application was blocked by Review: ${errors.join('; ')}`);
             if (!retried && Date.now() > retryAt) {
